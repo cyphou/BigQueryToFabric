@@ -1,4 +1,17 @@
-from bqtofabric.parity import assess_parity
+from bqtofabric.parity import assess_parity, compare_schema
+
+
+def test_compare_schema_reports_type_and_missing_column_differences() -> None:
+    source = [
+        {"name": "id", "data_type": "INT64", "nullable": False, "mode": "REQUIRED"},
+        {"name": "amount", "data_type": "NUMERIC", "nullable": True, "mode": "NULLABLE"},
+    ]
+    target = [{"name": "id", "data_type": "STRING", "nullable": False, "mode": "REQUIRED"}]
+
+    result = compare_schema(source, target)
+
+    assert result["status"] == "failed"
+    assert [item["column"] for item in result["differences"]] == ["amount", "id"]
 
 
 def test_parity_requires_runtime_evidence_for_passed_status() -> None:

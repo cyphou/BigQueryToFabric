@@ -131,7 +131,9 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 
 **Goal:** prove behavior instead of only proving structure.
 
-- Add source/target schema comparison with precision, nullability, and nested-field evidence.
+- **Implemented:** Offline source/target schema comparison covers field presence, types,
+  nullability, and modes with deterministic differences; nested-field and precision extensions
+  remain open.
 - Add row-count, aggregate, checksum, sample, and null-distribution checks.
 - Add SQL result parity for approved test queries.
 - Add partition, clustering, file-size, and performance recommendations from measured workloads.

@@ -12,6 +12,7 @@ Evaluate migration readiness from evidence produced by Extractor and Architect.
 ## Owned files
 
 - `src/bqtofabric/assessment.py`
+- `src/bqtofabric/parity.py`
 
 ## Constraints
 
