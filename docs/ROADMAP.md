@@ -147,6 +147,10 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   target provide complete matching algorithm, canonical ordering, and digest; it returns
   `failed` for any difference and `not_run` for missing evidence. Live checksum query
   execution remains open.
+- **Implemented:** Offline sample comparison requires each source and target to provide a
+  method, ordering, and rows list. It returns `passed` only when all three values match,
+  `failed` with deterministic field differences otherwise, and `not_run` when evidence is
+  missing or malformed. Live sample query execution remains open.
 - Add SQL result parity for approved test queries.
 - Add partition, clustering, file-size, and performance recommendations from measured workloads.
 - Add security matrices for IAM, policy tags, authorized views, Fabric permissions, and RLS.

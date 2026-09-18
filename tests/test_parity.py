@@ -4,6 +4,7 @@ from bqtofabric.parity import (
     compare_checksums,
     compare_null_distributions,
     compare_row_count,
+    compare_samples,
     compare_schema,
 )
 
@@ -86,6 +87,35 @@ def test_compare_null_distributions_requires_complete_consistent_evidence() -> N
         {"note": {"null_count": 20, "row_count": 100}},
         {"note": {"null_count": 20, "row_count": 100}},
     )["status"] == "passed"
+
+
+def test_compare_samples_requires_matching_selection_contract_and_rows() -> None:
+    source = {
+        "method": "deterministic_key_range",
+        "ordering": "customer_id ASC",
+        "rows": [{"customer_id": "C001", "status": "active"}],
+    }
+
+    assert compare_samples(source, source)["status"] == "passed"
+    result = compare_samples(
+        source,
+        {
+            "method": "deterministic_key_range",
+            "ordering": "customer_id DESC",
+            "rows": [{"customer_id": "C001", "status": "inactive"}],
+        },
+    )
+
+    assert result["status"] == "failed"
+    assert [difference["field"] for difference in result["differences"]] == ["ordering", "rows"]
+
+
+def test_compare_samples_requires_complete_runtime_evidence() -> None:
+    assert compare_samples(None, {"rows": []})["status"] == "not_run"
+    assert compare_samples(
+        {"method": "deterministic_key_range", "rows": []},
+        {"method": "deterministic_key_range", "ordering": "id ASC", "rows": []},
+    )["status"] == "not_run"
 
 
 def test_compare_schema_reports_type_and_missing_column_differences() -> None:

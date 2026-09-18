@@ -120,6 +120,35 @@ def _has_valid_null_distribution(distribution: Mapping[str, Mapping[str, int]]) 
     return True
 
 
+def compare_samples(
+    source: Mapping[str, Any] | None,
+    target: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Compare supplied sample rows with matching selection method and ordering."""
+    if source is None or target is None:
+        return {"status": "not_run", "source": source, "target": target}
+
+    required = ("method", "ordering", "rows")
+    if (
+        any(field not in source or field not in target for field in required)
+        or not isinstance(source["rows"], list)
+        or not isinstance(target["rows"], list)
+    ):
+        return {"status": "not_run", "source": dict(source), "target": dict(target)}
+
+    differences = [
+        {"field": field, "source": source[field], "target": target[field]}
+        for field in ("method", "ordering", "rows")
+        if source[field] != target[field]
+    ]
+    return {
+        "status": "passed" if not differences else "failed",
+        "source": dict(source),
+        "target": dict(target),
+        "differences": differences,
+    }
+
+
 def compare_schema(
     source: list[Mapping[str, Any]], target: list[Mapping[str, Any]]
 ) -> dict[str, Any]:
