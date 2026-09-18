@@ -25,7 +25,7 @@
 | 🧭 **Assessment** | 25 GCP/BigQuery source types · normalized readiness score · explainable findings |
 | 🏗️ **Fabric routing** | 15 target roles · Lakehouse/Notebook preference · workload overrides |
 | 🧪 **Quality** | 30 tests passed · 93.2% coverage · Ruff and Pyright clean |
-| 🤖 **Agent model** | 9 specialist agents · ownership and skill contracts validated |
+| 🤖 **Agent model** | 10 specialist agents · exclusive ownership and documentation handoff validated |
 | 🔒 **Safety** | Deterministic output · no credentials · no cloud mutation |
 
 > [!IMPORTANT]
@@ -196,7 +196,7 @@ python -m pytest --cov=bqtofabric --cov-report=term-missing --cov-fail-under=80
 - `93.25%` package coverage
 - `0` Ruff findings
 - `0` Pyright errors or warnings
-- `9` agents and `1` skill contract validated
+- `10` agents and `1` skill contract validated
 - Reference portfolio: `19` components, Lakehouse primary, hybrid architecture, Airflow retained
 
 ## 🗺️ Roadmap

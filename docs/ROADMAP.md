@@ -20,7 +20,7 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 | Test suite | 30 passed |
 | Coverage | 93.25% |
 | Static quality | Ruff clean · Pyright clean |
-| Agent contracts | 9 agents · 1 skill validated |
+| Agent contracts | 10 agents · exclusive ownership · documentation handoff · 1 skill validated |
 
 ### What v0.1.0 proves
 
@@ -181,6 +181,9 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - Producer/consumer contract tests between every pipeline stage.
 - Stable finding codes and remediation categories rather than message-text coupling.
 - Corpus gate over sanitized real-world inventories.
+- One owner per implementation path, validated by `scripts/validate_agents.py`.
+- Every validated implementation change is followed by a Documentation-agent update comparing
+  expected, implemented, validated, and open behavior.
 
 ### Security and governance
 

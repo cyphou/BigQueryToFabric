@@ -20,6 +20,15 @@ BQToFabric assesses and plans migrations from Google BigQuery to Microsoft Fabri
 - Keep generated output deterministic and dry-run unless an explicit deployment phase is added.
 - Add focused tests for every mapping or strategy rule.
 
+## Change ownership workflow
+
+- One owner per implementation path: do not edit another agent's owned files without an
+  Orchestrator handoff.
+- For every change, record the expected behavior first, implement it, run focused tests, then
+  hand off to the `Documentation` agent.
+- Documentation must state what is expected, implemented, validated, and still open; it must be
+  updated after each validated implementation change.
+
 ## Commands
 
 ```powershell
