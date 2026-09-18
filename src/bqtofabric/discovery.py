@@ -14,6 +14,8 @@ from .models import BigQueryInventory, BigQueryObject, Column, Dataset, ObjectKi
 REDACTED = "[redacted]"
 READONLY_SCOPE = "https://www.googleapis.com/auth/bigquery.readonly"
 _API_ROOT = "https://bigquery.googleapis.com/bigquery/v2"
+_TRANSFER_API_ROOT = "https://bigquerydatatransfer.googleapis.com/v1"
+_CONNECTION_API_ROOT = "https://bigqueryconnection.googleapis.com/v1"
 
 _SECRET_KEY_MARKERS = (
     "secret",
@@ -55,6 +57,12 @@ class DiscoveryError(RuntimeError):
 
 class BigQueryMetadataClient(Protocol):
     def list_datasets(self) -> Iterable[dict[str, Any]]: ...
+
+    def list_jobs(self) -> Iterable[dict[str, Any]]: ...
+
+    def list_transfer_configs(self) -> Iterable[dict[str, Any]]: ...
+
+    def list_connections(self) -> Iterable[dict[str, Any]]: ...
 
     def list_tables(self, dataset_id: str) -> Iterable[dict[str, Any]]: ...
 
@@ -108,9 +116,17 @@ class GoogleCloudInventoryProvider:
 
     def load(self) -> BigQueryInventory:
         datasets = [self._map_dataset(resource) for resource in self.client.list_datasets()]
+        components = [self._map_job(resource) for resource in self.client.list_jobs()]
+        components.extend(
+            self._map_transfer_config(resource) for resource in self.client.list_transfer_configs()
+        )
+        components.extend(
+            self._map_connection(resource) for resource in self.client.list_connections()
+        )
         return BigQueryInventory(
             project_id=self.project_id,
             datasets=tuple(sorted(datasets, key=lambda item: item.source_id)),
+            components=tuple(sorted(components, key=lambda item: item.source_id)),
             schema_version="1.1",
             metadata=dict(sorted(self.metadata.items())),
         )
@@ -129,6 +145,10 @@ class GoogleCloudInventoryProvider:
         )
         objects.extend(
             self._map_model(item, dataset_id) for item in self.client.list_models(dataset_id)
+        )
+        objects.extend(
+            self._map_access_policy(item, dataset_id, index)
+            for index, item in enumerate(resource.get("access", []))
         )
         return Dataset(
             source_id=f"{self.project_id}.{dataset_id}",
@@ -195,6 +215,97 @@ class GoogleCloudInventoryProvider:
             dataset=dataset_id,
             labels=redact_mapping(resource.get("labels")),
             properties=redact_mapping({"model_type": resource.get("modelType", "UNKNOWN")}),
+        )
+
+    def _map_job(self, resource: dict[str, Any]) -> BigQueryObject:
+        reference = resource.get("jobReference", {})
+        job_id = str(reference.get("jobId") or resource.get("id", ""))
+        configuration = resource.get("configuration", {})
+        query = configuration.get("query", {})
+        sql = query.get("query")
+        dependencies, unresolved = _sql_dependencies(sql, self.project_id, "")
+        properties = {
+            "job_type": next(
+                (key for key in ("query", "load", "copy", "extract") if key in configuration),
+                "unknown",
+            ),
+            "state": resource.get("status", {}).get("state", "UNKNOWN"),
+            "location": reference.get("location"),
+            "priority": query.get("priority"),
+            "write_disposition": query.get("writeDisposition"),
+            "create_disposition": query.get("createDisposition"),
+        }
+        if unresolved:
+            properties["unresolved_references"] = list(unresolved)
+        return BigQueryObject(
+            source_id=f"{self.project_id}.jobs.{job_id}",
+            name=job_id,
+            kind=ObjectKind.BIGQUERY_JOB,
+            sql=sql,
+            dependencies=dependencies,
+            properties=redact_mapping(properties),
+        )
+
+    def _map_transfer_config(self, resource: dict[str, Any]) -> BigQueryObject:
+        resource_name = str(resource.get("name", ""))
+        name = str(resource.get("displayName") or resource_name.rsplit("/", 1)[-1])
+        params = resource.get("params", {})
+        sql = params.get("query")
+        dependencies, unresolved = _sql_dependencies(sql, self.project_id, "")
+        properties = {
+            "schedule": resource.get("schedule"),
+            "state": resource.get("state", "UNKNOWN"),
+            "data_source_id": resource.get("dataSourceId"),
+            "owner_email": resource.get("ownerInfo", {}).get("email"),
+            "transfer_config_name": resource_name,
+            "params": params,
+        }
+        if unresolved:
+            properties["unresolved_references"] = list(unresolved)
+        return BigQueryObject(
+            source_id=f"{self.project_id}.scheduled_queries.{name}",
+            name=name,
+            kind=ObjectKind.SCHEDULED_QUERY,
+            sql=sql,
+            dependencies=dependencies,
+            properties=redact_mapping(properties),
+        )
+
+    def _map_connection(self, resource: dict[str, Any]) -> BigQueryObject:
+        resource_name = str(resource.get("name", ""))
+        name = resource_name.rsplit("/", 1)[-1]
+        credential = resource.get("hasCredential", {})
+        properties = {
+            "connection_type": credential.get("connectionType", "UNKNOWN"),
+            "friendly_name": resource.get("friendlyName"),
+            "description": resource.get("description"),
+            "location": resource_name.split("/locations/")[-1].split("/", 1)[0],
+            "auth_configured": bool(credential),
+        }
+        return BigQueryObject(
+            source_id=f"{self.project_id}.connections.{name}",
+            name=name,
+            kind=ObjectKind.CONNECTION,
+            properties=redact_mapping(properties),
+        )
+
+    def _map_access_policy(
+        self, resource: dict[str, Any], dataset_id: str, index: int
+    ) -> BigQueryObject:
+        policy_type = next(
+            (
+                key
+                for key in ("role", "userByEmail", "groupByEmail", "specialGroup", "domain")
+                if key in resource
+            ),
+            "unknown",
+        )
+        return BigQueryObject(
+            source_id=f"{self.project_id}.{dataset_id}.access.{index:04d}",
+            name=f"{dataset_id}-access-{index:04d}",
+            kind=ObjectKind.SECURITY_POLICY,
+            dataset=dataset_id,
+            properties=redact_mapping({"policy_type": policy_type, **resource}),
         )
 
 
@@ -274,6 +385,18 @@ class RestBigQueryClient:
             )
             for item in listed
         ]
+
+    def list_jobs(self) -> list[dict[str, Any]]:
+        base = f"{_API_ROOT}/projects/{self.project_id}/jobs"
+        return self._paged(base, "jobs")
+
+    def list_transfer_configs(self) -> list[dict[str, Any]]:
+        base = f"{_TRANSFER_API_ROOT}/projects/{self.project_id}/locations/-/transferConfigs"
+        return self._paged(base, "transferConfigs")
+
+    def list_connections(self) -> list[dict[str, Any]]:
+        base = f"{_CONNECTION_API_ROOT}/projects/{self.project_id}/locations/-/connections"
+        return self._paged(base, "connections")
 
     def list_tables(self, dataset_id: str) -> list[dict[str, Any]]:
         base = f"{_API_ROOT}/projects/{self.project_id}/datasets/{dataset_id}/tables"

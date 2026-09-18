@@ -3,7 +3,8 @@
     {
       "datasetReference": {"projectId": "demo-project", "datasetId": "analytics"},
       "location": "EU",
-      "labels": {"team": "data-platform", "api_key": "AIzaSyNOT-A-REAL-KEY"}
+      "labels": {"team": "data-platform", "api_key": "AIzaSyNOT-A-REAL-KEY"},
+      "access": [{"role": "READER", "userByEmail": "analyst@example.com"}]
     }
   ],
   "tables": {
@@ -74,5 +75,38 @@
         "modelType": "LOGISTIC_REGRESSION"
       }
     ]
-  }
+  },
+  "jobs": [
+    {
+      "jobReference": {"projectId": "demo-project", "jobId": "job-001", "location": "EU"},
+      "configuration": {
+        "query": {
+          "query": "SELECT * FROM `demo-project.analytics.events`",
+          "priority": "INTERACTIVE",
+          "writeDisposition": "WRITE_APPEND",
+          "createDisposition": "CREATE_IF_NEEDED"
+        }
+      },
+      "status": {"state": "DONE"}
+    }
+  ],
+  "transfer_configs": [
+    {
+      "name": "projects/demo-project/locations/-/transferConfigs/daily-revenue",
+      "displayName": "daily-revenue",
+      "schedule": "every 24 hours",
+      "state": "TRANSFER_STATE_ACTIVE",
+      "dataSourceId": "scheduled_query",
+      "ownerInfo": {"email": "scheduler@example.com"},
+      "params": {"query": "SELECT * FROM `demo-project.analytics.events`", "token": "top-secret"}
+    }
+  ],
+  "connections": [
+    {
+      "name": "projects/demo-project/locations/eu/connections/crm",
+      "friendlyName": "CRM",
+      "description": "CRM connection",
+      "hasCredential": {"connectionType": "CLOUD_SQL", "password": "top-secret"}
+    }
+  ]
 }

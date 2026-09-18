@@ -64,6 +64,16 @@ def map_component(
             (FabricTarget.NOTEBOOK,),
             ("Translate schedule, parameters, retries, and service identity.",),
         )
+    if item.kind is ObjectKind.BIGQUERY_JOB:
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.DATA_PIPELINE,
+            Compatibility.TRANSFORM,
+            "BigQuery jobs map to Fabric Pipeline activities using the native BigQuery connector.",
+            (FabricTarget.NOTEBOOK, FabricTarget.WAREHOUSE),
+            ("Preserve job type, SQL or transfer configuration, disposition, location, and retry evidence.",),
+        )
     if item.kind in {ObjectKind.EXTERNAL_TABLE, ObjectKind.GCS_SOURCE}:
         return MappingDecision(
             item.source_id,

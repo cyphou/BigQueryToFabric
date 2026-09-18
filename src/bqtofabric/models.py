@@ -15,6 +15,7 @@ class ObjectKind(StrEnum):
     ROUTINE = "routine"
     PROCEDURE = "procedure"
     SCHEDULED_QUERY = "scheduled_query"
+    BIGQUERY_JOB = "bigquery_job"
     STREAM = "stream"
     SQL_SCRIPT = "sql_script"
     SPARK_JOB = "spark_job"

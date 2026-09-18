@@ -1,5 +1,75 @@
 {
-  "components": [],
+  "components": [
+    {
+      "clustering_fields": [],
+      "columns": [],
+      "dataset": "",
+      "dependencies": [],
+      "kind": "connection",
+      "labels": {},
+      "name": "crm",
+      "partition_field": null,
+      "properties": {
+        "connection_type": "CLOUD_SQL",
+        "auth_configured": true,
+        "description": "CRM connection",
+        "friendly_name": "CRM",
+        "location": "eu"
+      },
+      "size_bytes": null,
+      "source_id": "demo-project.connections.crm",
+      "sql": null
+    },
+    {
+      "clustering_fields": [],
+      "columns": [],
+      "dataset": "",
+      "dependencies": [
+        "demo-project.analytics.events"
+      ],
+      "kind": "bigquery_job",
+      "labels": {},
+      "name": "job-001",
+      "partition_field": null,
+      "properties": {
+        "create_disposition": "CREATE_IF_NEEDED",
+        "job_type": "query",
+        "location": "EU",
+        "priority": "INTERACTIVE",
+        "state": "DONE",
+        "write_disposition": "WRITE_APPEND"
+      },
+      "size_bytes": null,
+      "source_id": "demo-project.jobs.job-001",
+      "sql": "SELECT * FROM `demo-project.analytics.events`"
+    },
+    {
+      "clustering_fields": [],
+      "columns": [],
+      "dataset": "",
+      "dependencies": [
+        "demo-project.analytics.events"
+      ],
+      "kind": "scheduled_query",
+      "labels": {},
+      "name": "daily-revenue",
+      "partition_field": null,
+      "properties": {
+        "data_source_id": "scheduled_query",
+        "owner_email": "scheduler@example.com",
+        "params": {
+          "query": "SELECT * FROM `demo-project.analytics.events`",
+          "token": "[redacted]"
+        },
+        "schedule": "every 24 hours",
+        "state": "TRANSFER_STATE_ACTIVE",
+        "transfer_config_name": "projects/demo-project/locations/-/transferConfigs/daily-revenue"
+      },
+      "size_bytes": null,
+      "source_id": "demo-project.scheduled_queries.daily-revenue",
+      "sql": "SELECT * FROM `demo-project.analytics.events`"
+    }
+  ],
   "datasets": [
     {
       "labels": {
@@ -9,6 +79,24 @@
       "location": "EU",
       "name": "analytics",
       "objects": [
+        {
+          "clustering_fields": [],
+          "columns": [],
+          "dataset": "analytics",
+          "dependencies": [],
+          "kind": "security_policy",
+          "labels": {},
+          "name": "analytics-access-0000",
+          "partition_field": null,
+          "properties": {
+            "policy_type": "role",
+            "role": "READER",
+            "userByEmail": "analyst@example.com"
+          },
+          "size_bytes": null,
+          "source_id": "demo-project.analytics.access.0000",
+          "sql": null
+        },
         {
           "clustering_fields": [],
           "columns": [],

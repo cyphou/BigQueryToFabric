@@ -28,6 +28,15 @@ class FakeBigQueryClient:
     def list_datasets(self):
         return self.payload["datasets"]
 
+    def list_jobs(self):
+        return self.payload["jobs"]
+
+    def list_transfer_configs(self):
+        return self.payload["transfer_configs"]
+
+    def list_connections(self):
+        return self.payload["connections"]
+
     def list_tables(self, dataset_id: str):
         return self.payload["tables"].get(dataset_id, [])
 
@@ -63,9 +72,28 @@ def test_discovery_maps_api_resources_to_canonical_objects() -> None:
     assert objects["demo-project.analytics.sp_refresh_events"].kind is ObjectKind.PROCEDURE
     assert objects["demo-project.analytics.fn_score"].kind is ObjectKind.ROUTINE
     assert objects["demo-project.analytics.churn"].kind is ObjectKind.BQML_MODEL
+    assert objects["demo-project.jobs.job-001"].kind is ObjectKind.BIGQUERY_JOB
+    assert objects["demo-project.scheduled_queries.daily-revenue"].kind is ObjectKind.SCHEDULED_QUERY
+    assert objects["demo-project.connections.crm"].kind is ObjectKind.CONNECTION
+    assert objects["demo-project.analytics.access.0000"].kind is ObjectKind.SECURITY_POLICY
     assert events.partition_field == "event_date"
     assert events.clustering_fields == ("customer_id",)
     assert events.size_bytes == 10485760
+
+
+def test_discovery_preserves_operational_migration_evidence_without_secrets() -> None:
+    objects = {item.source_id: item for item in build_provider().load().objects()}
+
+    assert objects["demo-project.jobs.job-001"].properties["job_type"] == "query"
+    assert objects["demo-project.jobs.job-001"].dependencies == (
+        "demo-project.analytics.events",
+    )
+    scheduled = objects["demo-project.scheduled_queries.daily-revenue"]
+    assert scheduled.properties["schedule"] == "every 24 hours"
+    assert scheduled.properties["owner_email"] == "scheduler@example.com"
+    assert objects["demo-project.connections.crm"].properties["auth_configured"] is True
+    assert objects["demo-project.analytics.access.0000"].properties["policy_type"] == "role"
+    assert "top-secret" not in json.dumps(objects["demo-project.connections.crm"].properties)
 
 
 def test_legacy_api_type_names_are_normalized_for_the_type_mapper() -> None:
