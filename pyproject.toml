@@ -33,6 +33,8 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --tb=short"
+# Keeps `scripts` importable whether pytest runs as a console script or via `python -m`.
+pythonpath = ["."]
 
 [tool.ruff]
 line-length = 100
