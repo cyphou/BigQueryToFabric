@@ -1,10 +1,34 @@
-from bqtofabric.parity import assess_parity, compare_row_count, compare_schema
+from bqtofabric.parity import (
+    assess_parity,
+    compare_aggregates,
+    compare_row_count,
+    compare_schema,
+)
 
 
 def test_compare_row_count_is_explicit_about_missing_runtime_evidence() -> None:
     assert compare_row_count(None, 10)["status"] == "not_run"
     assert compare_row_count(10, 10)["status"] == "passed"
     assert compare_row_count(10, 9)["status"] == "failed"
+
+
+def test_compare_aggregates_reports_missing_and_different_metrics() -> None:
+    result = compare_aggregates(
+        {"sum_amount": 100, "distinct_customer_count": 3},
+        {"sum_amount": 99, "max_amount": 50},
+    )
+
+    assert result["status"] == "failed"
+    assert result["differences"] == [
+        {"metric": "distinct_customer_count", "source": 3, "target": None},
+        {"metric": "max_amount", "source": None, "target": 50},
+        {"metric": "sum_amount", "source": 100, "target": 99},
+    ]
+
+
+def test_compare_aggregates_requires_both_evidence_sets() -> None:
+    assert compare_aggregates(None, {"sum_amount": 100})["status"] == "not_run"
+    assert compare_aggregates({"sum_amount": 100}, {"sum_amount": 100})["status"] == "passed"
 
 
 def test_compare_schema_reports_type_and_missing_column_differences() -> None:

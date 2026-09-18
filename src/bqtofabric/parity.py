@@ -19,6 +19,32 @@ def compare_row_count(source: int | None, target: int | None) -> dict[str, Any]:
     }
 
 
+def compare_aggregates(
+    source: Mapping[str, Any] | None,
+    target: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Compare supplied named aggregate values without querying either platform."""
+    if source is None or target is None:
+        return {"status": "not_run", "source": source, "target": target}
+
+    differences = []
+    for name in sorted(set(source) | set(target)):
+        source_value = source.get(name)
+        target_value = target.get(name)
+        if name not in source or name not in target or source_value != target_value:
+            differences.append({
+                "metric": name,
+                "source": source_value,
+                "target": target_value,
+            })
+    return {
+        "status": "passed" if not differences else "failed",
+        "source": dict(source),
+        "target": dict(target),
+        "differences": differences,
+    }
+
+
 def compare_schema(
     source: list[Mapping[str, Any]], target: list[Mapping[str, Any]]
 ) -> dict[str, Any]:
