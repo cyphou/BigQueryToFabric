@@ -42,6 +42,14 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     sql_conversions = json.loads((tmp_path / "fabric" / "sql-conversions.json").read_text())
     assert sql_conversions["mode"] == "dry-run"
     assert any(item["convertedSql"] for item in sql_conversions["conversions"])
+    spark_conversions = json.loads((tmp_path / "fabric" / "spark-conversions.json").read_text())
+    assert spark_conversions["mode"] == "dry-run"
+    dataform_conversions = json.loads(
+        (tmp_path / "fabric" / "dataform-conversions.json").read_text()
+    )
+    assert dataform_conversions["mode"] == "dry-run"
+    airflow = json.loads((tmp_path / "fabric" / "airflow-compatibility.json").read_text())
+    assert airflow["mode"] == "dry-run"
     manifest = json.loads((tmp_path / "fabric" / "target-manifest.json").read_text())
     assert manifest["mode"] == "dry-run"
     assert any(entry["artifactKind"] == "lakehouse_notebook" for entry in manifest["entries"])

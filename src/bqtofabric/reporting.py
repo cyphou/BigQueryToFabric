@@ -8,10 +8,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from .airflow_compatibility import assess_airflow_compatibility
 from .assessment import AssessmentReport
+from .dataform_conversion import convert_dataform_workflow
 from .mapping import FabricTarget
 from .models import BigQueryInventory
 from .planner import MigrationPlan
+from .spark_conversion import convert_spark_job
 
 
 def _write_json(path: Path, value: Any) -> None:
@@ -210,6 +213,42 @@ def _write_fabric_artifacts(
     sql_conversions_path = root / "sql-conversions.json"
     _write_json(sql_conversions_path, sql_conversions)
     written.append(sql_conversions_path)
+
+    spark_conversions = {
+        "mode": "dry-run",
+        "conversions": [
+            convert_spark_job(item)
+            for item in sorted(inventory.objects(), key=lambda value: value.source_id)
+            if item.kind.value in {"spark_job", "dataproc_job"}
+        ],
+    }
+    spark_conversions_path = root / "spark-conversions.json"
+    _write_json(spark_conversions_path, spark_conversions)
+    written.append(spark_conversions_path)
+
+    dataform_conversions = {
+        "mode": "dry-run",
+        "conversions": [
+            convert_dataform_workflow(item)
+            for item in sorted(inventory.objects(), key=lambda value: value.source_id)
+            if item.kind.value == "dataform_workflow"
+        ],
+    }
+    dataform_conversions_path = root / "dataform-conversions.json"
+    _write_json(dataform_conversions_path, dataform_conversions)
+    written.append(dataform_conversions_path)
+
+    airflow_compatibility = {
+        "mode": "dry-run",
+        "reports": [
+            assess_airflow_compatibility(item)
+            for item in sorted(inventory.objects(), key=lambda value: value.source_id)
+            if item.kind.value == "composer_dag"
+        ],
+    }
+    airflow_compatibility_path = root / "airflow-compatibility.json"
+    _write_json(airflow_compatibility_path, airflow_compatibility)
+    written.append(airflow_compatibility_path)
 
     orchestration = {
         "mode": "dry-run",
