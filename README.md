@@ -16,6 +16,7 @@
 	<img alt="Tests 30 passing" src="https://img.shields.io/badge/tests-30%20passing-1F883D?style=for-the-badge"/>
 	<img alt="Coverage 93.2 percent" src="https://img.shields.io/badge/coverage-93.2%25-12A594?style=for-the-badge"/>
 	<img alt="Dry run by default" src="https://img.shields.io/badge/cloud-dry--run%20default-F2C811?style=for-the-badge"/>
+	<a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2EA44F?style=for-the-badge"/></a>
 </p>
 
 | | Verified baseline |
@@ -224,6 +225,11 @@ Fabric artifacts, parity validation, and opt-in deployment. See the full
 - Native Fabric BigQuery connectors are preferred over proprietary data movers.
 - Unsupported security semantics fail closed and require manual review.
 - Generated output is deterministic and suitable for source control and review.
+
+## 📄 License
+
+BQToFabric is released under the [MIT License](LICENSE). The license permits use,
+modification, distribution, and resale, subject to its notice and warranty terms.
 
 ---
 
