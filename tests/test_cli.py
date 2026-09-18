@@ -50,6 +50,7 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert dataform_conversions["mode"] == "dry-run"
     airflow = json.loads((tmp_path / "fabric" / "airflow-compatibility.json").read_text())
     assert airflow["mode"] == "dry-run"
+    assert (tmp_path / "fabric" / "eventhouse_eventstream_spec.json").is_file()
     manifest = json.loads((tmp_path / "fabric" / "target-manifest.json").read_text())
     assert manifest["mode"] == "dry-run"
     assert any(entry["artifactKind"] == "lakehouse_notebook" for entry in manifest["entries"])

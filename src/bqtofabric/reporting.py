@@ -11,6 +11,7 @@ from typing import Any
 from .airflow_compatibility import assess_airflow_compatibility
 from .assessment import AssessmentReport
 from .dataform_conversion import convert_dataform_workflow
+from .fabric_artifacts import build_specialized_artifacts
 from .mapping import FabricTarget
 from .models import BigQueryInventory
 from .planner import MigrationPlan
@@ -249,6 +250,13 @@ def _write_fabric_artifacts(
     airflow_compatibility_path = root / "airflow-compatibility.json"
     _write_json(airflow_compatibility_path, airflow_compatibility)
     written.append(airflow_compatibility_path)
+
+    for artifact_type, artifact in build_specialized_artifacts(
+        inventory, assessment.decisions
+    ).items():
+        artifact_path = root / f"{artifact_type}.json"
+        _write_json(artifact_path, artifact)
+        written.append(artifact_path)
 
     orchestration = {
         "mode": "dry-run",
