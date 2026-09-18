@@ -70,6 +70,56 @@ def compare_checksums(
     }
 
 
+def compare_null_distributions(
+    source: Mapping[str, Mapping[str, int]] | None,
+    target: Mapping[str, Mapping[str, int]] | None,
+) -> dict[str, Any]:
+    """Compare supplied per-column null and row counts without querying either platform."""
+    if source is None or target is None:
+        return {"status": "not_run", "source": source, "target": target}
+    if not _has_valid_null_distribution(source) or not _has_valid_null_distribution(target):
+        return {"status": "not_run", "source": dict(source), "target": dict(target)}
+
+    differences = []
+    for column in sorted(set(source) | set(target)):
+        source_counts = source.get(column)
+        target_counts = target.get(column)
+        if source_counts is None or target_counts is None:
+            differences.append({"column": column, "reason": "missing_column"})
+            continue
+        for field in ("null_count", "row_count"):
+            if source_counts[field] != target_counts[field]:
+                differences.append({
+                    "column": column,
+                    "field": field,
+                    "source": source_counts[field],
+                    "target": target_counts[field],
+                })
+    return {
+        "status": "passed" if not differences else "failed",
+        "source": {column: dict(counts) for column, counts in source.items()},
+        "target": {column: dict(counts) for column, counts in target.items()},
+        "differences": differences,
+    }
+
+
+def _has_valid_null_distribution(distribution: Mapping[str, Mapping[str, int]]) -> bool:
+    for counts in distribution.values():
+        null_count = counts.get("null_count")
+        row_count = counts.get("row_count")
+        if (
+            not isinstance(null_count, int)
+            or isinstance(null_count, bool)
+            or not isinstance(row_count, int)
+            or isinstance(row_count, bool)
+            or null_count < 0
+            or row_count < 0
+            or null_count > row_count
+        ):
+            return False
+    return True
+
+
 def compare_schema(
     source: list[Mapping[str, Any]], target: list[Mapping[str, Any]]
 ) -> dict[str, Any]:

@@ -134,7 +134,11 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Implemented:** Offline source/target schema comparison covers field presence, types,
   nullability, modes, and nested fields with deterministic differences; precision-specific
   extension rules remain open.
-- Add row-count, aggregate, checksum, sample, and null-distribution checks.
+- **Implemented:** Offline per-column null-distribution comparison requires valid, non-negative
+  `null_count` and `row_count` evidence on each side, with `null_count <= row_count`. It returns
+  `passed` only when column sets and values match, `failed` with deterministic differences for
+  missing columns or value mismatches, and `not_run` for missing or invalid evidence. Live query
+  execution remains open.
 - **Implemented:** Offline row-count comparison returns `passed`, `failed`, or `not_run` from
   supplied evidence; live query execution remains open.
 - **Implemented:** Offline named aggregate comparison reports deterministic metric differences;

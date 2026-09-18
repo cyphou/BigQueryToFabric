@@ -2,6 +2,7 @@ from bqtofabric.parity import (
     assess_parity,
     compare_aggregates,
     compare_checksums,
+    compare_null_distributions,
     compare_row_count,
     compare_schema,
 )
@@ -53,6 +54,38 @@ def test_compare_checksums_requires_complete_runtime_evidence() -> None:
         {"algorithm": "sha256", "value": "abc123"},
         {"algorithm": "sha256", "ordering": "id ASC", "value": "abc123"},
     )["status"] == "not_run"
+
+
+def test_compare_null_distributions_reports_missing_and_changed_evidence() -> None:
+    result = compare_null_distributions(
+        {
+            "customer_id": {"null_count": 0, "row_count": 100},
+            "note": {"null_count": 20, "row_count": 100},
+        },
+        {
+            "customer_id": {"null_count": 1, "row_count": 100},
+            "status": {"null_count": 0, "row_count": 100},
+        },
+    )
+
+    assert result["status"] == "failed"
+    assert result["differences"] == [
+        {"column": "customer_id", "field": "null_count", "source": 0, "target": 1},
+        {"column": "note", "reason": "missing_column"},
+        {"column": "status", "reason": "missing_column"},
+    ]
+
+
+def test_compare_null_distributions_requires_complete_consistent_evidence() -> None:
+    assert compare_null_distributions(None, {})["status"] == "not_run"
+    assert compare_null_distributions(
+        {"note": {"null_count": 101, "row_count": 100}},
+        {"note": {"null_count": 100, "row_count": 100}},
+    )["status"] == "not_run"
+    assert compare_null_distributions(
+        {"note": {"null_count": 20, "row_count": 100}},
+        {"note": {"null_count": 20, "row_count": 100}},
+    )["status"] == "passed"
 
 
 def test_compare_schema_reports_type_and_missing_column_differences() -> None:
