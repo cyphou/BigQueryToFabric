@@ -5,8 +5,11 @@
   extra remain unverified.
 - BigQuery discovery supports metadata for jobs, scheduled queries, connections, and dataset
   `access` entries. Dataset ACLs are emitted only as redacted canonical `security_policy`
-  records; they document declared dataset access and do not prove effective access after project,
-  organization, group, or inherited IAM evaluation.
+  records, each labeled `evidence_scope: dataset_access_entry`; they document declared dataset
+  access and do not prove effective access after project, organization, group, or inherited IAM
+  evaluation. Assessment treats this as incomplete security evidence and emits FAIL
+  `SECURITY_EFFECTIVE_ACCESS_REVIEW`; discovery does not query IAM APIs or prove those effective
+  permissions.
 - Generated Fabric artifacts are skeletons and are not production deployment payloads.
 - GoogleSQL is parsed and classified with a SQL AST; generated translations remain review-only.
 - BQML, JavaScript UDFs, dynamic SQL, and complex scripts require redesign.

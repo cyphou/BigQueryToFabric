@@ -96,6 +96,17 @@ def test_discovery_preserves_operational_migration_evidence_without_secrets() ->
     assert "top-secret" not in json.dumps(objects["demo-project.connections.crm"].properties)
 
 
+def test_discovered_dataset_access_policy_preserves_provenance_and_redacts_secrets() -> None:
+    payload = json.loads(API_RESPONSES.read_text(encoding="utf-8"))
+    payload["datasets"][0]["access"][0]["private_key"] = "-----BEGIN PRIVATE KEY-----"
+    inventory = GoogleCloudInventoryProvider("demo-project", FakeBigQueryClient(payload)).load()
+    policy = next(item for item in inventory.objects() if item.source_id.endswith(".access.0000"))
+
+    assert policy.properties["evidence_scope"] == "dataset_access_entry"
+    assert policy.properties["private_key"] == REDACTED
+    assert "BEGIN PRIVATE KEY" not in json.dumps(policy.properties)
+
+
 def test_legacy_api_type_names_are_normalized_for_the_type_mapper() -> None:
     inventory = build_provider().load()
     events = next(item for item in inventory.objects() if item.name == "events")

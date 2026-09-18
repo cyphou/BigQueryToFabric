@@ -305,7 +305,13 @@ class GoogleCloudInventoryProvider:
             name=f"{dataset_id}-access-{index:04d}",
             kind=ObjectKind.SECURITY_POLICY,
             dataset=dataset_id,
-            properties=redact_mapping({"policy_type": policy_type, **resource}),
+            properties=redact_mapping(
+                {
+                    "policy_type": policy_type,
+                    "evidence_scope": "dataset_access_entry",
+                    **resource,
+                }
+            ),
         )
 
 

@@ -89,6 +89,7 @@
           "name": "analytics-access-0000",
           "partition_field": null,
           "properties": {
+            "evidence_scope": "dataset_access_entry",
             "policy_type": "role",
             "role": "READER",
             "userByEmail": "analyst@example.com"

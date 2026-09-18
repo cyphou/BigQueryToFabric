@@ -95,6 +95,18 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
             findings.append(AssessmentFinding(
                 "FAIL", item.source_id, "Parity evidence failed.", "PARITY_FAILED", "parity"
             ))
+        if (
+            item.kind is ObjectKind.SECURITY_POLICY
+            and item.properties.get("evidence_scope") == "dataset_access_entry"
+        ):
+            findings.append(AssessmentFinding(
+                "FAIL",
+                item.source_id,
+                "Dataset ACL entries are not proof of effective project, organization, group, or "
+                "inherited IAM access and require security review.",
+                "SECURITY_EFFECTIVE_ACCESS_REVIEW",
+                "security",
+            ))
         required = _required_evidence(item.kind)
         missing = _missing_evidence(item)
         present = tuple(field_name for field_name in required if field_name not in missing)

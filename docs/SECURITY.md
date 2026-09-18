@@ -12,8 +12,11 @@
   BigQuery admin or other broad administrative roles for discovery.
 - The adapter calls BigQuery metadata, BigQuery Data Transfer, and BigQuery Connection APIs using
   the BigQuery read-only scope. It extracts dataset GET `access` entries as redacted canonical
-  `security_policy` records; these records describe dataset ACL declarations, not effective-access
-  proof. Project/org IAM bindings and connection IAM policies are not extracted.
+  `security_policy` records, each labeled `evidence_scope: dataset_access_entry`; these records
+  describe dataset ACL declarations, not effective-access proof. Assessment treats this evidence
+  as incomplete and emits FAIL `SECURITY_EFFECTIVE_ACCESS_REVIEW`. It does not query IAM APIs or
+  prove effective project, organization, group, or inherited permissions. Project/org IAM bindings
+  and connection IAM policies are not extracted.
 - BigQuery Data Policies, policy tags, and distinct row access policy resources are not currently
   called or extracted. A future adapter may require Data Policy Viewer access and a security
   review before collecting that metadata.

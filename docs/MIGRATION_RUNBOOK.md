@@ -45,10 +45,10 @@ redacts credential-like metadata, and does not print provider response bodies.
 | BigQuery jobs | Yes | No | For estate-wide history, use project-level `roles/bigquery.resourceViewer`, which supplies `bigquery.jobs.listAll`; do not grant broad administrative roles for discovery | Live metadata extraction; assessed and mapped offline |
 | Scheduled queries (BigQuery Data Transfer transfer configurations) | Yes | No | Grant only the Data Transfer visibility required for the transfer configurations in scope; validate the exact role with the security administrator | Live metadata extraction; assessed and mapped offline |
 | BigQuery connections | Yes | Connection IAM bindings are not extracted | Grant `bigquery.connections.get` and `bigquery.connections.list`, for example through a suitable role such as `roles/bigquery.connectionUser` where appropriate | Live metadata extraction; assessed and mapped offline |
-| Dataset ACLs (`datasets.get` payload `access` entries) | Yes | Dataset access entries only; project Cloud IAM bindings are not extracted | Dataset metadata visibility, such as `roles/bigquery.metadataViewer`, for every dataset in scope | Redacted canonical `security_policy` records; security review required |
-| Project IAM | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Dataset ACLs (`datasets.get` payload `access` entries) | Yes | Redacted dataset access entries only, with `evidence_scope: dataset_access_entry`; they do not prove effective project, organization, group, or inherited IAM access | Dataset metadata visibility, such as `roles/bigquery.metadataViewer`, for every dataset in scope | Assessment emits `FAIL` `SECURITY_EFFECTIVE_ACCESS_REVIEW`; manual security review required |
+| Project/org IAM | No | No | No IAM API calls; live adapter and permission contract not implemented | Not extracted; manual security review required |
 | Connection IAM | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Row access policies, BigQuery Data Policies, and policy tags | No | No | Live adapter and permission contract not yet implemented; security review required | Canonical/offline assessment type only |
+| Distinct row access policies, BigQuery Data Policies, and policy tags | No | No | Live adapter and permission contract not yet implemented; security review required | Canonical/offline assessment type only |
 | Dataflow | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Composer | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Dataproc | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
@@ -72,6 +72,15 @@ the inventory or command line.
 
 Dataflow, Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and
 Spanner have offline normalization and assessment support only; they do not have live adapters.
+
+### Dataset access evidence
+
+Dataset GET `access` entries are inventory evidence, not an effective-access calculation. Each
+redacted canonical `security_policy` record has `evidence_scope: dataset_access_entry`. Assessment
+emits `FAIL` `SECURITY_EFFECTIVE_ACCESS_REVIEW`, requiring manual review because the evidence does
+not establish project, organization, group, or inherited IAM access. The live workflow makes no IAM
+API calls and does not extract project/org IAM, connection IAM, BigQuery Data Policies, policy tags,
+or distinct row access policies.
 
 ## Review and migration preparation
 

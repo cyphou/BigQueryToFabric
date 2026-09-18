@@ -50,6 +50,21 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** The guardrail evaluates static inventory dependency evidence only. It does not
   execute or monitor live stream processing, validate data, or deploy Fabric artifacts.
 
+### Validated dataset access review guardrail
+
+- **Expected:** Live dataset `access` entries provide redacted dataset-level evidence only and
+  cannot be treated as proof of effective project, organization, group, or inherited IAM access.
+- **Implemented:** Discovery serializes every dataset access entry as a redacted `security_policy`
+  record with `evidence_scope: dataset_access_entry`. Assessment emits `FAIL`
+  `SECURITY_EFFECTIVE_ACCESS_REVIEW`, requiring manual security review. Discovery makes no IAM API
+  calls and does not extract project/org IAM, connection IAM, BigQuery Data Policies, policy tags,
+  or distinct row access policies.
+- **Validated:** `python -m pytest tests/test_discovery.py tests/test_assessment.py -q` passed
+  with `25 passed`.
+- **Open:** This is not an effective-access calculation and establishes no source-rights or
+  Fabric-security parity. Manual security review must account for project, organization, group,
+  inherited IAM, and the unextracted governance controls.
+
 ### What v0.1.0 does not prove
 
 - Completeness against a live GCP organization or project.
@@ -79,18 +94,21 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   `https://www.googleapis.com/auth/bigquery.readonly`. It discovers datasets, tables, views,
   materialized views, external tables, routines, procedures, BQML models, jobs, scheduled-query
   transfer configurations, connections, and dataset GET `access` entries. Access entries are
-  redacted into canonical `security_policy` records. It does not call Cloud Resource Manager IAM,
-  connection `getIamPolicy`, or the BigQuery Data Policy API. Discovery failures return exit code
-  `3` without printing provider response bodies. Dataflow, Composer, Dataproc, Dataform, Workflows,
-  Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner remain offline
+  redacted into canonical `security_policy` records with `evidence_scope:
+  dataset_access_entry`. Assessment emits `FAIL` `SECURITY_EFFECTIVE_ACCESS_REVIEW`, requiring
+  manual security review because this evidence does not establish effective project, organization,
+  group, or inherited IAM access. It makes no IAM API calls and does not extract project/org IAM,
+  connection IAM, BigQuery Data Policies, policy tags, or distinct row access policies. Discovery
+  failures return exit code `3` without printing provider response bodies. Dataflow, Composer,
+  Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner remain offline
   normalization/assessment only.
 - **Validated:** Discovery mapping, deterministic serialization, redaction, pagination, and
   provider-failure body suppression are covered by offline fixture tests.
 - **Open:** No authorized live-GCP sandbox test has run. The three required APIs, dataset metadata
   visibility, and project-level job-history visibility must be verified in a live project before
-  this can claim live metadata parity. Project IAM, connection IAM, row access policies, data
-  policies, policy tags, and all external-family adapters remain unimplemented and require security
-  review where they affect migration decisions.
+  this can claim live metadata parity. Project/org IAM, connection IAM, distinct row access
+  policies, data policies, policy tags, and all external-family adapters remain unimplemented and
+  require security review where they affect migration decisions.
 
 - **Implement `GoogleCloudInventoryProvider` behind an optional `gcp` dependency group.** *Done.*
   The provider consumes BigQuery REST resources through a `BigQueryMetadataClient` protocol, so

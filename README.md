@@ -100,7 +100,12 @@ non-destructive.
 	`https://www.googleapis.com/auth/bigquery.readonly`. It reads datasets; tables, views, materialized
 	views, and external tables; routines and procedures; BQML models; jobs; scheduled-query transfer
 	configurations; connections; and dataset `access` entries. Dataset access entries are redacted and
-	represented as canonical `security_policy` records. See Google's [ADC guidance](https://docs.cloud.google.com/docs/authentication/provide-credentials-adc)
+	represented as canonical `security_policy` records with `evidence_scope:
+	dataset_access_entry`. Assessment emits the `FAIL` finding
+	`SECURITY_EFFECTIVE_ACCESS_REVIEW`: these entries do not prove effective project, organization,
+	group, or inherited IAM access and require manual security review. Discovery makes no IAM API
+	calls and does not extract project/org IAM, connection IAM, Data Policies, policy tags, or
+	distinct row access policies. See Google's [ADC guidance](https://docs.cloud.google.com/docs/authentication/provide-credentials-adc)
 	and [BigQuery access-control reference](https://docs.cloud.google.com/bigquery/docs/access-control).
 
 	Discovery exit code `3` means ADC, BigQuery API enablement, or required IAM visibility is missing.

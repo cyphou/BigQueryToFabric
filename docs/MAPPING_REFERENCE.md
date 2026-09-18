@@ -20,11 +20,13 @@
 
 The live provider discovers BigQuery core metadata, jobs, scheduled-query transfer configurations,
 connections, and dataset GET `access` entries. The `access` entries are redacted and become canonical
-`security_policy` records; they are not a substitute for project Cloud IAM bindings.
+`security_policy` records with `evidence_scope: dataset_access_entry`. Assessment emits `FAIL`
+`SECURITY_EFFECTIVE_ACCESS_REVIEW`: dataset entries do not prove effective project, organization,
+group, or inherited IAM access and require manual security review.
 
-Project IAM, connection IAM bindings, row access policies, BigQuery Data Policies, and policy tags
-are not extracted. Treat any mapping involving those controls as security review work, not verified
-source-rights parity. Dataflow, Composer, Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker,
-Vertex AI, Dataplex, Cloud SQL, and Spanner are likewise canonical/offline assessment inputs until
-their live adapters and permission contracts exist. The complete extraction and permission matrix is
-in the [migration runbook](MIGRATION_RUNBOOK.md).
+Discovery makes no IAM API calls. Project/org IAM, connection IAM bindings, distinct row access
+policies, BigQuery Data Policies, and policy tags are not extracted. Treat any mapping involving
+those controls as security review work, not verified source-rights parity. Dataflow, Composer,
+Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner are
+likewise canonical/offline assessment inputs until their live adapters and permission contracts exist.
+The complete extraction and permission matrix is in the [migration runbook](MIGRATION_RUNBOOK.md).

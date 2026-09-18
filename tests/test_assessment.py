@@ -139,6 +139,37 @@ def test_parity_evidence_is_assessed_without_cloud_execution() -> None:
     assert any(finding.code == "PARITY_FAILED" for finding in report.findings)
 
 
+def test_dataset_access_entry_requires_effective_access_review() -> None:
+    inventory = type(JsonInventoryProvider(FIXTURE).load()).from_dict({
+        "project_id": "security-review",
+        "datasets": [{
+            "source_id": "security-review.analytics",
+            "name": "analytics",
+            "location": "EU",
+            "objects": [{
+                "source_id": "security-review.analytics.access.0000",
+                "name": "analytics-access-0000",
+                "kind": "security_policy",
+                "dataset": "analytics",
+                "properties": {
+                    "evidence_scope": "dataset_access_entry",
+                    "policy_type": "role",
+                    "role": "READER",
+                },
+            }],
+        }],
+    })
+
+    report = run_assessment(inventory)
+    findings = [
+        finding for finding in report.findings
+        if finding.code == "SECURITY_EFFECTIVE_ACCESS_REVIEW"
+    ]
+
+    assert len(findings) == 1
+    assert findings[0].severity == "FAIL"
+
+
 def test_streaming_dataflow_requires_transitive_downstream_review() -> None:
     inventory = type(JsonInventoryProvider(FIXTURE).load()).from_dict({
         "project_id": "streaming-chain",
