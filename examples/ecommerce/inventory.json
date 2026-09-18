@@ -1,0 +1,65 @@
+{
+  "schema_version": "1.0",
+  "project_id": "ecommerce-analytics",
+  "metadata": {
+    "team_skill": "sql",
+    "environment": "example"
+  },
+  "datasets": [
+    {
+      "source_id": "ecommerce-analytics.commerce",
+      "name": "commerce",
+      "location": "EU",
+      "objects": [
+        {
+          "source_id": "ecommerce-analytics.commerce.customers",
+          "name": "customers",
+          "kind": "table",
+          "dataset": "commerce",
+          "columns": [
+            {"name": "customer_id", "data_type": "INT64", "nullable": false},
+            {"name": "email_hash", "data_type": "STRING"}
+          ]
+        },
+        {
+          "source_id": "ecommerce-analytics.commerce.orders",
+          "name": "orders",
+          "kind": "table",
+          "dataset": "commerce",
+          "partition_field": "order_date",
+          "columns": [
+            {"name": "order_id", "data_type": "INT64", "nullable": false},
+            {"name": "order_date", "data_type": "DATE"},
+            {
+              "name": "items",
+              "data_type": "STRUCT",
+              "mode": "REPEATED",
+              "fields": [
+                {"name": "sku", "data_type": "STRING"},
+                {"name": "amount", "data_type": "NUMERIC"}
+              ]
+            }
+          ]
+        },
+        {
+          "source_id": "ecommerce-analytics.commerce.daily_revenue",
+          "name": "daily_revenue",
+          "kind": "view",
+          "dataset": "commerce",
+          "dependencies": ["ecommerce-analytics.commerce.orders"],
+          "sql": "SELECT order_date, SUM(item.amount) FROM `ecommerce-analytics.commerce.orders`, UNNEST(items) AS item GROUP BY order_date"
+        },
+        {
+          "source_id": "ecommerce-analytics.commerce.clickstream",
+          "name": "clickstream",
+          "kind": "stream",
+          "dataset": "commerce",
+          "columns": [
+            {"name": "event_time", "data_type": "TIMESTAMP"},
+            {"name": "payload", "data_type": "JSON"}
+          ]
+        }
+      ]
+    }
+  ]
+}

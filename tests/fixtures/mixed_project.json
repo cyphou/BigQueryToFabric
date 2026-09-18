@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "project_id": "retail-analytics",
+  "metadata": {"team_skill": "sql"},
+  "datasets": [
+    {
+      "source_id": "retail-analytics.sales",
+      "name": "sales",
+      "location": "EU",
+      "objects": [
+        {
+          "source_id": "retail-analytics.sales.customers",
+          "name": "customers",
+          "kind": "table",
+          "dataset": "sales",
+          "columns": [
+            {"name": "customer_id", "data_type": "INT64", "nullable": false},
+            {"name": "name", "data_type": "STRING"}
+          ]
+        },
+        {
+          "source_id": "retail-analytics.sales.orders",
+          "name": "orders",
+          "kind": "table",
+          "dataset": "sales",
+          "columns": [
+            {"name": "order_id", "data_type": "INT64", "nullable": false},
+            {"name": "items", "data_type": "STRUCT", "mode": "REPEATED"}
+          ]
+        },
+        {
+          "source_id": "retail-analytics.sales.daily_sales",
+          "name": "daily_sales",
+          "kind": "view",
+          "dataset": "sales",
+          "dependencies": ["retail-analytics.sales.orders"],
+          "sql": "SELECT DATE(order_ts), SUM(total) FROM `retail-analytics.sales.orders` GROUP BY 1"
+        },
+        {
+          "source_id": "retail-analytics.sales.clickstream",
+          "name": "clickstream",
+          "kind": "stream",
+          "dataset": "sales",
+          "columns": [{"name": "event_time", "data_type": "TIMESTAMP"}]
+        }
+      ]
+    }
+  ]
+}

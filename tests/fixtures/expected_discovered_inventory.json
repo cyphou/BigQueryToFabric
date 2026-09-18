@@ -1,0 +1,181 @@
+{
+  "components": [],
+  "datasets": [
+    {
+      "labels": {
+        "api_key": "[redacted]",
+        "team": "data-platform"
+      },
+      "location": "EU",
+      "name": "analytics",
+      "objects": [
+        {
+          "clustering_fields": [],
+          "columns": [],
+          "dataset": "analytics",
+          "dependencies": [],
+          "kind": "bqml_model",
+          "labels": {},
+          "name": "churn",
+          "partition_field": null,
+          "properties": {
+            "model_type": "LOGISTIC_REGRESSION"
+          },
+          "size_bytes": null,
+          "source_id": "demo-project.analytics.churn",
+          "sql": null
+        },
+        {
+          "clustering_fields": [],
+          "columns": [],
+          "dataset": "analytics",
+          "dependencies": [
+            "demo-project.analytics.events"
+          ],
+          "kind": "view",
+          "labels": {},
+          "name": "daily_revenue",
+          "partition_field": null,
+          "properties": {},
+          "size_bytes": null,
+          "source_id": "demo-project.analytics.daily_revenue",
+          "sql": "SELECT event_date, SUM(amount) AS revenue FROM `demo-project.analytics.events` GROUP BY event_date"
+        },
+        {
+          "clustering_fields": [
+            "customer_id"
+          ],
+          "columns": [
+            {
+              "data_type": "DATE",
+              "description": null,
+              "fields": [],
+              "mode": "REQUIRED",
+              "name": "event_date",
+              "nullable": false
+            },
+            {
+              "data_type": "INT64",
+              "description": null,
+              "fields": [],
+              "mode": "NULLABLE",
+              "name": "customer_id",
+              "nullable": true
+            },
+            {
+              "data_type": "FLOAT64",
+              "description": null,
+              "fields": [],
+              "mode": "NULLABLE",
+              "name": "amount",
+              "nullable": true
+            },
+            {
+              "data_type": "BOOL",
+              "description": null,
+              "fields": [],
+              "mode": "NULLABLE",
+              "name": "is_test",
+              "nullable": true
+            },
+            {
+              "data_type": "STRUCT",
+              "description": "Nested event payload",
+              "fields": [
+                {
+                  "data_type": "STRING",
+                  "description": null,
+                  "fields": [],
+                  "mode": "NULLABLE",
+                  "name": "sku",
+                  "nullable": true
+                },
+                {
+                  "data_type": "GEOGRAPHY",
+                  "description": null,
+                  "fields": [],
+                  "mode": "NULLABLE",
+                  "name": "location",
+                  "nullable": true
+                }
+              ],
+              "mode": "REPEATED",
+              "name": "payload",
+              "nullable": true
+            }
+          ],
+          "dataset": "analytics",
+          "dependencies": [],
+          "kind": "table",
+          "labels": {
+            "tier": "bronze"
+          },
+          "name": "events",
+          "partition_field": "event_date",
+          "properties": {},
+          "size_bytes": 10485760,
+          "source_id": "demo-project.analytics.events",
+          "sql": null
+        },
+        {
+          "clustering_fields": [],
+          "columns": [],
+          "dataset": "analytics",
+          "dependencies": [],
+          "kind": "routine",
+          "labels": {},
+          "name": "fn_score",
+          "partition_field": null,
+          "properties": {
+            "language": "JAVASCRIPT",
+            "unresolved_references": [
+              "SQL could not be parsed; references require manual review."
+            ]
+          },
+          "size_bytes": null,
+          "source_id": "demo-project.analytics.fn_score",
+          "sql": "return x * 2;"
+        },
+        {
+          "clustering_fields": [],
+          "columns": [],
+          "dataset": "analytics",
+          "dependencies": [],
+          "kind": "external_table",
+          "labels": {},
+          "name": "raw_drop",
+          "partition_field": null,
+          "properties": {
+            "source_format": "CSV"
+          },
+          "size_bytes": null,
+          "source_id": "demo-project.analytics.raw_drop",
+          "sql": null
+        },
+        {
+          "clustering_fields": [],
+          "columns": [],
+          "dataset": "analytics",
+          "dependencies": [
+            "demo-project.analytics.events",
+            "demo-project.staging.events_raw"
+          ],
+          "kind": "procedure",
+          "labels": {},
+          "name": "sp_refresh_events",
+          "partition_field": null,
+          "properties": {
+            "language": "SQL"
+          },
+          "size_bytes": null,
+          "source_id": "demo-project.analytics.sp_refresh_events",
+          "sql": "INSERT INTO `demo-project.analytics.events` SELECT * FROM `demo-project.staging.events_raw`"
+        }
+      ],
+      "source_id": "demo-project.analytics"
+    }
+  ],
+  "metadata": {},
+  "project_id": "demo-project",
+  "schema_version": "1.1"
+}

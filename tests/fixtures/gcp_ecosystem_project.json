@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.1",
+  "project_id": "gcp-data-platform",
+  "metadata": {
+    "team_skill": "spark",
+    "preferences": {
+      "data_target": "lakehouse",
+      "compute_target": "notebook",
+      "preserve_airflow": true
+    }
+  },
+  "datasets": [
+    {
+      "source_id": "gcp-data-platform.analytics",
+      "name": "analytics",
+      "location": "EU",
+      "objects": [
+        {
+          "source_id": "gcp-data-platform.analytics.events",
+          "name": "events",
+          "kind": "table",
+          "dataset": "analytics",
+          "partition_field": "event_date",
+          "clustering_fields": ["customer_id"],
+          "columns": [
+            {"name": "event_date", "data_type": "DATE", "nullable": false},
+            {
+              "name": "payload",
+              "data_type": "STRUCT",
+              "fields": [
+                {"name": "location", "data_type": "GEOGRAPHY"}
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "components": [
+    {
+      "source_id": "gcp-data-platform.sql.daily_metrics",
+      "name": "daily_metrics",
+      "kind": "sql_script",
+      "sql": "SELECT event_date, COUNT(*) FROM `gcp-data-platform.analytics.events`, UNNEST([payload]) AS item GROUP BY 1",
+      "dependencies": ["gcp-data-platform.analytics.events"]
+    },
+    {
+      "source_id": "gcp-data-platform.spark.enrichment",
+      "name": "enrichment",
+      "kind": "spark_job",
+      "dependencies": ["gcp-data-platform.analytics.events"]
+    },
+    {
+      "source_id": "gcp-data-platform.dataproc.legacy_etl",
+      "name": "legacy_etl",
+      "kind": "dataproc_job"
+    },
+    {
+      "source_id": "gcp-data-platform.dataflow.batch_ingestion",
+      "name": "batch_ingestion",
+      "kind": "dataflow_job",
+      "properties": {"streaming": false}
+    },
+    {
+      "source_id": "gcp-data-platform.dataflow.realtime_ingestion",
+      "name": "realtime_ingestion",
+      "kind": "dataflow_job",
+      "properties": {"streaming": true}
+    },
+    {
+      "source_id": "gcp-data-platform.dataform.gold_models",
+      "name": "gold_models",
+      "kind": "dataform_workflow",
+      "dependencies": ["gcp-data-platform.sql.daily_metrics"]
+    },
+    {
+      "source_id": "gcp-data-platform.composer.platform_dag",
+      "name": "platform_dag",
+      "kind": "composer_dag",
+      "dependencies": ["gcp-data-platform.dataform.gold_models"]
+    },
+    {
+      "source_id": "gcp-data-platform.workflows.notify",
+      "name": "notify",
+      "kind": "workflow"
+    },
+    {
+      "source_id": "gcp-data-platform.pubsub.events",
+      "name": "events",
+      "kind": "pubsub_topic"
+    },
+    {
+      "source_id": "gcp-data-platform.gcs.raw",
+      "name": "raw",
+      "kind": "gcs_source"
+    },
+    {
+      "source_id": "gcp-data-platform.looker.commerce",
+      "name": "commerce",
+      "kind": "looker_asset"
+    },
+    {
+      "source_id": "gcp-data-platform.bqml.churn",
+      "name": "churn",
+      "kind": "bqml_model"
+    },
+    {
+      "source_id": "gcp-data-platform.security.customer_policy",
+      "name": "customer_policy",
+      "kind": "security_policy",
+      "properties": {"policy_type": "row_access_policy"}
+    },
+    {
+      "source_id": "gcp-data-platform.connection.crm",
+      "name": "crm",
+      "kind": "connection"
+    },
+    {
+      "source_id": "gcp-data-platform.dataplex.catalog",
+      "name": "catalog",
+      "kind": "dataplex_asset"
+    },
+    {
+      "source_id": "gcp-data-platform.vertex.churn_pipeline",
+      "name": "churn_pipeline",
+      "kind": "vertex_ai_pipeline"
+    },
+    {
+      "source_id": "gcp-data-platform.cloudsql.orders",
+      "name": "orders",
+      "kind": "cloud_sql_database"
+    },
+    {
+      "source_id": "gcp-data-platform.spanner.global_inventory",
+      "name": "global_inventory",
+      "kind": "spanner_database"
+    }
+  ]
+}

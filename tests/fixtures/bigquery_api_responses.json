@@ -1,0 +1,78 @@
+{
+  "datasets": [
+    {
+      "datasetReference": {"projectId": "demo-project", "datasetId": "analytics"},
+      "location": "EU",
+      "labels": {"team": "data-platform", "api_key": "AIzaSyNOT-A-REAL-KEY"}
+    }
+  ],
+  "tables": {
+    "analytics": [
+      {
+        "tableReference": {"projectId": "demo-project", "datasetId": "analytics", "tableId": "events"},
+        "type": "TABLE",
+        "numBytes": "10485760",
+        "labels": {"tier": "bronze"},
+        "timePartitioning": {"type": "DAY", "field": "event_date"},
+        "clustering": {"fields": ["customer_id"]},
+        "schema": {
+          "fields": [
+            {"name": "event_date", "type": "DATE", "mode": "REQUIRED"},
+            {"name": "customer_id", "type": "INTEGER", "mode": "NULLABLE"},
+            {"name": "amount", "type": "FLOAT", "mode": "NULLABLE"},
+            {"name": "is_test", "type": "BOOLEAN", "mode": "NULLABLE"},
+            {
+              "name": "payload",
+              "type": "RECORD",
+              "mode": "REPEATED",
+              "description": "Nested event payload",
+              "fields": [
+                {"name": "sku", "type": "STRING", "mode": "NULLABLE"},
+                {"name": "location", "type": "GEOGRAPHY", "mode": "NULLABLE"}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "tableReference": {"projectId": "demo-project", "datasetId": "analytics", "tableId": "daily_revenue"},
+        "type": "VIEW",
+        "view": {
+          "query": "SELECT event_date, SUM(amount) AS revenue FROM `demo-project.analytics.events` GROUP BY event_date"
+        }
+      },
+      {
+        "tableReference": {"projectId": "demo-project", "datasetId": "analytics", "tableId": "raw_drop"},
+        "type": "EXTERNAL",
+        "externalDataConfiguration": {
+          "sourceFormat": "CSV",
+          "sourceUris": ["gs://demo-landing/raw/*.csv"]
+        }
+      }
+    ]
+  },
+  "routines": {
+    "analytics": [
+      {
+        "routineReference": {"projectId": "demo-project", "datasetId": "analytics", "routineId": "sp_refresh_events"},
+        "routineType": "PROCEDURE",
+        "language": "SQL",
+        "definitionBody": "INSERT INTO `demo-project.analytics.events` SELECT * FROM `demo-project.staging.events_raw`"
+      },
+      {
+        "routineReference": {"projectId": "demo-project", "datasetId": "analytics", "routineId": "fn_score"},
+        "routineType": "SCALAR_FUNCTION",
+        "language": "JAVASCRIPT",
+        "definitionBody": "return x * 2;"
+      }
+    ]
+  },
+  "models": {
+    "analytics": [
+      {
+        "modelReference": {"projectId": "demo-project", "datasetId": "analytics", "modelId": "churn"},
+        "modelType": "LOGISTIC_REGRESSION"
+      }
+    ]
+  }
+}
