@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 from .mapping import MappingDecision, map_component
-from .models import BigQueryInventory, Column
+from .models import BigQueryInventory, BigQueryObject, Column, ObjectKind
 from .sql_assessment import SqlAssessment, assess_sql
 from .strategy import StrategyRecommendation, recommend_strategy
 from .type_mapping import Compatibility, TypeMapping, map_type
@@ -64,6 +64,17 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
             findings.append(AssessmentFinding("FAIL", decision.source_id, decision.rationale))
         for action in decision.actions:
             findings.append(AssessmentFinding("WARN", decision.source_id, action))
+    for item in inventory.objects():
+        missing = _missing_evidence(item)
+        evidence_scores.extend(50 for _ in missing)
+        findings.extend(
+            AssessmentFinding(
+                "WARN",
+                item.source_id,
+                f"Assessment evidence missing: {field_name}.",
+            )
+            for field_name in missing
+        )
     for mapping in mapped_types:
         evidence_scores.append(readiness[mapping.compatibility])
         if mapping.compatibility in {Compatibility.REDESIGN, Compatibility.UNSUPPORTED}:
@@ -104,3 +115,32 @@ def _walk_columns(columns: tuple[Column, ...]) -> Iterator[Column]:
     for column in columns:
         yield column
         yield from _walk_columns(column.fields)
+
+
+def _missing_evidence(item: BigQueryObject) -> tuple[str, ...]:
+    required: dict[ObjectKind, tuple[str, ...]] = {
+        ObjectKind.SPARK_JOB: ("language", "runtime_version"),
+        ObjectKind.DATAPROC_JOB: ("language", "runtime_version"),
+        ObjectKind.DATAFLOW_JOB: ("streaming", "portable", "connector_compatible"),
+        ObjectKind.COMPOSER_DAG: ("operators", "runtime_version", "connections"),
+        ObjectKind.DATAFORM_WORKFLOW: ("models", "assertions", "incremental"),
+        ObjectKind.LOOKER_ASSET: ("explores", "measures", "joins"),
+        ObjectKind.BQML_MODEL: ("model_type", "features", "evaluation_metrics"),
+        ObjectKind.VERTEX_AI_PIPELINE: ("pipeline_steps", "models", "endpoints"),
+        ObjectKind.SECURITY_POLICY: ("policy_type",),
+        ObjectKind.CLOUD_SQL_DATABASE: ("engine", "version", "replication"),
+        ObjectKind.SPANNER_DATABASE: ("dialect", "replication", "change_streams"),
+    }
+    return tuple(
+        field_name
+        for field_name in required.get(item.kind, ())
+        if not _has_evidence(item.properties.get(field_name))
+    )
+
+
+def _has_evidence(value: object) -> bool:
+    if value is None or value is False:
+        return False
+    if isinstance(value, (str, bytes, list, tuple, dict, set)):
+        return bool(value)
+    return True

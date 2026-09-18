@@ -6,6 +6,7 @@ from bqtofabric.mapping import FabricTarget
 from bqtofabric.planner import build_plan
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mixed_project.json"
+GCP_FIXTURE = Path(__file__).parent / "fixtures" / "gcp_ecosystem_project.json"
 
 
 def test_assessment_routes_mixed_workloads_and_explains_strategy() -> None:
@@ -29,3 +30,41 @@ def test_plan_orders_view_after_its_table_dependency() -> None:
 
     assert waves["retail-analytics.sales.orders"] < waves["retail-analytics.sales.daily_sales"]
     assert plan.unresolved_dependencies == ()
+
+
+def test_assessment_penalizes_missing_family_evidence() -> None:
+    inventory = JsonInventoryProvider(GCP_FIXTURE).load()
+    report = run_assessment(inventory)
+
+    spark_findings = [
+        finding for finding in report.findings
+        if finding.source_id == "gcp-data-platform.spark.enrichment"
+    ]
+
+    assert report.score < 90
+    assert any("language" in finding.message for finding in spark_findings)
+    assert any("runtime_version" in finding.message for finding in spark_findings)
+
+
+def test_assessment_accepts_complete_family_evidence() -> None:
+    inventory = JsonInventoryProvider(GCP_FIXTURE).load()
+    component = next(
+        item for item in inventory.components if item.kind.value == "spark_job"
+    )
+    complete = type(inventory).from_dict({
+        "project_id": inventory.project_id,
+        "metadata": inventory.metadata,
+        "components": [{
+            "source_id": component.source_id,
+            "name": component.name,
+            "kind": component.kind.value,
+            "properties": {
+                "language": "python",
+                "runtime_version": "3.5",
+            },
+        }],
+    })
+
+    report = run_assessment(complete)
+
+    assert not any("evidence missing" in finding.message for finding in report.findings)
