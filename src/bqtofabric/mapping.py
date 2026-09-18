@@ -96,6 +96,18 @@ def map_component(
         )
     if item.kind is ObjectKind.DATAFLOW_JOB:
         streaming = bool(item.properties.get("streaming", False))
+        portable = bool(item.properties.get("portable", False))
+        connector_compatible = bool(item.properties.get("connector_compatible", False))
+        if not streaming and portable and connector_compatible:
+            return MappingDecision(
+                item.source_id,
+                item.kind,
+                FabricTarget.DATAFLOW_GEN2,
+                Compatibility.TRANSFORM,
+                "Portable batch Beam with compatible connectors is a candidate for Dataflow Gen2.",
+                (FabricTarget.DATA_PIPELINE, FabricTarget.LAKEHOUSE),
+                ("Validate Beam transforms, schema projection, retries, and connector parity.",),
+            )
         return MappingDecision(
             item.source_id,
             item.kind,
@@ -107,6 +119,18 @@ def map_component(
         )
     if item.kind is ObjectKind.COMPOSER_DAG:
         preserve = bool(preferences.get("preserve_airflow", True))
+        unsupported_operators = item.properties.get("unsupported_operators", [])
+        custom_plugins = bool(item.properties.get("custom_plugins", False))
+        if unsupported_operators or custom_plugins:
+            return MappingDecision(
+                item.source_id,
+                item.kind,
+                FabricTarget.DATA_PIPELINE,
+                Compatibility.REDESIGN,
+                "Composer evidence includes operators or plugins that cannot be assumed reusable in Fabric Airflow.",
+                (FabricTarget.NOTEBOOK, FabricTarget.LAKEHOUSE),
+                ("Replace unsupported operators and custom plugins; preserve schedule, secrets, and retries.",),
+            )
         return MappingDecision(
             item.source_id,
             item.kind,
@@ -128,6 +152,13 @@ def map_component(
         )
     if item.kind is ObjectKind.DATAFORM_WORKFLOW:
         target = FabricTarget.LAKEHOUSE if prefer_lakehouse else FabricTarget.WAREHOUSE
+        assertions = bool(item.properties.get("assertions", False))
+        incremental = bool(item.properties.get("incremental", False))
+        actions = ["Preserve assertions, incremental semantics, variables, and dependency order."]
+        if assertions:
+            actions.append("Translate Dataform assertions into explicit Fabric data-quality checks.")
+        if incremental:
+            actions.append("Validate incremental watermark and merge semantics against Delta or Warehouse behavior.")
         return MappingDecision(
             item.source_id,
             item.kind,
@@ -135,7 +166,7 @@ def map_component(
             Compatibility.TRANSFORM,
             "Dataform dependency graphs map to SQL/notebook transformations orchestrated by pipelines.",
             (FabricTarget.NOTEBOOK, FabricTarget.DATA_PIPELINE),
-            ("Preserve assertions, incremental semantics, variables, and dependency order.",),
+            tuple(actions),
         )
     if item.kind is ObjectKind.LOOKER_ASSET:
         return MappingDecision(

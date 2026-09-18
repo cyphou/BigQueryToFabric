@@ -100,3 +100,37 @@ def test_transactions_override_lakehouse_preference() -> None:
     })
 
     assert run_assessment(inventory).strategy.primary_target is FabricTarget.WAREHOUSE
+
+
+def test_engineering_mappings_use_component_evidence() -> None:
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "evidence",
+        "metadata": {"preferences": {"preserve_airflow": True}},
+        "components": [
+            {
+                "source_id": "evidence.beam.batch",
+                "name": "batch",
+                "kind": "dataflow_job",
+                "properties": {"portable": True, "connector_compatible": True},
+            },
+            {
+                "source_id": "evidence.composer.custom",
+                "name": "custom",
+                "kind": "composer_dag",
+                "properties": {"custom_plugins": True, "unsupported_operators": ["KubernetesPodOperator"]},
+            },
+            {
+                "source_id": "evidence.dataform.incremental",
+                "name": "incremental",
+                "kind": "dataform_workflow",
+                "properties": {"assertions": True, "incremental": True},
+            },
+        ],
+    })
+
+    decisions = {item.source_id: item for item in run_assessment(inventory).decisions}
+
+    assert decisions["evidence.beam.batch"].target is FabricTarget.DATAFLOW_GEN2
+    assert decisions["evidence.composer.custom"].target is FabricTarget.DATA_PIPELINE
+    assert decisions["evidence.composer.custom"].compatibility.value == "redesign"
+    assert len(decisions["evidence.dataform.incremental"].actions) == 3
