@@ -6,6 +6,7 @@ from bqtofabric.parity import (
     compare_row_count,
     compare_samples,
     compare_schema,
+    compare_sql_results,
 )
 
 
@@ -115,6 +116,35 @@ def test_compare_samples_requires_complete_runtime_evidence() -> None:
     assert compare_samples(
         {"method": "deterministic_key_range", "rows": []},
         {"method": "deterministic_key_range", "ordering": "id ASC", "rows": []},
+    )["status"] == "not_run"
+
+
+def test_compare_sql_results_requires_same_approved_query_and_rows() -> None:
+    source = {
+        "query_id": "daily_event_counts",
+        "ordering": "event_date ASC",
+        "rows": [{"event_date": "2026-01-01", "event_count": 12}],
+    }
+
+    assert compare_sql_results(source, source)["status"] == "passed"
+    result = compare_sql_results(
+        source,
+        {
+            "query_id": "monthly_event_counts",
+            "ordering": "event_date ASC",
+            "rows": [{"event_date": "2026-01-01", "event_count": 11}],
+        },
+    )
+
+    assert result["status"] == "failed"
+    assert [difference["field"] for difference in result["differences"]] == ["query_id", "rows"]
+
+
+def test_compare_sql_results_requires_complete_runtime_evidence() -> None:
+    assert compare_sql_results(None, {"rows": []})["status"] == "not_run"
+    assert compare_sql_results(
+        {"query_id": "daily_event_counts", "rows": []},
+        {"query_id": "daily_event_counts", "ordering": "event_date ASC", "rows": []},
     )["status"] == "not_run"
 
 

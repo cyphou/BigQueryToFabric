@@ -151,7 +151,12 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   method, ordering, and rows list. It returns `passed` only when all three values match,
   `failed` with deterministic field differences otherwise, and `not_run` when evidence is
   missing or malformed. Live sample query execution remains open.
-- Add SQL result parity for approved test queries.
+- **Implemented:** Offline SQL-result comparison requires source and target evidence with an
+  approved `query_id`, ordering, and rows list. It returns `passed` only when all three values
+  match, `failed` with deterministic field differences otherwise, and `not_run` when evidence
+  is missing or malformed. The parity summary includes `sql_result`. Live source/Fabric SQL
+  query execution remains open. *Validated by `python -m pytest tests/test_parity.py -q` (16
+  passed).*
 - Add partition, clustering, file-size, and performance recommendations from measured workloads.
 - Add security matrices for IAM, policy tags, authorized views, Fabric permissions, and RLS.
 - Produce a portable evidence package for architecture review and migration sign-off.

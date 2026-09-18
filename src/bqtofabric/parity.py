@@ -149,6 +149,35 @@ def compare_samples(
     }
 
 
+def compare_sql_results(
+    source: Mapping[str, Any] | None,
+    target: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Compare supplied results from the same approved SQL parity query."""
+    if source is None or target is None:
+        return {"status": "not_run", "source": source, "target": target}
+
+    required = ("query_id", "ordering", "rows")
+    if (
+        any(field not in source or field not in target for field in required)
+        or not isinstance(source["rows"], list)
+        or not isinstance(target["rows"], list)
+    ):
+        return {"status": "not_run", "source": dict(source), "target": dict(target)}
+
+    differences = [
+        {"field": field, "source": source[field], "target": target[field]}
+        for field in required
+        if source[field] != target[field]
+    ]
+    return {
+        "status": "passed" if not differences else "failed",
+        "source": dict(source),
+        "target": dict(target),
+        "differences": differences,
+    }
+
+
 def compare_schema(
     source: list[Mapping[str, Any]], target: list[Mapping[str, Any]]
 ) -> dict[str, Any]:
@@ -202,7 +231,15 @@ def assess_parity(properties: Mapping[str, Any], *, applicable: bool = True) -> 
         return {"status": "not_run", "checks": {}}
 
     checks: dict[str, dict[str, Any]] = {}
-    for name in ("schema", "type", "row_count", "checksum", "aggregate", "sample"):
+    for name in (
+        "schema",
+        "type",
+        "row_count",
+        "checksum",
+        "aggregate",
+        "sample",
+        "sql_result",
+    ):
         value = supplied.get(name)
         if not isinstance(value, Mapping):
             checks[name] = {"status": "not_run"}
