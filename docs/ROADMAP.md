@@ -145,6 +145,8 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - Add Entra authentication through environment or managed identity boundaries.
 - Discover workspaces and capacities without hardcoded IDs.
 - Implement plan/apply separation with an immutable deployment manifest.
+- **Implemented:** Generate and verify an immutable dry-run manifest with `manifest-verify`;
+  authenticated Fabric apply, identity, retries, and rollback remain open.
 - Create and update supported Fabric items through documented APIs.
 - Add idempotency, retries, long-running-operation handling, rollback guidance, and audit logs.
 - Require explicit confirmation for every mutating operation.

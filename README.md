@@ -50,6 +50,7 @@ bqtofabric inventory tests/fixtures/gcp_ecosystem_project.json
 bqtofabric assess tests/fixtures/gcp_ecosystem_project.json
 bqtofabric plan tests/fixtures/gcp_ecosystem_project.json --output artifacts/gcp-plan
 bqtofabric generate tests/fixtures/gcp_ecosystem_project.json --output artifacts/gcp-project
+bqtofabric manifest-verify artifacts/gcp-project/fabric/deployment-manifest.json
 ```
 
 The generated package contains:
@@ -59,6 +60,8 @@ The generated package contains:
 - `migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves.
 - `lineage.mmd` — Mermaid dependency graph.
 - `fabric/` — dry-run Warehouse SQL, Fabric notebook, pipeline, and orchestration manifests.
+- `fabric/deployment-manifest.json` — immutable dry-run payload with SHA-256 integrity hash.
+- `fabric/artifact-validation.json` — offline structural validation results.
 
 <details>
 <summary><b>📦 Installation and development setup</b></summary>

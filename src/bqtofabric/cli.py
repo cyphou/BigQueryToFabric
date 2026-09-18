@@ -11,6 +11,7 @@ from enum import IntEnum
 from pathlib import Path
 
 from .assessment import run_assessment
+from .deployment_manifest import verify_manifest
 from .discovery import DiscoveryError, GoogleCloudInventoryProvider, create_rest_client
 from .inventory import JsonInventoryProvider
 from .planner import build_plan
@@ -38,6 +39,8 @@ def build_parser() -> argparse.ArgumentParser:
     discover = subparsers.add_parser("discover")
     discover.add_argument("project")
     discover.add_argument("--output", "-o", type=Path, required=True)
+    manifest = subparsers.add_parser("manifest-verify")
+    manifest.add_argument("manifest", type=Path)
     return parser
 
 
@@ -60,6 +63,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "discover":
         return _discover(args.project, args.output)
+    if args.command == "manifest-verify":
+        try:
+            manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+        except (FileNotFoundError, json.JSONDecodeError) as error:
+            print(f"Invalid manifest: {error}")
+            return ExitCode.VALIDATION_FAILED
+        valid = verify_manifest(manifest)
+        print("PASS: manifest integrity verified" if valid else "FAIL: manifest integrity mismatch")
+        return ExitCode.SUCCESS if valid else ExitCode.VALIDATION_FAILED
     try:
         inventory = JsonInventoryProvider(args.inventory).load()
         assessment = run_assessment(inventory)

@@ -38,3 +38,13 @@ def build_manifest(
         "sha256": hashlib.sha256(canonical).hexdigest(),
         "payload": payload,
     }
+
+
+def verify_manifest(manifest: dict[str, Any]) -> bool:
+    """Verify that a manifest payload still matches its recorded SHA-256 hash."""
+    recorded = manifest.get("sha256")
+    payload = manifest.get("payload")
+    if not isinstance(recorded, str) or not isinstance(payload, dict):
+        return False
+    canonical = json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(canonical).hexdigest() == recorded

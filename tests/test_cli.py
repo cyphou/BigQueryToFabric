@@ -112,3 +112,14 @@ def test_discover_reports_a_dedicated_exit_code_when_credentials_are_unavailable
     assert result == ExitCode.DISCOVERY_FAILED
     assert "read-only Google credentials" in capsys.readouterr().out
     assert not (tmp_path / "inventory.json").exists()
+
+
+def test_manifest_verify_command(tmp_path: Path, capsys) -> None:
+    output = tmp_path / "manifest.json"
+    assert main(["generate", str(FIXTURE), "--output", str(tmp_path / "generated")]) == ExitCode.SUCCESS
+    output.write_text(
+        (tmp_path / "generated" / "fabric" / "deployment-manifest.json").read_text(), encoding="utf-8"
+    )
+
+    assert main(["manifest-verify", str(output)]) == ExitCode.SUCCESS
+    assert "PASS" in capsys.readouterr().out
