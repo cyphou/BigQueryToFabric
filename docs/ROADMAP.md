@@ -71,10 +71,16 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Add a CLI command for live discovery and sanitized export.** *Done.* `bqtofabric discover`
   writes a deterministic canonical inventory and returns a dedicated exit code when credentials
   are unavailable.
-- **Discover BigQuery jobs, scheduled queries, connections, and access policies.** *Open.*
-- **Add adapters for Dataproc, Dataflow, Dataform, Composer, Workflows, Pub/Sub, GCS, Looker,
-  Vertex AI, Dataplex, Cloud SQL, and Spanner.** *Open.* The assessment engine already maps these
-  kinds, so each adapter only has to populate `components`.
+- **Discover BigQuery jobs, scheduled queries, connections, and access policies.** *Done.*
+  Jobs preserve type, SQL dependencies, location, state, priority, and write dispositions;
+  scheduled queries preserve schedule, owner, parameters, and transfer identity; connections and
+  dataset access policies are sanitized into canonical components.
+- **Normalize external GCP adapter payloads into canonical `components`.** *Done.* The shared
+  normalizer redacts metadata, preserves dependencies, sorts output deterministically, and ignores
+  unknown kinds without inventing a source type.
+- **Add live adapters for Dataproc, Dataflow, Dataform, Composer, Workflows, Pub/Sub, GCS, Looker,
+  Vertex AI, Dataplex, Cloud SQL, and Spanner.** *Open.* Endpoint coverage, permissions, and an
+  authorized sandbox are still required; normalization alone does not claim live discovery.
 
 **Exit gate**
 
