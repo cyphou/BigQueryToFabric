@@ -84,6 +84,23 @@ def test_generate_preserves_airflow_candidate(tmp_path: Path) -> None:
     assert streaming["artifactKind"] == "eventhouse_kql"
 
 
+def test_generate_exposes_the_end_to_end_processing_chain(tmp_path: Path) -> None:
+    fixture = Path(__file__).parent / "fixtures" / "gcp_ecosystem_project.json"
+
+    assert main(["generate", str(fixture), "--output", str(tmp_path)]) == ExitCode.SUCCESS
+
+    orchestration = json.loads((tmp_path / "fabric" / "orchestration.json").read_text())
+    candidates = {item["sourceId"]: item for item in orchestration["candidates"]}
+    ingestion = candidates["gcp-data-platform.dataflow.batch_ingestion"]
+    dataform = candidates["gcp-data-platform.dataform.gold_models"]
+    composer = candidates["gcp-data-platform.composer.platform_dag"]
+
+    assert ingestion["dependencies"] == ["gcp-data-platform.gcs.raw"]
+    assert dataform["dependencies"] == ["gcp-data-platform.sql.daily_metrics"]
+    assert composer["dependencies"] == ["gcp-data-platform.dataform.gold_models"]
+    assert ingestion["wave"] < dataform["wave"] < composer["wave"]
+
+
 def test_discover_writes_a_canonical_inventory(monkeypatch, tmp_path: Path) -> None:
     payload = json.loads(
         (Path(__file__).parent / "fixtures" / "bigquery_api_responses.json").read_text()

@@ -260,11 +260,15 @@ def _write_fabric_artifacts(
         _write_json(artifact_path, artifact)
         written.append(artifact_path)
 
+    plan_items = {item.source_id: item for item in plan.items}
+    objects = {item.source_id: item for item in inventory.objects()}
     orchestration = {
         "mode": "dry-run",
         "candidates": [
             {
                 "sourceId": decision.source_id,
+                "wave": plan_items[decision.source_id].wave,
+                "dependencies": list(objects[decision.source_id].dependencies),
                 "primaryTarget": decision.target.value,
                 "supportingTargets": [target.value for target in decision.supporting_targets],
                 "actions": list(decision.actions),

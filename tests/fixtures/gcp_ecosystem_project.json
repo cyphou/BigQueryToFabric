@@ -20,6 +20,7 @@
           "name": "events",
           "kind": "table",
           "dataset": "analytics",
+          "dependencies": ["gcp-data-platform.dataflow.batch_ingestion"],
           "partition_field": "event_date",
           "clustering_fields": ["customer_id"],
           "columns": [
@@ -143,12 +144,14 @@
       "source_id": "gcp-data-platform.dataflow.batch_ingestion",
       "name": "batch_ingestion",
       "kind": "dataflow_job",
+      "dependencies": ["gcp-data-platform.gcs.raw"],
       "properties": {"streaming": false}
     },
     {
       "source_id": "gcp-data-platform.dataflow.realtime_ingestion",
       "name": "realtime_ingestion",
       "kind": "dataflow_job",
+      "dependencies": ["gcp-data-platform.pubsub.events"],
       "properties": {"streaming": true}
     },
     {

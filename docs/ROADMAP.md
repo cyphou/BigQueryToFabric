@@ -31,6 +31,13 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - GoogleSQL can be parsed and classified through an AST before translation is attempted.
 - Dependency waves, component mappings, findings, lineage, and dry-run artifacts are deterministic.
 
+### Validated processing-chain example
+
+- **Expected:** The synthetic ecosystem inventory demonstrates a reviewable batch chain from GCS through Dataflow batch ingestion, `analytics.events`, SQL/Dataform, and Composer, while Pub/Sub through Dataflow realtime remains a separate streaming branch.
+- **Implemented:** `tests/fixtures/gcp_ecosystem_project.json` records that chain. Generated `fabric/orchestration.json` includes every orchestration candidate's targets, actions, `wave`, and source `dependencies`, allowing the chain to be inspected in a dry run.
+- **Validated:** `python -m pytest tests/test_cli.py tests/test_ecosystem_assessment.py -q` passed with `16 passed`; the CLI test verifies the batch candidate dependencies and increasing waves through Dataform and Composer.
+- **Open:** This proves offline artifact generation and ordering only. It does not execute the batch or streaming paths, connect to GCP or Fabric, deploy artifacts, or establish runtime data parity.
+
 ### What v0.1.0 does not prove
 
 - Completeness against a live GCP organization or project.
