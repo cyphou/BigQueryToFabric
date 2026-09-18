@@ -124,6 +124,13 @@ counts by source in `discovery_coverage`. This distinguishes BigQuery API result
 associated-service inventory; it does not establish inventory freshness or add live adapters for
 non-BigQuery services.
 
+An `external_payload` component that lacks required offline evidence emits exactly one `FAIL`
+finding, `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER`, in the `adapter` category. The finding explains
+that offline evidence must be completed because no live adapter is implemented. The migration plan
+marks that component and every direct or transitive dependent `manual_review`. These planned review
+states do not populate `unresolved_dependencies`, which remains reserved for missing or external
+source IDs and dependency cycles.
+
 <details>
 <summary><b>📦 Installation and development setup</b></summary>
 

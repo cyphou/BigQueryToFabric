@@ -6,6 +6,11 @@
 - Component discovery records provenance explicitly as `inventory`, `bigquery_api`, or
   `external_payload`. These values identify the input origin only; they are not freshness,
   trusted-execution, or effective-access proof.
+- An associated GCP component supplied through `external_payload` without required adapter
+  evidence produces FAIL `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` and propagates a manual-review
+  requirement to downstream components. This signals incomplete scope or evidence, not a missing
+  dependency. It is an offline assessment rule and does not call cloud APIs, prove freshness or
+  access, or implement a live adapter.
 - BigQuery discovery supports metadata for jobs, scheduled queries, connections, and dataset
   `access` entries. Dataset ACLs are emitted only as redacted canonical `security_policy`
   records, each labeled `evidence_scope: dataset_access_entry`; they document declared dataset

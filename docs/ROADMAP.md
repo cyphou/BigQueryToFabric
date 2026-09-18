@@ -80,6 +80,21 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   and does not implement live adapters for Dataflow, Composer, Dataproc, Dataform, Workflows,
   Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner.
 
+### Validated incomplete external-payload guardrail
+
+- **Expected:** An externally supplied component marked `discovered_from: external_payload` that
+  lacks required offline evidence must fail closed without implying a live adapter, and its complete
+  downstream dependency chain must require review.
+- **Implemented:** Assessment emits exactly one `FAIL` `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER`
+  finding in category `adapter`, explaining that offline evidence must be completed because no live
+  adapter is implemented. The planner marks the component and all direct/transitive dependents
+  `manual_review`. These review states are not unresolved dependencies:
+  `unresolved_dependencies` remains for missing or external source IDs and dependency cycles.
+- **Validated:** `python -m pytest tests/test_assessment.py -q` passed with `11 passed`.
+- **Open:** The behavior is offline and non-destructive. It makes no cloud calls and does not
+  implement external GCP live adapters; users must supply complete offline evidence before a
+  reviewed migration decision can rely on the affected component.
+
 ### What v0.1.0 does not prove
 
 - Completeness against a live GCP organization or project.

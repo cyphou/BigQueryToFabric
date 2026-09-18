@@ -124,6 +124,15 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
             0,
             readiness[decisions[index].compatibility] - round((100 - coverage) / 4),
         )
+        if item.discovered_from == "external_payload" and missing:
+            findings.append(AssessmentFinding(
+                "FAIL",
+                item.source_id,
+                f"{item.kind.value} is missing required offline evidence: {', '.join(missing)}. "
+                "The live adapter is not implemented, so offline evidence must be completed.",
+                "EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER",
+                "adapter",
+            ))
         findings.extend(
             AssessmentFinding(
                 "FAIL" if item.kind is ObjectKind.SECURITY_POLICY else "WARN",

@@ -23,6 +23,13 @@ normalized for offline assessment stamp `external_payload`. Assessment preserves
 object's `evidence_summary` and produces deterministic source counts in `discovery_coverage`. The
 field distinguishes collection paths, not metadata freshness or the existence of a live adapter.
 
+When an `external_payload` component lacks required offline evidence, assessment emits exactly one
+`FAIL` `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` finding in category `adapter`. The finding requires
+the supplied evidence to be completed because no live adapter exists. The dependency planner then
+marks that component and every direct or transitive dependent `manual_review`. This is a planning
+review state, not an unresolved dependency; `unresolved_dependencies` is reserved for missing or
+external source IDs and dependency cycles.
+
 ## Live discovery boundary
 
 The optional live provider uses user Application Default Credentials with the

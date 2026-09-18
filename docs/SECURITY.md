@@ -17,6 +17,11 @@
 - Component discovery records provenance explicitly as `inventory`, `bigquery_api`, or
   `external_payload`. Provenance identifies the input origin only; it must not be interpreted as
   freshness, trusted execution, or proof of effective access.
+- When an associated GCP component originates in `external_payload` without its required adapter
+  evidence, assessment emits FAIL `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` and marks downstream
+  components for manual review. This identifies incomplete scope or evidence; it does not mean a
+  dependency is missing. The check is offline: it does not call cloud APIs, prove freshness or
+  access, or implement a live adapter.
 - Associated GCP services are limited to offline payload normalization and assessment unless a
   live adapter is explicitly implemented. Their payloads do not establish live service state,
   trusted execution, or effective access.

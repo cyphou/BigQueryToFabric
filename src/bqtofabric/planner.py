@@ -34,8 +34,14 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
         for finding in assessment.findings
         if finding.code == "STREAMING_DOWNSTREAM_REVIEW"
     }
+    incomplete_adapter_sources = {
+        finding.source_id
+        for finding in assessment.findings
+        if finding.code == "EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER"
+    }
     remaining = set(objects)
     completed: set[str] = set()
+    incomplete_adapter_dependencies: set[str] = set()
     plan_items: list[PlanItem] = []
     unresolved: set[str] = set()
     wave = 1
@@ -52,6 +58,10 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
         for source_id in ready:
             external = [dep for dep in objects[source_id].dependencies if dep not in objects]
             unresolved.update(f"External dependency {dep} required by {source_id}" for dep in external)
+            depends_on_incomplete_adapter = (
+                source_id in incomplete_adapter_sources
+                or any(dep in incomplete_adapter_dependencies for dep in objects[source_id].dependencies)
+            )
             plan_items.append(PlanItem(
                 source_id,
                 decisions[source_id].target,
@@ -59,9 +69,16 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
                 bool(external)
                 or decisions[source_id].compatibility.value in {"redesign", "unsupported"}
                 or source_id in streaming_review_sources
+                or depends_on_incomplete_adapter
                 or sql_assessments.get(source_id, None) is not None
                 and sql_assessments[source_id].compatibility.value in {"redesign", "unsupported"},
             ))
+        incomplete_adapter_dependencies.update(
+            source_id
+            for source_id in ready
+            if source_id in incomplete_adapter_sources
+            or any(dep in incomplete_adapter_dependencies for dep in objects[source_id].dependencies)
+        )
         completed.update(ready)
         remaining.difference_update(ready)
         wave += 1

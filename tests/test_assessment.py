@@ -228,3 +228,48 @@ def test_streaming_dataflow_requires_transitive_downstream_review() -> None:
     assert plan_items["streaming-chain.ingest"].manual_review is True
     assert plan_items["streaming-chain.curated"].manual_review is True
     assert plan_items["streaming-chain.gold"].manual_review is True
+
+
+def test_incomplete_external_spark_adapter_requires_transitive_review() -> None:
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "external-adapter-chain",
+        "components": [
+            {
+                "source_id": "external-adapter-chain.transform",
+                "name": "transform",
+                "kind": "spark_job",
+                "discovered_from": "external_payload",
+            },
+            {
+                "source_id": "external-adapter-chain.curated",
+                "name": "curated",
+                "kind": "table",
+                "dependencies": ["external-adapter-chain.transform"],
+            },
+            {
+                "source_id": "external-adapter-chain.reporting",
+                "name": "reporting",
+                "kind": "view",
+                "dependencies": ["external-adapter-chain.curated"],
+            },
+        ],
+    })
+
+    report = run_assessment(inventory)
+    plan = build_plan(inventory, report)
+    adapter_findings = [
+        finding
+        for finding in report.findings
+        if finding.code == "EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER"
+    ]
+    plan_items = {item.source_id: item for item in plan.items}
+
+    assert len(adapter_findings) == 1
+    assert adapter_findings[0].severity == "FAIL"
+    assert adapter_findings[0].source_id == "external-adapter-chain.transform"
+    assert "language" in adapter_findings[0].message
+    assert "runtime_version" in adapter_findings[0].message
+    assert plan_items["external-adapter-chain.transform"].manual_review is True
+    assert plan_items["external-adapter-chain.curated"].manual_review is True
+    assert plan_items["external-adapter-chain.reporting"].manual_review is True
+    assert plan.unresolved_dependencies == ()

@@ -29,6 +29,12 @@ object's `discovered_from`, while `discovery_coverage` gives deterministic count
 `bigquery_api`, and `external_payload`. The latter represents supplied associated-service payloads
 normalized offline, not live discovery of those services. Neither value proves metadata freshness.
 
+If an `external_payload` component lacks required offline evidence, assessment emits exactly one
+`FAIL` `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` finding in category `adapter`, explaining that the
+evidence must be completed because no live adapter is implemented. Planning marks the component and
+all direct/transitive dependents `manual_review`. This review propagation does not create an
+`unresolved_dependencies` entry; that field is only for missing or external source IDs and cycles.
+
 Discovery makes no IAM API calls. Project/org IAM, connection IAM bindings, distinct row access
 policies, BigQuery Data Policies, and policy tags are not extracted. Treat any mapping involving
 those controls as security review work, not verified source-rights parity. Dataflow, Composer,

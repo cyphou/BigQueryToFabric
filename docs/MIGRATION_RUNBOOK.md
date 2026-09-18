@@ -84,6 +84,18 @@ in `evidence_summary` and reports deterministic counts by source in `discovery_c
 does not mean BQToFabric called that service's API. Provenance is not a freshness assertion and does
 not validate when the source metadata was collected.
 
+### Incomplete external payloads
+
+An `external_payload` component without required offline evidence receives exactly one assessment
+finding: `FAIL` `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` in category `adapter`. It states that the
+offline evidence must be completed because no live adapter is implemented. Resolve the evidence
+gap before relying on its target recommendation or migration wave.
+
+The planner marks the incomplete component and all direct and transitive dependents
+`manual_review`. This propagation is a review requirement, not an unresolved dependency:
+`unresolved_dependencies` remains for missing or external source IDs and dependency cycles. The
+workflow stays offline and does not call external GCP services or add live adapters.
+
 ### Dataset access evidence
 
 Dataset GET `access` entries are inventory evidence, not an effective-access calculation. Each
