@@ -96,6 +96,20 @@ The planner marks the incomplete component and all direct and transitive depende
 `unresolved_dependencies` remains for missing or external source IDs and dependency cycles. The
 workflow stays offline and does not call external GCP services or add live adapters.
 
+### Manual-review reasons
+
+`manual_review` remains the planner's decision flag. A flagged `PlanItem` also carries a
+deterministic `manual_review_reasons` list so reviewers can identify why action is needed. Review
+the following codes before approving a migration wave: `external_dependency`,
+`incompatible_mapping`, `streaming_downstream_review`, `incomplete_external_adapter`,
+`depends_on_incomplete_external_adapter`, `sql_incompatibility`, and
+`cycle_or_unresolved_dependency`.
+
+`migration-plan.md` renders the decision flag and codes. The generated
+`fabric/target-manifest.json` renders the corresponding `manualReview` and
+`manualReviewReasons` fields for target-level review. These are deterministic dry-run planning
+metadata and introduce no cloud calls or deployment behavior.
+
 ### Dataset access evidence
 
 Dataset GET `access` entries are inventory evidence, not an effective-access calculation. Each
@@ -110,7 +124,8 @@ or distinct row access policies.
 1. Run `bqtofabric assess` and resolve FAIL findings.
 2. Review target and type mappings, especially ARRAY, STRUCT, GEOGRAPHY, BIGNUMERIC, policies,
     UDFs, procedures, and external dependencies.
-3. Generate the migration plan and verify dependency waves.
+3. Generate the migration plan, verify dependency waves, and resolve or explicitly accept every
+    `manual_review_reasons` code.
 4. Generate dry-run Fabric artifacts and review SQL, notebooks, pipelines, identities, and names.
 5. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
 6. Use the native Fabric BigQuery connector for Dataflow Gen2, Pipeline Copy/Lookup, or Copy Job.

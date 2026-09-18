@@ -113,6 +113,10 @@ def test_generate_exposes_the_end_to_end_processing_chain(tmp_path: Path) -> Non
     assert entries["gcp-data-platform.analytics.events"]["dependencies"] == [
         "gcp-data-platform.dataflow.batch_ingestion"
     ]
+    assert entries["gcp-data-platform.security.customer_policy"]["manualReview"] is True
+    assert entries["gcp-data-platform.security.customer_policy"]["manualReviewReasons"] == [
+        "incompatible_mapping"
+    ]
 
 
 def test_discover_writes_a_canonical_inventory(monkeypatch, tmp_path: Path) -> None:

@@ -34,6 +34,8 @@
 - Treat policy tags, row access policies, authorized views, and cross-project access as migration
   blockers until target permissions and RLS are validated.
 - Generated output must contain logical references, never secret values.
+- `manual_review_reasons` make known assessment constraints explicit in dry-run output. They do
+  not prove remediation, parity, effective access, or deployment readiness.
 - Preserve redaction boundaries: inventories and generated artifacts may include only logical,
   non-secret references and redacted security-policy details. For BigQuery IAM and dataset access
   concepts, see [BigQuery access control](https://docs.cloud.google.com/bigquery/docs/access-control).

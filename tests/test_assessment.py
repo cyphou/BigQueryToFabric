@@ -272,4 +272,13 @@ def test_incomplete_external_spark_adapter_requires_transitive_review() -> None:
     assert plan_items["external-adapter-chain.transform"].manual_review is True
     assert plan_items["external-adapter-chain.curated"].manual_review is True
     assert plan_items["external-adapter-chain.reporting"].manual_review is True
+    assert plan_items["external-adapter-chain.transform"].manual_review_reasons == (
+        "incomplete_external_adapter",
+    )
+    assert plan_items["external-adapter-chain.curated"].manual_review_reasons == (
+        "depends_on_incomplete_external_adapter",
+    )
+    assert plan_items["external-adapter-chain.reporting"].manual_review_reasons == (
+        "depends_on_incomplete_external_adapter",
+    )
     assert plan.unresolved_dependencies == ()

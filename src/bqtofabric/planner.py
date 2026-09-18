@@ -15,6 +15,7 @@ class PlanItem:
     target: FabricTarget
     wave: int
     manual_review: bool
+    manual_review_reasons: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,7 +54,13 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
         if not ready:
             for source_id in sorted(remaining):
                 unresolved.add(f"Cycle or unresolved dependency for {source_id}")
-                plan_items.append(PlanItem(source_id, decisions[source_id].target, wave, True))
+                plan_items.append(PlanItem(
+                    source_id,
+                    decisions[source_id].target,
+                    wave,
+                    True,
+                    ("cycle_or_unresolved_dependency",),
+                ))
             break
         for source_id in ready:
             external = [dep for dep in objects[source_id].dependencies if dep not in objects]
@@ -62,16 +69,26 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
                 source_id in incomplete_adapter_sources
                 or any(dep in incomplete_adapter_dependencies for dep in objects[source_id].dependencies)
             )
+            reasons: list[str] = []
+            if external:
+                reasons.append("external_dependency")
+            if decisions[source_id].compatibility.value in {"redesign", "unsupported"}:
+                reasons.append("incompatible_mapping")
+            if source_id in streaming_review_sources:
+                reasons.append("streaming_downstream_review")
+            if source_id in incomplete_adapter_sources:
+                reasons.append("incomplete_external_adapter")
+            elif depends_on_incomplete_adapter:
+                reasons.append("depends_on_incomplete_external_adapter")
+            sql_assessment = sql_assessments.get(source_id)
+            if sql_assessment and sql_assessment.compatibility.value in {"redesign", "unsupported"}:
+                reasons.append("sql_incompatibility")
             plan_items.append(PlanItem(
                 source_id,
                 decisions[source_id].target,
                 wave,
-                bool(external)
-                or decisions[source_id].compatibility.value in {"redesign", "unsupported"}
-                or source_id in streaming_review_sources
-                or depends_on_incomplete_adapter
-                or sql_assessments.get(source_id, None) is not None
-                and sql_assessments[source_id].compatibility.value in {"redesign", "unsupported"},
+                bool(reasons),
+                tuple(reasons),
             ))
         incomplete_adapter_dependencies.update(
             source_id

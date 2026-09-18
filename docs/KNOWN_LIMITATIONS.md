@@ -26,6 +26,8 @@
   external GCP services. Policy tags, row access policies, authorized views, and cross-project
   access therefore require manual security review.
 - Partitioning and clustering recommendations are not assumed to be behaviorally equivalent.
+- `manual_review_reasons` make known assessment constraints explicit in dry-run evidence only.
+  They do not prove remediation, parity, effective access, or deployment readiness.
 - Dataflow, Composer, Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex,
   Cloud SQL, and Spanner are limited to offline payload normalization and assessment unless a live
   adapter is implemented. Their live adapters, extraction, conversion, and deployment remain

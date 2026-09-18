@@ -118,12 +118,13 @@ def write_reports(
         "",
         "## Migration waves",
         "",
-        "| Wave | BigQuery object | Fabric target | Manual review |",
-        "|---:|---|---|---|",
+        "| Wave | BigQuery object | Fabric target | Manual review | Review reasons |",
+        "|---:|---|---|---|---|",
     ])
     for item in plan.items:
+        reasons = ", ".join(item.manual_review_reasons) or "-"
         lines.append(f"| {item.wave} | `{item.source_id}` | {item.target.value} | "
-                     f"{'yes' if item.manual_review else 'no'} |")
+                     f"{'yes' if item.manual_review else 'no'} | {reasons} |")
     if plan.unresolved_dependencies:
         lines.extend(("", "## Unresolved dependencies", ""))
         lines.extend(f"- {message}" for message in plan.unresolved_dependencies)
@@ -292,6 +293,8 @@ def _write_fabric_artifacts(
                 "processingStage": _processing_stage(decision.source_kind.value),
                 "wave": plan_items[decision.source_id].wave,
                 "dependencies": list(objects[decision.source_id].dependencies),
+                "manualReview": plan_items[decision.source_id].manual_review,
+                "manualReviewReasons": list(plan_items[decision.source_id].manual_review_reasons),
                 "primaryTarget": decision.target.value,
                 "supportingTargets": [target.value for target in decision.supporting_targets],
                 "compatibility": decision.compatibility.value,

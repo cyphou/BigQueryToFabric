@@ -30,6 +30,14 @@ marks that component and every direct or transitive dependent `manual_review`. T
 review state, not an unresolved dependency; `unresolved_dependencies` is reserved for missing or
 external source IDs and dependency cycles.
 
+`manual_review` is the PlanItem decision flag. A flagged item also records deterministic
+`manual_review_reasons` to make the review actionable. The supported codes are
+`external_dependency`, `incompatible_mapping`, `streaming_downstream_review`,
+`incomplete_external_adapter`, `depends_on_incomplete_external_adapter`, `sql_incompatibility`,
+and `cycle_or_unresolved_dependency`. The report renderer exposes these values in
+`migration-plan.md`; the generated target manifest exposes them as `manualReview` and
+`manualReviewReasons`. These are dry-run planning fields and do not alter cloud behavior.
+
 ## Live discovery boundary
 
 The optional live provider uses user Application Default Credentials with the

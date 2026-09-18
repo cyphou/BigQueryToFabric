@@ -35,6 +35,26 @@ evidence must be completed because no live adapter is implemented. Planning mark
 all direct/transitive dependents `manual_review`. This review propagation does not create an
 `unresolved_dependencies` entry; that field is only for missing or external source IDs and cycles.
 
+## Manual-review decision contract
+
+`manual_review` remains the planner's decision flag. Every flagged `PlanItem` also includes a
+deterministic `manual_review_reasons` list that makes the decision actionable. The codes are:
+
+| Code | Review trigger |
+|---|---|
+| `external_dependency` | A required source dependency is external to the planned inventory. |
+| `incompatible_mapping` | The selected source-to-target mapping requires compatibility review. |
+| `streaming_downstream_review` | A downstream consumer requires streaming delivery review. |
+| `incomplete_external_adapter` | An external payload has incomplete evidence for an unimplemented live adapter. |
+| `depends_on_incomplete_external_adapter` | The item depends on an incomplete external-adapter component. |
+| `sql_incompatibility` | SQL assessment identified a compatibility issue that needs review. |
+| `cycle_or_unresolved_dependency` | Planning found a dependency cycle or unresolved dependency. |
+
+`migration-plan.md` renders `manual_review` and its reason codes. The generated
+`fabric/target-manifest.json` exposes the same values as `manualReview` and
+`manualReviewReasons`. These fields are deterministic offline review metadata; they do not call
+cloud services or change deployment behavior.
+
 Discovery makes no IAM API calls. Project/org IAM, connection IAM bindings, distinct row access
 policies, BigQuery Data Policies, and policy tags are not extracted. Treat any mapping involving
 those controls as security review work, not verified source-rights parity. Dataflow, Composer,

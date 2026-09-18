@@ -50,6 +50,24 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** The guardrail evaluates static inventory dependency evidence only. It does not
   execute or monitor live stream processing, validate data, or deploy Fabric artifacts.
 
+### Validated actionable manual-review reasons
+
+- **Expected:** A `PlanItem` marked `manual_review` retains that decision flag and records a
+  deterministic reason list so reviewers can act on the specific planning condition. Both the
+  human-readable migration plan and generated target manifest expose the decision and reasons.
+- **Implemented:** `PlanItem.manual_review_reasons` uses the codes `external_dependency`,
+  `incompatible_mapping`, `streaming_downstream_review`, `incomplete_external_adapter`,
+  `depends_on_incomplete_external_adapter`, `sql_incompatibility`, and
+  `cycle_or_unresolved_dependency`. `migration-plan.md` renders `manual_review` and the reason
+  codes; `fabric/target-manifest.json` exposes the matching `manualReview` and
+  `manualReviewReasons` fields. `manual_review` remains the decision flag; reasons make the
+  decision actionable.
+- **Validated:** `python -m pytest tests/test_assessment.py tests/test_cli.py -q` passed with
+  `19 passed`.
+- **Open:** This is deterministic, offline planning metadata only. It does not make cloud calls,
+  change deployment behavior, establish runtime compatibility, or resolve the listed review
+  conditions automatically.
+
 ### Validated dataset access review guardrail
 
 - **Expected:** Live dataset `access` entries provide redacted dataset-level evidence only and

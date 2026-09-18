@@ -58,14 +58,29 @@ The generated package contains:
 
 - `assessment.json` — score, evidence, SQL analysis, findings, and portfolio summaries.
 - `component-mapping.csv` — primary/supporting targets, compatibility, rationale, and actions.
-- `migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves.
+`migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves, including
+	`manual_review` decisions and deterministic `manual_review_reasons` codes.
 - `lineage.mmd` — Mermaid dependency graph.
-- `fabric/` — dry-run Warehouse SQL, Fabric notebook, pipeline, and orchestration manifests.
+`fabric/target-manifest.json` — every target entry with `processingStage`, `wave`, source
+	`dependencies`, `manualReview`, and deterministic `manualReviewReasons` for full-chain dry-run
+	review. Stages are `ingestion`, `storage`, `transformation`, `orchestration`, `consumption`,
+	`governance`, `integration`, or `operational` for known source kinds.
 - `fabric/target-manifest.json` — every target entry with `processingStage`, `wave`, and source `dependencies` for deterministic full-chain dry-run review. Stages are `ingestion`, `storage`, `transformation`, `orchestration`, `consumption`, `governance`, `integration`, or `operational` for known source kinds.
 - `fabric/deployment-manifest.json` — immutable dry-run payload with SHA-256 integrity hash.
 - `fabric/artifact-validation.json` — offline structural validation results.
 - `fabric/deployment-manifest.json` is checked by `deployment-check`; readiness never performs apply.
 
+
+### Manual-review decisions
+
+`manual_review` remains the planner's decision flag. When it is set, the corresponding `PlanItem`
+also contains deterministic `manual_review_reasons` so the review is actionable. Generated
+`migration-plan.md` renders the flag and codes; `fabric/target-manifest.json` exposes the same
+values as `manualReview` and `manualReviewReasons`. The supported reason codes are
+`external_dependency`, `incompatible_mapping`, `streaming_downstream_review`,
+`incomplete_external_adapter`, `depends_on_incomplete_external_adapter`, `sql_incompatibility`,
+and `cycle_or_unresolved_dependency`. This is offline planning metadata only and makes no cloud
+calls or deployment changes.
 ## Assess A Live GCP Project
 
 Live discovery is read-only BigQuery metadata discovery. It creates a local canonical inventory;
