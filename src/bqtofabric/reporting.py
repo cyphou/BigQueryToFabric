@@ -101,6 +101,15 @@ def write_reports(
         lines.append(f"| `{source_id}` | {evidence['coverage']}% | {missing} |")
     lines.extend([
         "",
+        "## Parity evidence",
+        "",
+        "| Component | Status |",
+        "|---|---|",
+    ])
+    for source_id, parity in assessment.parity_summary.items():
+        lines.append(f"| `{source_id}` | {parity['status']} |")
+    lines.extend([
+        "",
         "## Migration waves",
         "",
         "| Wave | BigQuery object | Fabric target | Manual review |",
@@ -183,6 +192,24 @@ def _write_fabric_artifacts(
     pipeline_path = root / "pipeline.json"
     _write_json(pipeline_path, pipeline)
     written.append(pipeline_path)
+
+    sql_conversions = {
+        "mode": "dry-run",
+        "conversions": [
+            {
+                "sourceId": result.source_id,
+                "targetDialect": result.target_language,
+                "compatibility": result.compatibility.value,
+                "features": list(result.features),
+                "warnings": list(result.notes),
+                "convertedSql": result.converted_sql,
+            }
+            for result in sorted(assessment.sql_assessments, key=lambda item: item.source_id)
+        ],
+    }
+    sql_conversions_path = root / "sql-conversions.json"
+    _write_json(sql_conversions_path, sql_conversions)
+    written.append(sql_conversions_path)
 
     orchestration = {
         "mode": "dry-run",

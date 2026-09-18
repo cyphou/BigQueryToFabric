@@ -47,6 +47,22 @@ def test_sql_assessment_keeps_structured_target_conversion() -> None:
     assert "[sales]" in sql_result.converted_sql
 
 
+def test_sql_redesign_requires_manual_plan_review() -> None:
+    inventory = type(JsonInventoryProvider(FIXTURE).load()).from_dict({
+        "project_id": "sql-review",
+        "components": [{
+            "source_id": "sql-review.script",
+            "name": "script",
+            "kind": "sql_script",
+            "sql": "BEGIN TRANSACTION; UPDATE sales.orders SET total = total + 1; COMMIT TRANSACTION;",
+        }],
+    })
+    report = run_assessment(inventory)
+    plan = build_plan(inventory, report)
+
+    assert plan.items[0].manual_review is True
+
+
 def test_assessment_penalizes_missing_family_evidence() -> None:
     inventory = JsonInventoryProvider(GCP_FIXTURE).load()
     report = run_assessment(inventory)
@@ -90,3 +106,34 @@ def test_assessment_accepts_complete_family_evidence() -> None:
 
     assert not any("evidence missing" in finding.message for finding in report.findings)
     assert report.evidence_coverage == 100
+
+
+def test_parity_evidence_is_assessed_without_cloud_execution() -> None:
+    inventory = type(JsonInventoryProvider(FIXTURE).load()).from_dict({
+        "project_id": "parity",
+        "datasets": [{
+            "source_id": "parity.data",
+            "name": "data",
+            "location": "EU",
+            "objects": [{
+                "source_id": "parity.data.orders",
+                "name": "orders",
+                "kind": "table",
+                "dataset": "data",
+                "columns": [{"name": "id", "data_type": "INT64"}],
+                "properties": {
+                    "parity": {
+                        "schema": {"status": "passed"},
+                        "type": {"status": "passed"},
+                        "row_count": {"status": "failed", "source": 10, "target": 9},
+                        "checksum": {"status": "not_run", "algorithm": "sha256"},
+                    }
+                },
+            }],
+        }],
+    })
+
+    report = run_assessment(inventory)
+
+    assert report.parity_summary["parity.data.orders"]["status"] == "failed"
+    assert any(finding.code == "PARITY_FAILED" for finding in report.findings)

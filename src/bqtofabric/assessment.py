@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from .mapping import MappingDecision, map_component
 from .models import BigQueryInventory, BigQueryObject, Column, ObjectKind
+from .parity import assess_parity
 from .sql_assessment import SqlAssessment, assess_sql
 from .strategy import StrategyRecommendation, recommend_strategy
 from .type_mapping import Compatibility, TypeMapping, map_type
@@ -36,6 +37,7 @@ class AssessmentReport:
     findings: tuple[AssessmentFinding, ...]
     evidence_summary: dict[str, dict[str, object]]
     evidence_coverage: int
+    parity_summary: dict[str, dict[str, object]]
 
 
 def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
@@ -55,6 +57,7 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
     findings: list[AssessmentFinding] = []
     evidence_scores: list[int] = []
     evidence_summary: dict[str, dict[str, object]] = {}
+    parity_summary: dict[str, dict[str, object]] = {}
     readiness = {
         Compatibility.DIRECT: 100,
         Compatibility.TRANSFORM: 80,
@@ -76,6 +79,12 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
                 "WARN", decision.source_id, action, "ACTION_REQUIRED", "mapping"
             ))
     for index, item in enumerate(inventory.objects()):
+        parity = assess_parity(item.properties, applicable=bool(item.columns))
+        parity_summary[item.source_id] = parity
+        if parity["status"] == "failed":
+            findings.append(AssessmentFinding(
+                "FAIL", item.source_id, "Parity evidence failed.", "PARITY_FAILED", "parity"
+            ))
         required = _required_evidence(item.kind)
         missing = _missing_evidence(item)
         present = tuple(field_name for field_name in required if field_name not in missing)
@@ -143,6 +152,7 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         dict(sorted(evidence_summary.items())),
         round(sum(item["coverage"] for item in evidence_summary.values()) / len(evidence_summary))
         if evidence_summary else 100,
+        dict(sorted(parity_summary.items())),
     )
 
 

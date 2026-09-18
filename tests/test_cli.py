@@ -30,6 +30,7 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert (tmp_path / "assessment.json").is_file()
     assert (tmp_path / "migration-plan.md").is_file()
     assert "Evidence coverage:" in (tmp_path / "migration-plan.md").read_text()
+    assert "Parity evidence" in (tmp_path / "migration-plan.md").read_text()
     notebook = json.loads((tmp_path / "fabric" / "lakehouse_transform.ipynb").read_text())
     markdown_cell = notebook["cells"][0]
     code_cell = notebook["cells"][1]
@@ -38,6 +39,9 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert code_cell["execution_count"] is None
     assert code_cell["outputs"] == []
     assert json.loads((tmp_path / "fabric" / "pipeline.json").read_text())["mode"] == "dry-run"
+    sql_conversions = json.loads((tmp_path / "fabric" / "sql-conversions.json").read_text())
+    assert sql_conversions["mode"] == "dry-run"
+    assert any(item["convertedSql"] for item in sql_conversions["conversions"])
     manifest = json.loads((tmp_path / "fabric" / "target-manifest.json").read_text())
     assert manifest["mode"] == "dry-run"
     assert any(entry["artifactKind"] == "lakehouse_notebook" for entry in manifest["entries"])

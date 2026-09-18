@@ -28,6 +28,7 @@ class MigrationPlan:
 def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> MigrationPlan:
     objects = {item.source_id: item for item in inventory.objects()}
     decisions = {item.source_id: item for item in assessment.decisions}
+    sql_assessments = {item.source_id: item for item in assessment.sql_assessments}
     remaining = set(objects)
     completed: set[str] = set()
     plan_items: list[PlanItem] = []
@@ -50,7 +51,10 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
                 source_id,
                 decisions[source_id].target,
                 wave,
-                bool(external) or decisions[source_id].compatibility.value in {"redesign", "unsupported"},
+                bool(external)
+                or decisions[source_id].compatibility.value in {"redesign", "unsupported"}
+                or sql_assessments.get(source_id, None) is not None
+                and sql_assessments[source_id].compatibility.value in {"redesign", "unsupported"},
             ))
         completed.update(ready)
         remaining.difference_update(ready)
