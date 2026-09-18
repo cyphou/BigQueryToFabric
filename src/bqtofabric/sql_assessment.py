@@ -20,6 +20,7 @@ class SqlAssessment:
     compatibility: Compatibility
     features: tuple[str, ...]
     notes: tuple[str, ...]
+    converted_sql: str | None = None
 
 
 _TRANSFORM_FEATURES = {
@@ -72,8 +73,11 @@ def assess_sql(item: BigQueryObject, decision: MappingDecision) -> SqlAssessment
     elif any(feature in features for feature in _TRANSFORM_FEATURES):
         compatibility = Compatibility.TRANSFORM
 
+    converted_sql: str | None = None
     try:
-        sqlglot.transpile(item.sql, read="bigquery", write=target_language)
+        converted_sql = "\n\n".join(
+            sqlglot.transpile(item.sql, read="bigquery", write=target_language)
+        )
     except (ParseError, ValueError) as error:
         compatibility = Compatibility.REDESIGN
         notes += (f"Translation to {target_language} requires manual redesign: {error}",)
@@ -84,4 +88,5 @@ def assess_sql(item: BigQueryObject, decision: MappingDecision) -> SqlAssessment
         compatibility,
         features,
         notes,
+        converted_sql,
     )

@@ -34,6 +34,19 @@ def test_plan_orders_view_after_its_table_dependency() -> None:
     assert plan.unresolved_dependencies == ()
 
 
+def test_sql_assessment_keeps_structured_target_conversion() -> None:
+    inventory = JsonInventoryProvider(FIXTURE).load()
+    report = run_assessment(inventory)
+    sql_result = next(
+        result for result in report.sql_assessments
+        if result.source_id == "retail-analytics.sales.daily_sales"
+    )
+
+    assert sql_result.converted_sql is not None
+    assert "SELECT" in sql_result.converted_sql.upper()
+    assert "[sales]" in sql_result.converted_sql
+
+
 def test_assessment_penalizes_missing_family_evidence() -> None:
     inventory = JsonInventoryProvider(GCP_FIXTURE).load()
     report = run_assessment(inventory)
