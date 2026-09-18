@@ -66,6 +66,52 @@ The generated package contains:
 - `fabric/artifact-validation.json` — offline structural validation results.
 - `fabric/deployment-manifest.json` is checked by `deployment-check`; readiness never performs apply.
 
+## Assess A Live GCP Project
+
+Live discovery is read-only BigQuery metadata discovery. It creates a local canonical inventory;
+all assessment, mapping, planning, generation, and deployment-readiness steps remain offline and
+non-destructive.
+
+1. Install the optional GCP dependencies and enable the **BigQuery API**, **BigQuery Data Transfer
+	API**, and **BigQuery Connection API** for the project.
+2. Sign in using user Application Default Credentials. Do not use or store service-account JSON.
+
+	```powershell
+	python -m pip install -e ".[gcp]"
+	gcloud auth application-default login
+	```
+
+3. Have a security administrator grant the user least-privilege read access for the required APIs
+	and resources, including job-history visibility where required.
+4. Run the local workflow:
+
+	```powershell
+	bqtofabric discover <project-id> --output artifacts/<project-id>/inventory.json
+	bqtofabric validate artifacts/<project-id>/inventory.json
+	bqtofabric inventory artifacts/<project-id>/inventory.json
+	bqtofabric assess artifacts/<project-id>/inventory.json
+	bqtofabric map artifacts/<project-id>/inventory.json
+	bqtofabric plan artifacts/<project-id>/inventory.json --output artifacts/<project-id>/plan
+	bqtofabric generate artifacts/<project-id>/inventory.json --output artifacts/<project-id>/project
+	bqtofabric deployment-check artifacts/<project-id>/project/fabric
+	```
+
+	Discovery uses Application Default Credentials (ADC) with
+	`https://www.googleapis.com/auth/bigquery.readonly`. It reads datasets; tables, views, materialized
+	views, and external tables; routines and procedures; BQML models; jobs; scheduled-query transfer
+	configurations; connections; and dataset `access` entries. Dataset access entries are redacted and
+	represented as canonical `security_policy` records. See Google's [ADC guidance](https://docs.cloud.google.com/docs/authentication/provide-credentials-adc)
+	and [BigQuery access-control reference](https://docs.cloud.google.com/bigquery/docs/access-control).
+
+	Discovery exit code `3` means ADC, BigQuery API enablement, or required IAM visibility is missing.
+	Re-authenticate with `gcloud auth application-default login`, confirm the three required APIs are
+	enabled, and have a security administrator review the least-privilege guidance in the
+	[migration runbook](docs/MIGRATION_RUNBOOK.md). Provider response bodies are never printed.
+
+External GCP services -- Dataflow, Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI,
+Dataplex, Cloud SQL, and Spanner -- support offline normalization and assessment only. They do not
+have live discovery adapters.
+
 <details>
 <summary><b>📦 Installation and development setup</b></summary>
 

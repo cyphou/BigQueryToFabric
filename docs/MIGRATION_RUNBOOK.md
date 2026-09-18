@@ -1,13 +1,86 @@
 # Migration runbook
 
-1. Export or build the canonical BigQuery inventory.
-2. Validate it with `bqtofabric validate`.
-3. Run `bqtofabric assess` and resolve FAIL findings.
-4. Review target and type mappings, especially ARRAY, STRUCT, GEOGRAPHY, BIGNUMERIC, policies,
-   UDFs, procedures, and external dependencies.
-5. Generate the migration plan and verify dependency waves.
-6. Generate dry-run Fabric artifacts and review SQL, notebooks, pipelines, identities, and names.
-7. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
-8. Use the native Fabric BigQuery connector for Dataflow Gen2, Pipeline Copy/Lookup, or Copy Job.
-9. Pilot one representative dataset before scaling by migration wave.
-10. Add live deployment only after explicit approval, credentials, rollback, and audit controls.
+## Assess a live GCP project
+
+1. Install the optional dependencies and enable the **BigQuery API**, **BigQuery Data Transfer API**,
+    and **BigQuery Connection API** for the target project.
+
+    ```powershell
+    python -m pip install -e ".[gcp]"
+    ```
+
+2. Authenticate with user Application Default Credentials (ADC). Do not use or store service-account JSON.
+    Follow Google's [ADC guidance](https://docs.cloud.google.com/docs/authentication/provide-credentials-adc).
+
+    ```powershell
+    gcloud auth application-default login
+    ```
+
+3. Ask a security administrator to grant least-privilege read access for the required APIs and
+    resources. The matrix below is the implemented discovery contract; consult Google's
+    [BigQuery access-control reference](https://docs.cloud.google.com/bigquery/docs/access-control)
+    when assigning roles.
+4. Discover and process the local inventory:
+
+    ```powershell
+    bqtofabric discover <project-id> --output artifacts/<project-id>/inventory.json
+    bqtofabric validate artifacts/<project-id>/inventory.json
+    bqtofabric inventory artifacts/<project-id>/inventory.json
+    bqtofabric assess artifacts/<project-id>/inventory.json
+    bqtofabric map artifacts/<project-id>/inventory.json
+    bqtofabric plan artifacts/<project-id>/inventory.json --output artifacts/<project-id>/plan
+    bqtofabric generate artifacts/<project-id>/inventory.json --output artifacts/<project-id>/project
+    bqtofabric deployment-check artifacts/<project-id>/project/fabric
+    ```
+
+## Discovery capability and permissions
+
+Discovery uses ADC with the `https://www.googleapis.com/auth/bigquery.readonly` scope. Required APIs
+are BigQuery API, BigQuery Data Transfer API, and BigQuery Connection API. The tool is read-only,
+redacts credential-like metadata, and does not print provider response bodies.
+
+| Source family | Extracted today? | Rights extracted? | Minimum discovery permission/role guidance | Assessment status |
+|---|---|---|---|---|
+| BigQuery core: datasets, tables, views, materialized/external tables, routines, procedures, BQML models | Yes | No Cloud IAM bindings | Dataset-level metadata visibility, such as `roles/bigquery.metadataViewer`, for every dataset in scope | Live metadata extraction; assessed and mapped offline |
+| BigQuery jobs | Yes | No | For estate-wide history, use project-level `roles/bigquery.resourceViewer`, which supplies `bigquery.jobs.listAll`; do not grant broad administrative roles for discovery | Live metadata extraction; assessed and mapped offline |
+| Scheduled queries (BigQuery Data Transfer transfer configurations) | Yes | No | Grant only the Data Transfer visibility required for the transfer configurations in scope; validate the exact role with the security administrator | Live metadata extraction; assessed and mapped offline |
+| BigQuery connections | Yes | Connection IAM bindings are not extracted | Grant `bigquery.connections.get` and `bigquery.connections.list`, for example through a suitable role such as `roles/bigquery.connectionUser` where appropriate | Live metadata extraction; assessed and mapped offline |
+| Dataset ACLs (`datasets.get` payload `access` entries) | Yes | Dataset access entries only; project Cloud IAM bindings are not extracted | Dataset metadata visibility, such as `roles/bigquery.metadataViewer`, for every dataset in scope | Redacted canonical `security_policy` records; security review required |
+| Project IAM | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Connection IAM | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Row access policies, BigQuery Data Policies, and policy tags | No | No | Live adapter and permission contract not yet implemented; security review required | Canonical/offline assessment type only |
+| Dataflow | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Composer | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Dataproc | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Dataform | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Workflows | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Pub/Sub | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Cloud Storage (GCS) | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Looker | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Vertex AI | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Dataplex | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Cloud SQL | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Spanner | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+
+### Exit code 3
+
+Exit code `3` means discovery could not establish the required read-only access. Re-run
+`gcloud auth application-default login`, confirm the BigQuery API, BigQuery Data Transfer API, and
+BigQuery Connection API are enabled, then have a security administrator verify the relevant
+least-privilege visibility in the matrix. Do not add credentials, tokens, or service-account keys to
+the inventory or command line.
+
+Dataflow, Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and
+Spanner have offline normalization and assessment support only; they do not have live adapters.
+
+## Review and migration preparation
+
+1. Run `bqtofabric assess` and resolve FAIL findings.
+2. Review target and type mappings, especially ARRAY, STRUCT, GEOGRAPHY, BIGNUMERIC, policies,
+    UDFs, procedures, and external dependencies.
+3. Generate the migration plan and verify dependency waves.
+4. Generate dry-run Fabric artifacts and review SQL, notebooks, pipelines, identities, and names.
+5. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
+6. Use the native Fabric BigQuery connector for Dataflow Gen2, Pipeline Copy/Lookup, or Copy Job.
+7. Pilot one representative dataset before scaling by migration wave.
+8. Add live deployment only after explicit approval, credentials, rollback, and audit controls.

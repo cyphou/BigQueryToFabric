@@ -72,6 +72,26 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 
 **Goal:** replace hand-authored inventories with reproducible, read-only discovery.
 
+- **Expected:** An authenticated user can produce a deterministic, credential-safe canonical
+  inventory from the supported BigQuery metadata surface, then use the existing offline assessment
+  workflow without claiming IAM or governance-policy completeness.
+- **Implemented:** `bqtofabric discover` uses user Application Default Credentials with
+  `https://www.googleapis.com/auth/bigquery.readonly`. It discovers datasets, tables, views,
+  materialized views, external tables, routines, procedures, BQML models, jobs, scheduled-query
+  transfer configurations, connections, and dataset GET `access` entries. Access entries are
+  redacted into canonical `security_policy` records. It does not call Cloud Resource Manager IAM,
+  connection `getIamPolicy`, or the BigQuery Data Policy API. Discovery failures return exit code
+  `3` without printing provider response bodies. Dataflow, Composer, Dataproc, Dataform, Workflows,
+  Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner remain offline
+  normalization/assessment only.
+- **Validated:** Discovery mapping, deterministic serialization, redaction, pagination, and
+  provider-failure body suppression are covered by offline fixture tests.
+- **Open:** No authorized live-GCP sandbox test has run. The three required APIs, dataset metadata
+  visibility, and project-level job-history visibility must be verified in a live project before
+  this can claim live metadata parity. Project IAM, connection IAM, row access policies, data
+  policies, policy tags, and all external-family adapters remain unimplemented and require security
+  review where they affect migration decisions.
+
 - **Implement `GoogleCloudInventoryProvider` behind an optional `gcp` dependency group.** *Done.*
   The provider consumes BigQuery REST resources through a `BigQueryMetadataClient` protocol, so
   discovery is exercised offline against committed API payloads and needs no credentials to test.
