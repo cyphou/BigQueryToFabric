@@ -223,6 +223,28 @@ Fabric artifacts, parity validation, and opt-in deployment. See the full
 | [Security](docs/SECURITY.md) | Credentials, identities, and governance constraints |
 | [Agents](docs/AGENTS.md) | Specialist-agent ownership model |
 
+## Public Reference Examples
+
+Tests use synthetic, sanitized fixtures for deterministic offline testing. The links below are
+public upstream examples to study; no external source code is vendored. Public links may evolve,
+and the test suite remains independent of them.
+
+| Source family | Public examples |
+|---|---|
+| BigQuery, scheduled queries, routines, materialized views, external tables, and BigQuery ML | [Google Cloud BigQuery samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/bigquery) |
+| Dataflow / Beam | [Google Cloud Dataflow sample applications](https://github.com/GoogleCloudPlatform/dataflow-sample-applications); [Apache Beam examples](https://github.com/apache/beam/tree/master/examples) |
+| Dataproc / Spark | [Google Cloud Dataproc samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/dataproc) |
+| Dataform | [Google Cloud Dataform samples](https://github.com/GoogleCloudPlatform/dataform-samples) |
+| Composer / Airflow | [Google Cloud Composer samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/composer) |
+| Workflows | [Google Cloud Workflows samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/workflows) |
+| Pub/Sub | [Google Cloud Pub/Sub samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/pubsub) |
+| GCS | [Google Cloud Storage samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/storage) |
+| Looker | [Looker SDK for Python](https://github.com/looker-open-source/looker-sdk-python) |
+| Vertex AI | [Google Cloud Vertex AI samples](https://github.com/GoogleCloudPlatform/vertex-ai-samples) |
+| Dataplex | [Google Cloud Dataplex samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/dataplex) |
+| Cloud SQL | [Google Cloud SQL samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/cloud-sql) |
+| Spanner | [Google Cloud Spanner samples](https://github.com/GoogleCloudPlatform/python-docs-samples/tree/main/spanner) |
+
 ## 🔒 Safety Principles
 
 - No credentials, service-account keys, tokens, tenant IDs, or secrets in inventories or output.

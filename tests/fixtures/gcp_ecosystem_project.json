@@ -32,6 +32,90 @@
               ]
             }
           ]
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.daily_event_counts",
+          "name": "daily_event_counts",
+          "kind": "view",
+          "dataset": "analytics",
+          "sql": "SELECT event_date, COUNT(*) AS event_count FROM `gcp-data-platform.analytics.events` GROUP BY event_date",
+          "dependencies": ["gcp-data-platform.analytics.events"],
+          "columns": [
+            {"name": "event_date", "data_type": "DATE", "nullable": false},
+            {"name": "event_count", "data_type": "INT64", "nullable": false}
+          ]
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.daily_event_counts_mv",
+          "name": "daily_event_counts_mv",
+          "kind": "materialized_view",
+          "dataset": "analytics",
+          "sql": "SELECT event_date, COUNT(*) AS event_count FROM `gcp-data-platform.analytics.events` GROUP BY event_date",
+          "dependencies": ["gcp-data-platform.analytics.events"],
+          "columns": [
+            {"name": "event_date", "data_type": "DATE", "nullable": false},
+            {"name": "event_count", "data_type": "INT64", "nullable": false}
+          ],
+          "properties": {"enable_refresh": true, "refresh_interval_ms": 3600000}
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.partner_events",
+          "name": "partner_events",
+          "kind": "external_table",
+          "dataset": "analytics",
+          "columns": [{"name": "event_id", "data_type": "STRING", "nullable": false}],
+          "properties": {"source_format": "PARQUET", "source_uri_pattern": "gs://example-partner-events/*.parquet"}
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.normalized_event_date",
+          "name": "normalized_event_date",
+          "kind": "routine",
+          "dataset": "analytics",
+          "sql": "CREATE FUNCTION normalized_event_date(value DATE) AS (value)",
+          "properties": {"language": "SQL"}
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.hash_customer_id",
+          "name": "hash_customer_id",
+          "kind": "routine",
+          "dataset": "analytics",
+          "sql": "CREATE FUNCTION hash_customer_id(value STRING) RETURNS STRING LANGUAGE js AS 'return value;'",
+          "properties": {"language": "JAVASCRIPT"}
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.refresh_daily_metrics",
+          "name": "refresh_daily_metrics",
+          "kind": "procedure",
+          "dataset": "analytics",
+          "sql": "CREATE PROCEDURE refresh_daily_metrics() BEGIN SELECT COUNT(*) FROM `gcp-data-platform.analytics.events`; END",
+          "dependencies": ["gcp-data-platform.analytics.events"],
+          "properties": {"language": "SQL"}
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.hourly_metrics",
+          "name": "hourly_metrics",
+          "kind": "scheduled_query",
+          "dataset": "analytics",
+          "sql": "SELECT event_date, COUNT(*) AS event_count FROM `gcp-data-platform.analytics.events` GROUP BY event_date",
+          "dependencies": ["gcp-data-platform.analytics.events"],
+          "properties": {"schedule": "every 1 hours", "write_disposition": "WRITE_APPEND"}
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.events_stream",
+          "name": "events_stream",
+          "kind": "stream",
+          "dataset": "analytics",
+          "dependencies": ["gcp-data-platform.analytics.events"],
+          "properties": {"stream_type": "write_api"}
+        },
+        {
+          "source_id": "gcp-data-platform.analytics.daily_metrics_job",
+          "name": "daily_metrics_job",
+          "kind": "bigquery_job",
+          "dataset": "analytics",
+          "sql": "SELECT COUNT(*) AS event_count FROM `gcp-data-platform.analytics.events`",
+          "dependencies": ["gcp-data-platform.analytics.events"],
+          "properties": {"job_type": "QUERY", "priority": "BATCH", "state": "DONE"}
         }
       ]
     }

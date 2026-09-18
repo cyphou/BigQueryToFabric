@@ -3,18 +3,19 @@ from pathlib import Path
 from bqtofabric.assessment import run_assessment
 from bqtofabric.inventory import JsonInventoryProvider
 from bqtofabric.mapping import FabricTarget
-from bqtofabric.models import BigQueryInventory
+from bqtofabric.models import BigQueryInventory, ObjectKind
 from bqtofabric.planner import build_plan
 
 FIXTURE = Path(__file__).parent / "fixtures" / "gcp_ecosystem_project.json"
 
 
-def test_inventory_parses_all_gcp_ecosystem_components() -> None:
+def test_inventory_parses_examples_for_every_supported_source_kind() -> None:
     inventory = JsonInventoryProvider(FIXTURE).load()
 
     assert inventory.schema_version == "1.1"
     assert len(inventory.components) == 18
-    assert len(inventory.objects()) == 19
+    assert len(inventory.objects()) == 28
+    assert {item.kind for item in inventory.objects()} == set(ObjectKind)
 
 
 def test_lakehouse_notebook_preference_and_airflow_are_preserved() -> None:
