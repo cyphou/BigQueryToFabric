@@ -18,6 +18,8 @@ class AssessmentFinding:
     severity: str
     source_id: str
     message: str
+    code: str = ""
+    category: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,11 +64,17 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
     for decision in decisions:
         evidence_scores.append(readiness[decision.compatibility])
         if decision.compatibility is Compatibility.REDESIGN:
-            findings.append(AssessmentFinding("WARN", decision.source_id, decision.rationale))
+            findings.append(AssessmentFinding(
+                "WARN", decision.source_id, decision.rationale, "MAPPING_REDESIGN", "mapping"
+            ))
         elif decision.compatibility is Compatibility.UNSUPPORTED:
-            findings.append(AssessmentFinding("FAIL", decision.source_id, decision.rationale))
+            findings.append(AssessmentFinding(
+                "FAIL", decision.source_id, decision.rationale, "MAPPING_UNSUPPORTED", "mapping"
+            ))
         for action in decision.actions:
-            findings.append(AssessmentFinding("WARN", decision.source_id, action))
+            findings.append(AssessmentFinding(
+                "WARN", decision.source_id, action, "ACTION_REQUIRED", "mapping"
+            ))
     for index, item in enumerate(inventory.objects()):
         required = _required_evidence(item.kind)
         missing = _missing_evidence(item)
@@ -88,6 +96,9 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
                 "FAIL" if item.kind is ObjectKind.SECURITY_POLICY else "WARN",
                 item.source_id,
                 f"Assessment evidence missing: {field_name}.",
+                "SECURITY_EVIDENCE_MISSING" if item.kind is ObjectKind.SECURITY_POLICY
+                else "EVIDENCE_MISSING",
+                "security" if item.kind is ObjectKind.SECURITY_POLICY else "evidence",
             )
             for field_name in missing
         )
@@ -98,6 +109,9 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
                 "WARN" if mapping.compatibility is Compatibility.REDESIGN else "FAIL",
                 mapping.source_type,
                 mapping.note,
+                "TYPE_REDESIGN" if mapping.compatibility is Compatibility.REDESIGN
+                else "TYPE_UNSUPPORTED",
+                "schema",
             ))
     for sql_result in sql_assessments:
         evidence_scores.append(readiness[sql_result.compatibility])
@@ -106,6 +120,8 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
                 "WARN",
                 sql_result.source_id,
                 "; ".join(sql_result.notes) or "SQL requires manual redesign.",
+                "SQL_REDESIGN",
+                "sql",
             ))
     strategy = recommend_strategy(inventory, decisions)
     component_summary = dict(sorted(Counter(item.kind.value for item in inventory.objects()).items()))

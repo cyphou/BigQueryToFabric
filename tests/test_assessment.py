@@ -20,6 +20,8 @@ def test_assessment_routes_mixed_workloads_and_explains_strategy() -> None:
     assert report.strategy.architecture == "hybrid"
     assert report.strategy.primary_target is FabricTarget.WAREHOUSE
     assert any(finding.source_id == "STRUCT" for finding in report.findings)
+    assert any(finding.code == "TYPE_REDESIGN" and finding.category == "schema"
+               for finding in report.findings)
 
 
 def test_plan_orders_view_after_its_table_dependency() -> None:
@@ -47,6 +49,9 @@ def test_assessment_penalizes_missing_family_evidence() -> None:
     assert report.evidence_coverage < 100
     assert any("language" in finding.message for finding in spark_findings)
     assert any("runtime_version" in finding.message for finding in spark_findings)
+    evidence_findings = [finding for finding in spark_findings if "evidence missing" in finding.message]
+    assert evidence_findings
+    assert all(finding.code == "EVIDENCE_MISSING" for finding in evidence_findings)
 
 
 def test_assessment_accepts_complete_family_evidence() -> None:
