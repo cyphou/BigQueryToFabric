@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .airflow_compatibility import assess_airflow_compatibility
+from .artifact_validation import validate_directory
 from .assessment import AssessmentReport
 from .dataform_conversion import convert_dataform_workflow
 from .fabric_artifacts import build_specialized_artifacts
@@ -295,6 +296,10 @@ def _write_fabric_artifacts(
     target_manifest_path = root / "target-manifest.json"
     _write_json(target_manifest_path, target_manifest)
     written.append(target_manifest_path)
+
+    validation_path = root / "artifact-validation.json"
+    _write_json(validation_path, validate_directory(root))
+    written.append(validation_path)
     return tuple(written)
 
 
