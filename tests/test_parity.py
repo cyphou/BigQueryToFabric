@@ -14,6 +14,28 @@ def test_compare_schema_reports_type_and_missing_column_differences() -> None:
     assert [item["column"] for item in result["differences"]] == ["amount", "id"]
 
 
+def test_compare_schema_walks_nested_fields() -> None:
+    source = [{
+        "name": "payload",
+        "data_type": "STRUCT",
+        "fields": [{"name": "sku", "data_type": "STRING"}],
+    }]
+    target = [{
+        "name": "payload",
+        "data_type": "STRUCT",
+        "fields": [{"name": "sku", "data_type": "INT64"}],
+    }]
+
+    result = compare_schema(source, target)
+
+    assert result["differences"] == [{
+        "column": "payload.sku",
+        "field": "data_type",
+        "source": "STRING",
+        "target": "INT64",
+    }]
+
+
 def test_parity_requires_runtime_evidence_for_passed_status() -> None:
     result = assess_parity({"parity": {"schema": {"status": "passed"}}})
 
