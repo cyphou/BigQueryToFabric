@@ -1,4 +1,10 @@
-from bqtofabric.parity import assess_parity, compare_schema
+from bqtofabric.parity import assess_parity, compare_row_count, compare_schema
+
+
+def test_compare_row_count_is_explicit_about_missing_runtime_evidence() -> None:
+    assert compare_row_count(None, 10)["status"] == "not_run"
+    assert compare_row_count(10, 10)["status"] == "passed"
+    assert compare_row_count(10, 9)["status"] == "failed"
 
 
 def test_compare_schema_reports_type_and_missing_column_differences() -> None:

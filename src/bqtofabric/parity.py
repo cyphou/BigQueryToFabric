@@ -8,6 +8,17 @@ from typing import Any
 PARITY_STATUSES = {"passed", "failed", "not_run", "not_applicable"}
 
 
+def compare_row_count(source: int | None, target: int | None) -> dict[str, Any]:
+    """Compare supplied row counts without querying either data platform."""
+    if source is None or target is None:
+        return {"status": "not_run", "source": source, "target": target}
+    return {
+        "status": "passed" if source == target else "failed",
+        "source": source,
+        "target": target,
+    }
+
+
 def compare_schema(
     source: list[Mapping[str, Any]], target: list[Mapping[str, Any]]
 ) -> dict[str, Any]:

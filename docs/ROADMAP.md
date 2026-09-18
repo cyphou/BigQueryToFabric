@@ -135,6 +135,8 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   nullability, modes, and nested fields with deterministic differences; precision-specific
   extension rules remain open.
 - Add row-count, aggregate, checksum, sample, and null-distribution checks.
+- **Implemented:** Offline row-count comparison returns `passed`, `failed`, or `not_run` from
+  supplied evidence; live query execution remains open.
 - Add SQL result parity for approved test queries.
 - Add partition, clustering, file-size, and performance recommendations from measured workloads.
 - Add security matrices for IAM, policy tags, authorized views, Fabric permissions, and RLS.
