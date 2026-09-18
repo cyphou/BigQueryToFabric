@@ -13,6 +13,7 @@ Own future authenticated Fabric deployment after generated artifacts pass valida
 
 - `src/bqtofabric/deploy/`
 - `src/bqtofabric/deployment_manifest.py`
+- `src/bqtofabric/deployment_readiness.py`
 
 ## Constraints
 

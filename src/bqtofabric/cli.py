@@ -12,6 +12,7 @@ from pathlib import Path
 
 from .assessment import run_assessment
 from .deployment_manifest import verify_manifest
+from .deployment_readiness import check_deployment_readiness
 from .discovery import DiscoveryError, GoogleCloudInventoryProvider, create_rest_client
 from .inventory import JsonInventoryProvider
 from .planner import build_plan
@@ -41,6 +42,8 @@ def build_parser() -> argparse.ArgumentParser:
     discover.add_argument("--output", "-o", type=Path, required=True)
     manifest = subparsers.add_parser("manifest-verify")
     manifest.add_argument("manifest", type=Path)
+    readiness = subparsers.add_parser("deployment-check")
+    readiness.add_argument("artifacts", type=Path)
     return parser
 
 
@@ -72,6 +75,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         valid = verify_manifest(manifest)
         print("PASS: manifest integrity verified" if valid else "FAIL: manifest integrity mismatch")
         return ExitCode.SUCCESS if valid else ExitCode.VALIDATION_FAILED
+    if args.command == "deployment-check":
+        result = check_deployment_readiness(args.artifacts)
+        print(json.dumps(result, indent=2, sort_keys=True))
+        return ExitCode.SUCCESS if result["status"] == "ready_for_review" else ExitCode.VALIDATION_FAILED
     try:
         inventory = JsonInventoryProvider(args.inventory).load()
         assessment = run_assessment(inventory)

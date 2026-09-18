@@ -51,6 +51,7 @@ bqtofabric assess tests/fixtures/gcp_ecosystem_project.json
 bqtofabric plan tests/fixtures/gcp_ecosystem_project.json --output artifacts/gcp-plan
 bqtofabric generate tests/fixtures/gcp_ecosystem_project.json --output artifacts/gcp-project
 bqtofabric manifest-verify artifacts/gcp-project/fabric/deployment-manifest.json
+bqtofabric deployment-check artifacts/gcp-project/fabric
 ```
 
 The generated package contains:
@@ -62,6 +63,7 @@ The generated package contains:
 - `fabric/` — dry-run Warehouse SQL, Fabric notebook, pipeline, and orchestration manifests.
 - `fabric/deployment-manifest.json` — immutable dry-run payload with SHA-256 integrity hash.
 - `fabric/artifact-validation.json` — offline structural validation results.
+- `fabric/deployment-manifest.json` is checked by `deployment-check`; readiness never performs apply.
 
 <details>
 <summary><b>📦 Installation and development setup</b></summary>

@@ -123,3 +123,12 @@ def test_manifest_verify_command(tmp_path: Path, capsys) -> None:
 
     assert main(["manifest-verify", str(output)]) == ExitCode.SUCCESS
     assert "PASS" in capsys.readouterr().out
+
+
+def test_deployment_check_blocks_unresolved_plan(tmp_path: Path) -> None:
+    generated = tmp_path / "generated"
+    assert main(["generate", str(FIXTURE), "--output", str(generated)]) == ExitCode.SUCCESS
+
+    result = main(["deployment-check", str(generated / "fabric")])
+
+    assert result == ExitCode.SUCCESS

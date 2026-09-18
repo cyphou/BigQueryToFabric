@@ -147,6 +147,8 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - Implement plan/apply separation with an immutable deployment manifest.
 - **Implemented:** Generate and verify an immutable dry-run manifest with `manifest-verify`;
   authenticated Fabric apply, identity, retries, and rollback remain open.
+- **Implemented:** `deployment-check` blocks tampered manifests, invalid artifacts, unresolved
+  dependencies, and unsupported components; it returns `ready_for_review`, never `apply`.
 - Create and update supported Fabric items through documented APIs.
 - Add idempotency, retries, long-running-operation handling, rollback guidance, and audit logs.
 - Require explicit confirmation for every mutating operation.
