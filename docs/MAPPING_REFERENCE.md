@@ -24,6 +24,11 @@ connections, and dataset GET `access` entries. The `access` entries are redacted
 `SECURITY_EFFECTIVE_ACCESS_REVIEW`: dataset entries do not prove effective project, organization,
 group, or inherited IAM access and require manual security review.
 
+Use assessment provenance when reviewing the mapping evidence: `evidence_summary` exposes each
+object's `discovered_from`, while `discovery_coverage` gives deterministic counts for `inventory`,
+`bigquery_api`, and `external_payload`. The latter represents supplied associated-service payloads
+normalized offline, not live discovery of those services. Neither value proves metadata freshness.
+
 Discovery makes no IAM API calls. Project/org IAM, connection IAM bindings, distinct row access
 policies, BigQuery Data Policies, and policy tags are not extracted. Treat any mapping involving
 those controls as security review work, not verified source-rights parity. Dataflow, Composer,

@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 
 from bqtofabric.assessment import run_assessment
 from bqtofabric.inventory import JsonInventoryProvider
 from bqtofabric.mapping import FabricTarget
+from bqtofabric.models import BigQueryInventory
 from bqtofabric.planner import build_plan
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mixed_project.json"
@@ -22,6 +24,25 @@ def test_assessment_routes_mixed_workloads_and_explains_strategy() -> None:
     assert any(finding.source_id == "STRUCT" for finding in report.findings)
     assert any(finding.code == "TYPE_REDESIGN" and finding.category == "schema"
                for finding in report.findings)
+
+
+def test_assessment_reports_origin_and_deterministic_discovery_coverage() -> None:
+    source = json.loads(FIXTURE.read_text(encoding="utf-8"))
+    objects = source["datasets"][0]["objects"]
+    objects[1]["discovered_from"] = "bigquery_api"
+    objects[2]["discovered_from"] = "external_payload"
+
+    report = run_assessment(BigQueryInventory.from_dict(source))
+
+    assert report.evidence_summary["retail-analytics.sales.customers"]["discovered_from"] == "inventory"
+    assert report.evidence_summary["retail-analytics.sales.orders"]["discovered_from"] == "bigquery_api"
+    assert report.evidence_summary["retail-analytics.sales.daily_sales"]["discovered_from"] == "external_payload"
+    assert report.evidence_summary["retail-analytics.sales.clickstream"]["discovered_from"] == "inventory"
+    assert report.discovery_coverage == {
+        "bigquery_api": 1,
+        "external_payload": 1,
+        "inventory": 2,
+    }
 
 
 def test_plan_orders_view_after_its_table_dependency() -> None:

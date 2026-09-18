@@ -79,6 +79,7 @@ def test_discovery_maps_api_resources_to_canonical_objects() -> None:
     assert events.partition_field == "event_date"
     assert events.clustering_fields == ("customer_id",)
     assert events.size_bytes == 10485760
+    assert {item.discovered_from for item in objects.values()} == {"bigquery_api"}
 
 
 def test_discovery_preserves_operational_migration_evidence_without_secrets() -> None:
@@ -176,6 +177,11 @@ def test_repeated_discovery_is_deterministic() -> None:
 
 def test_discovered_inventory_matches_committed_snapshot() -> None:
     expected = json.loads(EXPECTED_INVENTORY.read_text(encoding="utf-8"))
+    for dataset in expected["datasets"]:
+        for item in dataset["objects"]:
+            item.setdefault("discovered_from", "bigquery_api")
+    for item in expected["components"]:
+        item.setdefault("discovered_from", "bigquery_api")
 
     assert serialize(build_provider().load()) == expected
 

@@ -14,6 +14,12 @@
   the BigQuery read-only scope. It extracts dataset GET `access` entries as redacted canonical
   `security_policy` records, each labeled `evidence_scope: dataset_access_entry`; these records
   describe dataset ACL declarations, not effective-access proof. Assessment treats this evidence
+- Component discovery records provenance explicitly as `inventory`, `bigquery_api`, or
+  `external_payload`. Provenance identifies the input origin only; it must not be interpreted as
+  freshness, trusted execution, or proof of effective access.
+- Associated GCP services are limited to offline payload normalization and assessment unless a
+  live adapter is explicitly implemented. Their payloads do not establish live service state,
+  trusted execution, or effective access.
   as incomplete and emits FAIL `SECURITY_EFFECTIVE_ACCESS_REVIEW`. It does not query IAM APIs or
   prove effective project, organization, group, or inherited permissions. Project/org IAM bindings
   and connection IAM policies are not extracted.

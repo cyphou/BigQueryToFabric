@@ -3,6 +3,9 @@
 - Discovery reads BigQuery metadata read-only and is verified offline against committed API
   payloads; it has not been run against a live GCP estate, so `create_rest_client` and the `gcp`
   extra remain unverified.
+- Component discovery records provenance explicitly as `inventory`, `bigquery_api`, or
+  `external_payload`. These values identify the input origin only; they are not freshness,
+  trusted-execution, or effective-access proof.
 - BigQuery discovery supports metadata for jobs, scheduled queries, connections, and dataset
   `access` entries. Dataset ACLs are emitted only as redacted canonical `security_policy`
   records, each labeled `evidence_scope: dataset_access_entry`; they document declared dataset
@@ -19,5 +22,6 @@
   access therefore require manual security review.
 - Partitioning and clustering recommendations are not assumed to be behaviorally equivalent.
 - Dataflow, Composer, Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex,
-  Cloud SQL, and Spanner can be assessed and planned from inventory data, but their live adapters,
-  extraction, conversion, and deployment remain outside V1.
+  Cloud SQL, and Spanner are limited to offline payload normalization and assessment unless a live
+  adapter is implemented. Their live adapters, extraction, conversion, and deployment remain
+  outside V1.

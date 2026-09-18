@@ -34,5 +34,6 @@ def test_inventory_round_trip_preserves_nested_schema() -> None:
     inventory = BigQueryInventory.from_dict(source)
 
     assert inventory.objects()[0].kind is ObjectKind.TABLE
+    assert inventory.objects()[0].discovered_from == "inventory"
     assert inventory.objects()[0].columns[1].fields[0].name == "sku"
     assert BigQueryInventory.from_dict(inventory.to_dict()) == inventory

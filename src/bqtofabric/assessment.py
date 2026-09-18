@@ -38,6 +38,7 @@ class AssessmentReport:
     evidence_summary: dict[str, dict[str, object]]
     evidence_coverage: int
     parity_summary: dict[str, dict[str, object]]
+    discovery_coverage: dict[str, int]
 
 
 def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
@@ -113,6 +114,7 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         coverage = round(100 * len(present) / len(required)) if required else 100
         evidence_summary[item.source_id] = {
             "kind": item.kind.value,
+            "discovered_from": item.discovered_from,
             "required": list(required),
             "present": list(present),
             "missing": list(missing),
@@ -160,6 +162,9 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
     compatibility_summary = dict(
         sorted(Counter(item.compatibility.value for item in decisions).items())
     )
+    discovery_coverage = dict(
+        sorted(Counter(getattr(item, "discovered_from", "") for item in inventory.objects()).items())
+    )
     return AssessmentReport(
         inventory.project_id,
         round(sum(evidence_scores) / len(evidence_scores)) if evidence_scores else 0,
@@ -175,6 +180,7 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         round(sum(item["coverage"] for item in evidence_summary.values()) / len(evidence_summary))
         if evidence_summary else 100,
         dict(sorted(parity_summary.items())),
+        discovery_coverage,
     )
 
 

@@ -27,6 +27,7 @@ def normalize_external_components(
             source_id=source_id,
             name=name,
             kind=kind,
+            discovered_from="external_payload",
             dependencies=tuple(sorted(str(item) for item in resource.get("dependencies", []))),
             labels=redact_mapping(resource.get("labels")),
             properties=redact_mapping(resource.get("properties", {})),

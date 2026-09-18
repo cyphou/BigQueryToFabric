@@ -65,6 +65,21 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   Fabric-security parity. Manual security review must account for project, organization, group,
   inherited IAM, and the unextracted governance controls.
 
+### Validated discovery provenance
+
+- **Expected:** Assessment evidence must distinguish objects obtained through the BigQuery API from
+  canonical JSON inventory and supplied external GCP payloads, without claiming freshness or live
+  discovery coverage for associated services.
+- **Implemented:** `BigQueryObject.discovered_from` defaults imported canonical JSON to `inventory`;
+  the live BigQuery provider stamps `bigquery_api`; and normalized external GCP payloads stamp
+  `external_payload`. Assessment exposes provenance per object in `evidence_summary` and reports
+  deterministic counts per source in `AssessmentReport.discovery_coverage`.
+- **Validated:** `python -m pytest tests/test_models.py tests/test_discovery.py
+  tests/test_gcp_components.py tests/test_assessment.py -q` passed with `29 passed`.
+- **Open:** Provenance distinguishes collection paths only. It does not validate metadata freshness
+  and does not implement live adapters for Dataflow, Composer, Dataproc, Dataform, Workflows,
+  Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner.
+
 ### What v0.1.0 does not prove
 
 - Completeness against a live GCP organization or project.

@@ -17,6 +17,12 @@ The source model is cloud-independent so assessments and tests run without crede
 Source identifiers are immutable. Fabric names and targets are recommendations attached to
 the plan, not destructive rewrites of source metadata.
 
+Each canonical object carries `discovered_from` as acquisition evidence. Imported canonical JSON
+defaults to `inventory`; the live BigQuery provider stamps `bigquery_api`; and external GCP payloads
+normalized for offline assessment stamp `external_payload`. Assessment preserves this value in each
+object's `evidence_summary` and produces deterministic source counts in `discovery_coverage`. The
+field distinguishes collection paths, not metadata freshness or the existence of a live adapter.
+
 ## Live discovery boundary
 
 The optional live provider uses user Application Default Credentials with the

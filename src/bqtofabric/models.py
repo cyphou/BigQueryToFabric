@@ -62,6 +62,7 @@ class BigQueryObject:
     source_id: str
     name: str
     kind: ObjectKind
+    discovered_from: str = "inventory"
     dataset: str = ""
     columns: tuple[Column, ...] = ()
     sql: str | None = None
@@ -78,6 +79,7 @@ class BigQueryObject:
             source_id=str(value["source_id"]),
             name=str(value["name"]),
             kind=ObjectKind(value["kind"]),
+            discovered_from=str(value.get("discovered_from", "inventory")),
             dataset=str(value.get("dataset", "")),
             columns=tuple(Column.from_dict(item) for item in value.get("columns", [])),
             sql=value.get("sql"),

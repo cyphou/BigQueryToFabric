@@ -73,6 +73,17 @@ the inventory or command line.
 Dataflow, Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and
 Spanner have offline normalization and assessment support only; they do not have live adapters.
 
+### Discovery provenance
+
+Canonical components carry a `discovered_from` value so review can distinguish acquisition paths:
+imported canonical JSON defaults to `inventory`, the live BigQuery provider sets `bigquery_api`, and
+normalized external GCP payloads set `external_payload`. Assessment repeats the value for each object
+in `evidence_summary` and reports deterministic counts by source in `discovery_coverage`.
+
+`external_payload` means that associated-service inventory was supplied for offline normalization; it
+does not mean BQToFabric called that service's API. Provenance is not a freshness assertion and does
+not validate when the source metadata was collected.
+
 ### Dataset access evidence
 
 Dataset GET `access` entries are inventory evidence, not an effective-access calculation. Each

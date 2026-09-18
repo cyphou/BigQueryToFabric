@@ -174,6 +174,7 @@ class GoogleCloudInventoryProvider:
             source_id=f"{self.project_id}.{dataset_id}.{name}",
             name=name,
             kind=kind,
+            discovered_from="bigquery_api",
             dataset=dataset_id,
             columns=_map_columns(resource.get("schema", {}).get("fields", [])),
             sql=sql,
@@ -199,6 +200,7 @@ class GoogleCloudInventoryProvider:
             source_id=f"{self.project_id}.{dataset_id}.{name}",
             name=name,
             kind=kind,
+            discovered_from="bigquery_api",
             dataset=dataset_id,
             sql=sql,
             dependencies=dependencies,
@@ -212,6 +214,7 @@ class GoogleCloudInventoryProvider:
             source_id=f"{self.project_id}.{dataset_id}.{name}",
             name=name,
             kind=ObjectKind.BQML_MODEL,
+            discovered_from="bigquery_api",
             dataset=dataset_id,
             labels=redact_mapping(resource.get("labels")),
             properties=redact_mapping({"model_type": resource.get("modelType", "UNKNOWN")}),
@@ -241,6 +244,7 @@ class GoogleCloudInventoryProvider:
             source_id=f"{self.project_id}.jobs.{job_id}",
             name=job_id,
             kind=ObjectKind.BIGQUERY_JOB,
+            discovered_from="bigquery_api",
             sql=sql,
             dependencies=dependencies,
             properties=redact_mapping(properties),
@@ -266,6 +270,7 @@ class GoogleCloudInventoryProvider:
             source_id=f"{self.project_id}.scheduled_queries.{name}",
             name=name,
             kind=ObjectKind.SCHEDULED_QUERY,
+            discovered_from="bigquery_api",
             sql=sql,
             dependencies=dependencies,
             properties=redact_mapping(properties),
@@ -286,6 +291,7 @@ class GoogleCloudInventoryProvider:
             source_id=f"{self.project_id}.connections.{name}",
             name=name,
             kind=ObjectKind.CONNECTION,
+            discovered_from="bigquery_api",
             properties=redact_mapping(properties),
         )
 
@@ -304,6 +310,7 @@ class GoogleCloudInventoryProvider:
             source_id=f"{self.project_id}.{dataset_id}.access.{index:04d}",
             name=f"{dataset_id}-access-{index:04d}",
             kind=ObjectKind.SECURITY_POLICY,
+            discovered_from="bigquery_api",
             dataset=dataset_id,
             properties=redact_mapping(
                 {

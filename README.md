@@ -117,6 +117,13 @@ External GCP services -- Dataflow, Composer, Dataproc, Dataform, Pub/Sub, GCS, L
 Dataplex, Cloud SQL, and Spanner -- support offline normalization and assessment only. They do not
 have live discovery adapters.
 
+Every canonical component records `discovered_from`: imported inventories default to `inventory`,
+live BigQuery discovery records `bigquery_api`, and normalized external GCP payloads record
+`external_payload`. Assessment includes the per-object value in `evidence_summary` and deterministic
+counts by source in `discovery_coverage`. This distinguishes BigQuery API results from supplied
+associated-service inventory; it does not establish inventory freshness or add live adapters for
+non-BigQuery services.
+
 <details>
 <summary><b>📦 Installation and development setup</b></summary>
 
