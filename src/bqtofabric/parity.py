@@ -45,6 +45,31 @@ def compare_aggregates(
     }
 
 
+def compare_checksums(
+    source: Mapping[str, Any] | None,
+    target: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    """Compare checksums only when digest algorithm and canonical ordering agree."""
+    if source is None or target is None:
+        return {"status": "not_run", "source": source, "target": target}
+
+    required = ("algorithm", "ordering", "value")
+    if any(source.get(field) is None or target.get(field) is None for field in required):
+        return {"status": "not_run", "source": dict(source), "target": dict(target)}
+
+    differences = [
+        {"field": field, "source": source[field], "target": target[field]}
+        for field in required
+        if source[field] != target[field]
+    ]
+    return {
+        "status": "passed" if not differences else "failed",
+        "source": dict(source),
+        "target": dict(target),
+        "differences": differences,
+    }
+
+
 def compare_schema(
     source: list[Mapping[str, Any]], target: list[Mapping[str, Any]]
 ) -> dict[str, Any]:

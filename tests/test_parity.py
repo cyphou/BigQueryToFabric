@@ -1,6 +1,7 @@
 from bqtofabric.parity import (
     assess_parity,
     compare_aggregates,
+    compare_checksums,
     compare_row_count,
     compare_schema,
 )
@@ -29,6 +30,29 @@ def test_compare_aggregates_reports_missing_and_different_metrics() -> None:
 def test_compare_aggregates_requires_both_evidence_sets() -> None:
     assert compare_aggregates(None, {"sum_amount": 100})["status"] == "not_run"
     assert compare_aggregates({"sum_amount": 100}, {"sum_amount": 100})["status"] == "passed"
+
+
+def test_compare_checksums_requires_matching_algorithm_and_ordering() -> None:
+    source = {"algorithm": "sha256", "ordering": "id ASC", "value": "abc123"}
+
+    assert compare_checksums(source, source)["status"] == "passed"
+    result = compare_checksums(
+        source,
+        {"algorithm": "sha256", "ordering": "id DESC", "value": "abc123"},
+    )
+
+    assert result["status"] == "failed"
+    assert result["differences"] == [
+        {"field": "ordering", "source": "id ASC", "target": "id DESC"}
+    ]
+
+
+def test_compare_checksums_requires_complete_runtime_evidence() -> None:
+    assert compare_checksums(None, {"value": "abc123"})["status"] == "not_run"
+    assert compare_checksums(
+        {"algorithm": "sha256", "value": "abc123"},
+        {"algorithm": "sha256", "ordering": "id ASC", "value": "abc123"},
+    )["status"] == "not_run"
 
 
 def test_compare_schema_reports_type_and_missing_column_differences() -> None:
