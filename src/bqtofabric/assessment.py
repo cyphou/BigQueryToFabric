@@ -43,6 +43,7 @@ class AssessmentReport:
 def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
     preferences = inventory.metadata.get("preferences", {})
     typed_preferences = preferences if isinstance(preferences, dict) else {}
+    streaming_consumers = _streaming_consumers(inventory)
     decisions = tuple(map_component(item, typed_preferences) for item in inventory.objects())
     mapped_types = tuple(
         map_type(column.data_type)
@@ -77,6 +78,15 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         for action in decision.actions:
             findings.append(AssessmentFinding(
                 "WARN", decision.source_id, action, "ACTION_REQUIRED", "mapping"
+            ))
+        if decision.source_id in streaming_consumers:
+            findings.append(AssessmentFinding(
+                "WARN",
+                decision.source_id,
+                "Upstream streaming ingestion requires deduplication, idempotency, and "
+                "out-of-order delivery review.",
+                "STREAMING_DOWNSTREAM_REVIEW",
+                "processing",
             ))
     for index, item in enumerate(inventory.objects()):
         parity = assess_parity(item.properties, applicable=bool(item.columns))
@@ -160,6 +170,27 @@ def _walk_columns(columns: tuple[Column, ...]) -> Iterator[Column]:
     for column in columns:
         yield column
         yield from _walk_columns(column.fields)
+
+
+def _streaming_consumers(inventory: BigQueryInventory) -> set[str]:
+    objects = {item.source_id: item for item in inventory.objects()}
+    streaming_sources = {
+        item.source_id
+        for item in objects.values()
+        if item.kind is ObjectKind.DATAFLOW_JOB and item.properties.get("streaming") is True
+    }
+    consumers: set[str] = set()
+    remaining = set(streaming_sources)
+    while remaining:
+        dependency = remaining.pop()
+        direct_consumers = {
+            item.source_id
+            for item in objects.values()
+            if dependency in item.dependencies and item.source_id not in consumers
+        }
+        consumers.update(direct_consumers)
+        remaining.update(direct_consumers)
+    return consumers
 
 
 def _missing_evidence(item: BigQueryObject) -> tuple[str, ...]:

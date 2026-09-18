@@ -29,6 +29,11 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
     objects = {item.source_id: item for item in inventory.objects()}
     decisions = {item.source_id: item for item in assessment.decisions}
     sql_assessments = {item.source_id: item for item in assessment.sql_assessments}
+    streaming_review_sources = {
+        finding.source_id
+        for finding in assessment.findings
+        if finding.code == "STREAMING_DOWNSTREAM_REVIEW"
+    }
     remaining = set(objects)
     completed: set[str] = set()
     plan_items: list[PlanItem] = []
@@ -53,6 +58,7 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
                 wave,
                 bool(external)
                 or decisions[source_id].compatibility.value in {"redesign", "unsupported"}
+                or source_id in streaming_review_sources
                 or sql_assessments.get(source_id, None) is not None
                 and sql_assessments[source_id].compatibility.value in {"redesign", "unsupported"},
             ))

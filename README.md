@@ -175,6 +175,18 @@ Every mapping is classified as `direct`, `transform`, `redesign`, or `unsupporte
 includes a rationale plus concrete follow-up actions. GoogleSQL is parsed as an AST with
 `sqlglot`; ETL logic is never translated to DAX.
 
+### Streaming Processing-Chain Guardrail
+
+- **Expected:** A `DATAFLOW_JOB` with `properties.streaming: true` requires review of every
+	transitive downstream canonical consumer.
+- **Implemented:** Assessment emits `WARN` finding `STREAMING_DOWNSTREAM_REVIEW` on each
+	downstream object, requiring deduplication, idempotency, and out-of-order delivery review.
+	The planner marks those consumers `manual_review`; the streaming job remains
+	`redesign`/`manual_review`.
+- **Validated:** `python -m pytest tests/test_assessment.py -q` (`8 passed`).
+- **Open:** This uses static inventory dependencies only. It does not process live streams,
+	validate data, or deploy Fabric artifacts.
+
 ## 🧰 CLI
 
 | Command | Purpose |

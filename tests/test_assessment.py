@@ -137,3 +137,42 @@ def test_parity_evidence_is_assessed_without_cloud_execution() -> None:
 
     assert report.parity_summary["parity.data.orders"]["status"] == "failed"
     assert any(finding.code == "PARITY_FAILED" for finding in report.findings)
+
+
+def test_streaming_dataflow_requires_transitive_downstream_review() -> None:
+    inventory = type(JsonInventoryProvider(FIXTURE).load()).from_dict({
+        "project_id": "streaming-chain",
+        "components": [
+            {
+                "source_id": "streaming-chain.ingest",
+                "name": "ingest",
+                "kind": "dataflow_job",
+                "properties": {"streaming": True},
+            },
+            {
+                "source_id": "streaming-chain.curated",
+                "name": "curated",
+                "kind": "spark_job",
+                "dependencies": ["streaming-chain.ingest"],
+            },
+            {
+                "source_id": "streaming-chain.gold",
+                "name": "gold",
+                "kind": "dataform_workflow",
+                "dependencies": ["streaming-chain.curated"],
+            },
+        ],
+    })
+
+    report = run_assessment(inventory)
+    plan = build_plan(inventory, report)
+    plan_items = {item.source_id: item for item in plan.items}
+
+    assert [
+        finding.source_id
+        for finding in report.findings
+        if finding.code == "STREAMING_DOWNSTREAM_REVIEW"
+    ] == ["streaming-chain.curated", "streaming-chain.gold"]
+    assert plan_items["streaming-chain.ingest"].manual_review is True
+    assert plan_items["streaming-chain.curated"].manual_review is True
+    assert plan_items["streaming-chain.gold"].manual_review is True

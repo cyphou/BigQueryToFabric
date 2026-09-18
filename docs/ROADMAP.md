@@ -38,6 +38,18 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Validated:** `python -m pytest tests/test_cli.py -q` passed with `8 passed`.
 - **Open:** This is a deterministic dry-run review artifact only. It does not execute processing paths, connect to GCP or Fabric, deploy anything, or establish runtime data parity.
 
+### Validated streaming downstream guardrail
+
+- **Expected:** A `DATAFLOW_JOB` whose `properties.streaming` is `true` causes every transitive
+  downstream canonical object to be reviewed as a streaming consumer.
+- **Implemented:** Assessment adds the `WARN` finding `STREAMING_DOWNSTREAM_REVIEW` to every
+  downstream object, requiring review of deduplication, idempotency, and out-of-order delivery.
+  Planner output marks those consumers `manual_review`; the source streaming job is already
+  `redesign`/`manual_review`.
+- **Validated:** `python -m pytest tests/test_assessment.py -q` passed with `8 passed`.
+- **Open:** The guardrail evaluates static inventory dependency evidence only. It does not
+  execute or monitor live stream processing, validate data, or deploy Fabric artifacts.
+
 ### What v0.1.0 does not prove
 
 - Completeness against a live GCP organization or project.
