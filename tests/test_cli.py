@@ -100,6 +100,20 @@ def test_generate_exposes_the_end_to_end_processing_chain(tmp_path: Path) -> Non
     assert composer["dependencies"] == ["gcp-data-platform.dataform.gold_models"]
     assert ingestion["wave"] < dataform["wave"] < composer["wave"]
 
+    manifest = json.loads((tmp_path / "fabric" / "target-manifest.json").read_text())
+    entries = {item["sourceId"]: item for item in manifest["entries"]}
+
+    assert entries["gcp-data-platform.gcs.raw"]["processingStage"] == "ingestion"
+    assert entries["gcp-data-platform.analytics.events"]["processingStage"] == "storage"
+    assert entries["gcp-data-platform.dataform.gold_models"]["processingStage"] == "transformation"
+    assert entries["gcp-data-platform.composer.platform_dag"]["processingStage"] == "orchestration"
+    assert entries["gcp-data-platform.looker.commerce"]["processingStage"] == "consumption"
+    assert entries["gcp-data-platform.dataplex.catalog"]["processingStage"] == "governance"
+    assert entries["gcp-data-platform.analytics.events"]["wave"] > ingestion["wave"]
+    assert entries["gcp-data-platform.analytics.events"]["dependencies"] == [
+        "gcp-data-platform.dataflow.batch_ingestion"
+    ]
+
 
 def test_discover_writes_a_canonical_inventory(monkeypatch, tmp_path: Path) -> None:
     payload = json.loads(

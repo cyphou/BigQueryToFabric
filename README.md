@@ -61,7 +61,7 @@ The generated package contains:
 - `migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves.
 - `lineage.mmd` — Mermaid dependency graph.
 - `fabric/` — dry-run Warehouse SQL, Fabric notebook, pipeline, and orchestration manifests.
-- `fabric/orchestration.json` — orchestration candidates with targets, actions, `wave`, and source `dependencies` for dry-run chain review.
+- `fabric/target-manifest.json` — every target entry with `processingStage`, `wave`, and source `dependencies` for deterministic full-chain dry-run review. Stages are `ingestion`, `storage`, `transformation`, `orchestration`, `consumption`, `governance`, `integration`, or `operational` for known source kinds.
 - `fabric/deployment-manifest.json` — immutable dry-run payload with SHA-256 integrity hash.
 - `fabric/artifact-validation.json` — offline structural validation results.
 - `fabric/deployment-manifest.json` is checked by `deployment-check`; readiness never performs apply.

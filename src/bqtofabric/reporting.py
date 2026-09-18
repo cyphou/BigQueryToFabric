@@ -289,6 +289,9 @@ def _write_fabric_artifacts(
             {
                 "sourceId": decision.source_id,
                 "sourceKind": decision.source_kind.value,
+                "processingStage": _processing_stage(decision.source_kind.value),
+                "wave": plan_items[decision.source_id].wave,
+                "dependencies": list(objects[decision.source_id].dependencies),
                 "primaryTarget": decision.target.value,
                 "supportingTargets": [target.value for target in decision.supporting_targets],
                 "compatibility": decision.compatibility.value,
@@ -342,3 +345,35 @@ def _artifact_kind(target: FabricTarget) -> str:
         FabricTarget.MANUAL: "manual_migration_record",
     }
     return artifact_kinds[target]
+
+
+def _processing_stage(source_kind: str) -> str:
+    stages = {
+        "gcs_source": "ingestion",
+        "pubsub_topic": "ingestion",
+        "stream": "ingestion",
+        "external_table": "ingestion",
+        "dataflow_job": "ingestion",
+        "table": "storage",
+        "view": "transformation",
+        "materialized_view": "transformation",
+        "sql_script": "transformation",
+        "spark_job": "transformation",
+        "dataproc_job": "transformation",
+        "dataform_workflow": "transformation",
+        "routine": "transformation",
+        "procedure": "transformation",
+        "scheduled_query": "orchestration",
+        "bigquery_job": "orchestration",
+        "composer_dag": "orchestration",
+        "workflow": "orchestration",
+        "looker_asset": "consumption",
+        "bqml_model": "consumption",
+        "vertex_ai_pipeline": "consumption",
+        "dataplex_asset": "governance",
+        "security_policy": "governance",
+        "connection": "integration",
+        "cloud_sql_database": "operational",
+        "spanner_database": "operational",
+    }
+    return stages.get(source_kind, "other")

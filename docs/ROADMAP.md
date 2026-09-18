@@ -33,10 +33,10 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 
 ### Validated processing-chain example
 
-- **Expected:** The synthetic ecosystem inventory demonstrates a reviewable batch chain from GCS through Dataflow batch ingestion, `analytics.events`, SQL/Dataform, and Composer, while Pub/Sub through Dataflow realtime remains a separate streaming branch.
-- **Implemented:** `tests/fixtures/gcp_ecosystem_project.json` records that chain. Generated `fabric/orchestration.json` includes every orchestration candidate's targets, actions, `wave`, and source `dependencies`, allowing the chain to be inspected in a dry run.
-- **Validated:** `python -m pytest tests/test_cli.py tests/test_ecosystem_assessment.py -q` passed with `16 passed`; the CLI test verifies the batch candidate dependencies and increasing waves through Dataform and Composer.
-- **Open:** This proves offline artifact generation and ordering only. It does not execute the batch or streaming paths, connect to GCP or Fabric, deploy artifacts, or establish runtime data parity.
+- **Expected:** The generated target manifest makes the complete BigQuery/GCP-to-Fabric processing chain reviewable, assigning each known source kind a processing stage and preserving a deterministic dependency order.
+- **Implemented:** `fabric/target-manifest.json` includes `processingStage`, `wave`, and `dependencies` for every entry. Known source kinds are categorized as `ingestion`, `storage`, `transformation`, `orchestration`, `consumption`, `governance`, `integration`, or `operational`.
+- **Validated:** `python -m pytest tests/test_cli.py -q` passed with `8 passed`.
+- **Open:** This is a deterministic dry-run review artifact only. It does not execute processing paths, connect to GCP or Fabric, deploy anything, or establish runtime data parity.
 
 ### What v0.1.0 does not prove
 
