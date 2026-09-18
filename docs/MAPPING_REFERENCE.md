@@ -55,6 +55,17 @@ deterministic `manual_review_reasons` list that makes the decision actionable. T
 `manualReviewReasons`. These fields are deterministic offline review metadata; they do not call
 cloud services or change deployment behavior.
 
+## Stage-readiness summary
+
+`fabric/target-manifest.json` includes a top-level `stageReadiness` summary for every processing
+stage that has one or more entries; absent stages are omitted. Each stage has `total`, counts for
+`direct`, `transform`, `redesign`, and `unsupported`, `manualReview`, and `readiness`.
+`readiness` is the deterministic rounded weighted average of the stage's component compatibility:
+`direct=100`, `transform=80`, `redesign=50`, and `unsupported=0`.
+
+The rollup prioritizes migration review. It is not proof of execution, parity, security
+remediation, or deployment readiness.
+
 Discovery makes no IAM API calls. Project/org IAM, connection IAM bindings, distinct row access
 policies, BigQuery Data Policies, and policy tags are not extracted. Treat any mapping involving
 those controls as security review work, not verified source-rights parity. Dataflow, Composer,

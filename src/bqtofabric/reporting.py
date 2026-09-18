@@ -14,9 +14,9 @@ from .assessment import AssessmentReport
 from .dataform_conversion import convert_dataform_workflow
 from .deployment_manifest import build_manifest
 from .fabric_artifacts import build_specialized_artifacts
-from .mapping import FabricTarget
+from .mapping import FabricTarget, MappingDecision
 from .models import BigQueryInventory
-from .planner import MigrationPlan
+from .planner import MigrationPlan, PlanItem
 from .spark_conversion import convert_spark_job
 
 
@@ -286,6 +286,7 @@ def _write_fabric_artifacts(
     target_manifest = {
         "mode": "dry-run",
         "projectId": inventory.project_id,
+        "stageReadiness": _stage_readiness_summary(assessment.decisions, plan_items),
         "entries": [
             {
                 "sourceId": decision.source_id,
@@ -380,3 +381,31 @@ def _processing_stage(source_kind: str) -> str:
         "spanner_database": "operational",
     }
     return stages.get(source_kind, "other")
+
+
+def _stage_readiness_summary(
+    decisions: tuple[MappingDecision, ...], plan_items: dict[str, PlanItem]
+) -> dict[str, dict[str, int]]:
+    weights = {"direct": 100, "transform": 80, "redesign": 50, "unsupported": 0}
+    summaries: dict[str, dict[str, int]] = {}
+    for decision in decisions:
+        stage = _processing_stage(decision.source_kind.value)
+        summary = summaries.setdefault(stage, {
+            "total": 0,
+            "direct": 0,
+            "transform": 0,
+            "redesign": 0,
+            "unsupported": 0,
+            "manualReview": 0,
+            "readiness": 0,
+        })
+        summary["total"] += 1
+        summary[decision.compatibility.value] += 1
+        if plan_items[decision.source_id].manual_review:
+            summary["manualReview"] += 1
+    for summary in summaries.values():
+        summary["readiness"] = round(
+            sum(summary[compatibility] * weight for compatibility, weight in weights.items())
+            / summary["total"]
+        )
+    return dict(sorted(summaries.items()))

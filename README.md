@@ -61,11 +61,11 @@ The generated package contains:
 `migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves, including
 	`manual_review` decisions and deterministic `manual_review_reasons` codes.
 - `lineage.mmd` — Mermaid dependency graph.
-`fabric/target-manifest.json` — every target entry with `processingStage`, `wave`, source
-	`dependencies`, `manualReview`, and deterministic `manualReviewReasons` for full-chain dry-run
-	review. Stages are `ingestion`, `storage`, `transformation`, `orchestration`, `consumption`,
-	`governance`, `integration`, or `operational` for known source kinds.
-- `fabric/target-manifest.json` — every target entry with `processingStage`, `wave`, and source `dependencies` for deterministic full-chain dry-run review. Stages are `ingestion`, `storage`, `transformation`, `orchestration`, `consumption`, `governance`, `integration`, or `operational` for known source kinds.
+`fabric/target-manifest.json` — target entries with `processingStage`, `wave`, source
+	`dependencies`, `manualReview`, and deterministic `manualReviewReasons`; its top-level
+	`stageReadiness` summarizes every stage represented by entries. Each summary includes `total`,
+	counts for `direct`, `transform`, `redesign`, and `unsupported`, `manualReview`, and a
+	deterministic `readiness` score. Stages with no entries are omitted.
 - `fabric/deployment-manifest.json` — immutable dry-run payload with SHA-256 integrity hash.
 - `fabric/artifact-validation.json` — offline structural validation results.
 - `fabric/deployment-manifest.json` is checked by `deployment-check`; readiness never performs apply.
@@ -81,6 +81,14 @@ values as `manualReview` and `manualReviewReasons`. The supported reason codes a
 `incomplete_external_adapter`, `depends_on_incomplete_external_adapter`, `sql_incompatibility`,
 and `cycle_or_unresolved_dependency`. This is offline planning metadata only and makes no cloud
 calls or deployment changes.
+
+### Stage-readiness summary
+
+`fabric/target-manifest.json` groups entries by `processingStage` in its top-level
+`stageReadiness` object. For each represented stage, `readiness` is the rounded weighted average
+of component compatibility: `direct=100`, `transform=80`, `redesign=50`, and `unsupported=0`.
+It prioritizes migration review; it is not proof of execution, parity, security remediation, or
+deployment readiness.
 ## Assess A Live GCP Project
 
 Live discovery is read-only BigQuery metadata discovery. It creates a local canonical inventory;

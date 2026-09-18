@@ -38,6 +38,14 @@ and `cycle_or_unresolved_dependency`. The report renderer exposes these values i
 `migration-plan.md`; the generated target manifest exposes them as `manualReview` and
 `manualReviewReasons`. These are dry-run planning fields and do not alter cloud behavior.
 
+The target manifest also has a top-level `stageReadiness` object. It contains one summary for
+each `processingStage` represented by an entry and omits absent stages. Each summary records
+`total`, compatibility counts (`direct`, `transform`, `redesign`, `unsupported`), `manualReview`,
+and `readiness`. The latter is a deterministic rounded compatibility-weight average per component:
+`direct=100`, `transform=80`, `redesign=50`, and `unsupported=0`. This aggregation prioritizes
+migration review; it is not proof of execution, parity, security remediation, or deployment
+readiness.
+
 ## Live discovery boundary
 
 The optional live provider uses user Application Default Credentials with the

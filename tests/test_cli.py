@@ -118,6 +118,30 @@ def test_generate_exposes_the_end_to_end_processing_chain(tmp_path: Path) -> Non
         "incompatible_mapping"
     ]
 
+    stage_readiness = manifest["stageReadiness"]
+    assert stage_readiness["ingestion"]["total"] == 6
+    assert sum(
+        stage_readiness["ingestion"][compatibility]
+        for compatibility in ("direct", "transform", "redesign", "unsupported")
+    ) == stage_readiness["ingestion"]["total"]
+    assert stage_readiness["ingestion"]["readiness"] == round(
+        (
+            stage_readiness["ingestion"]["direct"] * 100
+            + stage_readiness["ingestion"]["transform"] * 80
+            + stage_readiness["ingestion"]["redesign"] * 50
+        )
+        / stage_readiness["ingestion"]["total"]
+    )
+    assert stage_readiness["governance"] == {
+        "total": 2,
+        "direct": 0,
+        "transform": 1,
+        "redesign": 0,
+        "unsupported": 1,
+        "manualReview": 1,
+        "readiness": 40,
+    }
+
 
 def test_discover_writes_a_canonical_inventory(monkeypatch, tmp_path: Path) -> None:
     payload = json.loads(

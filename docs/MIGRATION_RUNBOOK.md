@@ -110,6 +110,17 @@ the following codes before approving a migration wave: `external_dependency`,
 `manualReviewReasons` fields for target-level review. These are deterministic dry-run planning
 metadata and introduce no cloud calls or deployment behavior.
 
+### Stage-readiness summary
+
+The generated `fabric/target-manifest.json` has a top-level `stageReadiness` object for each
+`processingStage` represented by an entry; stages without entries are omitted. Each stage summary
+contains `total`, counts for `direct`, `transform`, `redesign`, and `unsupported`, `manualReview`,
+and `readiness`. `readiness` is the deterministic rounded weighted average of component
+compatibility: `direct=100`, `transform=80`, `redesign=50`, and `unsupported=0`.
+
+Use this rollup to prioritize migration review. It is not evidence of executed workloads, parity,
+security remediation, or deployment readiness.
+
 ### Dataset access evidence
 
 Dataset GET `access` entries are inventory evidence, not an effective-access calculation. Each
@@ -124,8 +135,8 @@ or distinct row access policies.
 1. Run `bqtofabric assess` and resolve FAIL findings.
 2. Review target and type mappings, especially ARRAY, STRUCT, GEOGRAPHY, BIGNUMERIC, policies,
     UDFs, procedures, and external dependencies.
-3. Generate the migration plan, verify dependency waves, and resolve or explicitly accept every
-    `manual_review_reasons` code.
+3. Generate the migration plan, verify dependency waves and `stageReadiness`, and resolve or
+    explicitly accept every `manual_review_reasons` code.
 4. Generate dry-run Fabric artifacts and review SQL, notebooks, pipelines, identities, and names.
 5. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
 6. Use the native Fabric BigQuery connector for Dataflow Gen2, Pipeline Copy/Lookup, or Copy Job.

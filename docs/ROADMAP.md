@@ -38,6 +38,19 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Validated:** `python -m pytest tests/test_cli.py -q` passed with `8 passed`.
 - **Open:** This is a deterministic dry-run review artifact only. It does not execute processing paths, connect to GCP or Fabric, deploy anything, or establish runtime data parity.
 
+### Validated stage-readiness summary
+
+- **Expected:** The generated target manifest provides a deterministic per-stage compatibility
+  rollup that helps reviewers prioritize migration work without implying runtime readiness.
+- **Implemented:** `fabric/target-manifest.json` has a top-level `stageReadiness` object for every
+  `processingStage` represented by entries; absent stages are omitted. Each stage includes `total`,
+  counts for `direct`, `transform`, `redesign`, and `unsupported`, `manualReview`, and `readiness`.
+  `readiness` is the rounded weighted average of component compatibility with `direct=100`,
+  `transform=80`, `redesign=50`, and `unsupported=0`.
+- **Validated:** `python -m pytest tests/test_cli.py -q` passed with `8 passed`.
+- **Open:** The rollup prioritizes migration review only. It is not proof of execution, parity,
+  security remediation, or deployment readiness.
+
 ### Validated streaming downstream guardrail
 
 - **Expected:** A `DATAFLOW_JOB` whose `properties.streaming` is `true` causes every transitive
