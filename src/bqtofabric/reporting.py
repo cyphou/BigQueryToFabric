@@ -61,6 +61,7 @@ def write_reports(
         f"# Migration plan: {plan.project_id}",
         "",
         f"- Readiness score: {assessment.score}/100",
+        f"- Evidence coverage: {assessment.evidence_coverage}%",
         f"- Primary target: {assessment.strategy.primary_target.value}",
         f"- Architecture: {plan.architecture}",
         "",
@@ -88,6 +89,16 @@ def write_reports(
             f"| `{decision.source_id}` | {decision.target.value} | {supporting} | "
             f"{decision.compatibility.value} |"
         )
+    lines.extend([
+        "",
+        "## Evidence coverage",
+        "",
+        "| Component | Coverage | Missing evidence |",
+        "|---|---:|---|",
+    ])
+    for source_id, evidence in assessment.evidence_summary.items():
+        missing = ", ".join(evidence["missing"]) or "-"
+        lines.append(f"| `{source_id}` | {evidence['coverage']}% | {missing} |")
     lines.extend([
         "",
         "## Migration waves",

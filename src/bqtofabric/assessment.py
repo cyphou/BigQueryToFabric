@@ -32,6 +32,8 @@ class AssessmentReport:
     type_mappings: tuple[TypeMapping, ...]
     sql_assessments: tuple[SqlAssessment, ...]
     findings: tuple[AssessmentFinding, ...]
+    evidence_summary: dict[str, dict[str, object]]
+    evidence_coverage: int
 
 
 def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
@@ -50,6 +52,7 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
     )
     findings: list[AssessmentFinding] = []
     evidence_scores: list[int] = []
+    evidence_summary: dict[str, dict[str, object]] = {}
     readiness = {
         Compatibility.DIRECT: 100,
         Compatibility.TRANSFORM: 80,
@@ -64,12 +67,25 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
             findings.append(AssessmentFinding("FAIL", decision.source_id, decision.rationale))
         for action in decision.actions:
             findings.append(AssessmentFinding("WARN", decision.source_id, action))
-    for item in inventory.objects():
+    for index, item in enumerate(inventory.objects()):
+        required = _required_evidence(item.kind)
         missing = _missing_evidence(item)
-        evidence_scores.extend(50 for _ in missing)
+        present = tuple(field_name for field_name in required if field_name not in missing)
+        coverage = round(100 * len(present) / len(required)) if required else 100
+        evidence_summary[item.source_id] = {
+            "kind": item.kind.value,
+            "required": list(required),
+            "present": list(present),
+            "missing": list(missing),
+            "coverage": coverage,
+        }
+        evidence_scores[index] = max(
+            0,
+            readiness[decisions[index].compatibility] - round((100 - coverage) / 4),
+        )
         findings.extend(
             AssessmentFinding(
-                "WARN",
+                "FAIL" if item.kind is ObjectKind.SECURITY_POLICY else "WARN",
                 item.source_id,
                 f"Assessment evidence missing: {field_name}.",
             )
@@ -108,6 +124,9 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         mapped_types,
         sql_assessments,
         tuple(findings),
+        dict(sorted(evidence_summary.items())),
+        round(sum(item["coverage"] for item in evidence_summary.values()) / len(evidence_summary))
+        if evidence_summary else 100,
     )
 
 
@@ -118,6 +137,14 @@ def _walk_columns(columns: tuple[Column, ...]) -> Iterator[Column]:
 
 
 def _missing_evidence(item: BigQueryObject) -> tuple[str, ...]:
+    return tuple(
+        field_name
+        for field_name in _required_evidence(item.kind)
+        if not _has_evidence(item.properties.get(field_name))
+    )
+
+
+def _required_evidence(kind: ObjectKind) -> tuple[str, ...]:
     required: dict[ObjectKind, tuple[str, ...]] = {
         ObjectKind.SPARK_JOB: ("language", "runtime_version"),
         ObjectKind.DATAPROC_JOB: ("language", "runtime_version"),
@@ -131,11 +158,7 @@ def _missing_evidence(item: BigQueryObject) -> tuple[str, ...]:
         ObjectKind.CLOUD_SQL_DATABASE: ("engine", "version", "replication"),
         ObjectKind.SPANNER_DATABASE: ("dialect", "replication", "change_streams"),
     }
-    return tuple(
-        field_name
-        for field_name in required.get(item.kind, ())
-        if not _has_evidence(item.properties.get(field_name))
-    )
+    return required.get(kind, ())
 
 
 def _has_evidence(value: object) -> bool:

@@ -42,6 +42,9 @@ def test_assessment_penalizes_missing_family_evidence() -> None:
     ]
 
     assert report.score < 90
+    evidence = report.evidence_summary["gcp-data-platform.spark.enrichment"]
+    assert evidence["coverage"] == 0
+    assert report.evidence_coverage < 100
     assert any("language" in finding.message for finding in spark_findings)
     assert any("runtime_version" in finding.message for finding in spark_findings)
 
@@ -68,3 +71,4 @@ def test_assessment_accepts_complete_family_evidence() -> None:
     report = run_assessment(complete)
 
     assert not any("evidence missing" in finding.message for finding in report.findings)
+    assert report.evidence_coverage == 100
