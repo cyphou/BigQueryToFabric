@@ -12,6 +12,7 @@ from .airflow_compatibility import assess_airflow_compatibility
 from .artifact_validation import validate_directory
 from .assessment import AssessmentReport
 from .dataform_conversion import convert_dataform_workflow
+from .deployment_manifest import build_manifest
 from .fabric_artifacts import build_specialized_artifacts
 from .mapping import FabricTarget
 from .models import BigQueryInventory
@@ -140,7 +141,7 @@ def write_reports(
     written.append(lineage_path)
 
     if include_fabric_artifacts:
-        written.extend(_write_fabric_artifacts(root / "fabric", inventory, assessment))
+        written.extend(_write_fabric_artifacts(root / "fabric", inventory, assessment, plan))
     return tuple(written)
 
 
@@ -149,7 +150,7 @@ def _mermaid_id(source_id: str) -> str:
 
 
 def _write_fabric_artifacts(
-    root: Path, inventory: BigQueryInventory, assessment: AssessmentReport
+    root: Path, inventory: BigQueryInventory, assessment: AssessmentReport, plan: MigrationPlan
 ) -> tuple[Path, ...]:
     root.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
@@ -311,6 +312,10 @@ def _write_fabric_artifacts(
         ],
     })
     written.append(parity_path)
+
+    manifest_path = root / "deployment-manifest.json"
+    _write_json(manifest_path, build_manifest(inventory, assessment, plan))
+    written.append(manifest_path)
     return tuple(written)
 
 
