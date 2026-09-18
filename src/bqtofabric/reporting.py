@@ -300,6 +300,17 @@ def _write_fabric_artifacts(
     validation_path = root / "artifact-validation.json"
     _write_json(validation_path, validate_directory(root))
     written.append(validation_path)
+
+    parity_path = root / "parity-evidence.json"
+    _write_json(parity_path, {
+        "mode": "offline-evidence",
+        "projectId": inventory.project_id,
+        "objects": [
+            {"sourceId": source_id, **parity}
+            for source_id, parity in assessment.parity_summary.items()
+        ],
+    })
+    written.append(parity_path)
     return tuple(written)
 
 

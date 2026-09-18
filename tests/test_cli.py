@@ -41,6 +41,8 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert json.loads((tmp_path / "fabric" / "pipeline.json").read_text())["mode"] == "dry-run"
     validation = json.loads((tmp_path / "fabric" / "artifact-validation.json").read_text())
     assert validation["status"] == "passed"
+    parity = json.loads((tmp_path / "fabric" / "parity-evidence.json").read_text())
+    assert parity["mode"] == "offline-evidence"
     sql_conversions = json.loads((tmp_path / "fabric" / "sql-conversions.json").read_text())
     assert sql_conversions["mode"] == "dry-run"
     assert any(item["convertedSql"] for item in sql_conversions["conversions"])
