@@ -85,6 +85,19 @@ def map_component(
             ("Validate source format and Shortcut support before selecting zero-copy access.",),
         )
     if item.kind in {ObjectKind.SPARK_JOB, ObjectKind.DATAPROC_JOB}:
+        actions = [
+            "Replace GCS paths and cluster-specific APIs; validate Spark runtime compatibility."
+        ]
+        if item.properties.get("language"):
+            actions.append(f"Port {str(item.properties['language']).upper()} code to a Fabric notebook.")
+        if item.properties.get("runtime_version"):
+            actions.append("Validate library versions and Spark runtime behavior in the target workspace.")
+        if item.properties.get("uses_gcs"):
+            actions.append("Replace GCS access with OneLake paths or an approved Shortcut.")
+        if item.properties.get("uses_bigquery_connector"):
+            actions.append("Validate the native BigQuery connector and preserve partitioned reads.")
+        if item.properties.get("streaming"):
+            actions.append("Preserve checkpoints, triggers, watermarks, and exactly-once assumptions.")
         return MappingDecision(
             item.source_id,
             item.kind,
@@ -92,7 +105,7 @@ def map_component(
             Compatibility.TRANSFORM,
             "Spark and Dataproc workloads map naturally to Fabric Lakehouse compute.",
             (FabricTarget.NOTEBOOK,),
-            ("Replace GCS paths and cluster-specific APIs; validate Spark runtime compatibility.",),
+            tuple(actions),
         )
     if item.kind is ObjectKind.DATAFLOW_JOB:
         streaming = bool(item.properties.get("streaming", False))

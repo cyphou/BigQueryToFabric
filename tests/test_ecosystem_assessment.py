@@ -134,3 +134,28 @@ def test_engineering_mappings_use_component_evidence() -> None:
     assert decisions["evidence.composer.custom"].target is FabricTarget.DATA_PIPELINE
     assert decisions["evidence.composer.custom"].compatibility.value == "redesign"
     assert len(decisions["evidence.dataform.incremental"].actions) == 3
+
+
+def test_spark_mapping_preserves_runtime_and_storage_migration_evidence() -> None:
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "spark-evidence",
+        "components": [{
+            "source_id": "spark-evidence.jobs.streaming",
+            "name": "streaming",
+            "kind": "spark_job",
+            "properties": {
+                "language": "scala",
+                "runtime_version": "3.5",
+                "uses_gcs": True,
+                "uses_bigquery_connector": True,
+                "streaming": True,
+            },
+        }],
+    })
+
+    decision = run_assessment(inventory).decisions[0]
+
+    assert decision.target is FabricTarget.LAKEHOUSE
+    assert FabricTarget.NOTEBOOK in decision.supporting_targets
+    assert len(decision.actions) == 6
+    assert any("OneLake" in action for action in decision.actions)
