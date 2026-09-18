@@ -190,4 +190,45 @@ def _write_fabric_artifacts(
     orchestration_path = root / "orchestration.json"
     _write_json(orchestration_path, orchestration)
     written.append(orchestration_path)
+
+    target_manifest = {
+        "mode": "dry-run",
+        "projectId": inventory.project_id,
+        "entries": [
+            {
+                "sourceId": decision.source_id,
+                "sourceKind": decision.source_kind.value,
+                "primaryTarget": decision.target.value,
+                "supportingTargets": [target.value for target in decision.supporting_targets],
+                "compatibility": decision.compatibility.value,
+                "actions": list(decision.actions),
+                "artifactKind": _artifact_kind(decision.target),
+            }
+            for decision in sorted(assessment.decisions, key=lambda item: item.source_id)
+        ],
+    }
+    target_manifest_path = root / "target-manifest.json"
+    _write_json(target_manifest_path, target_manifest)
+    written.append(target_manifest_path)
     return tuple(written)
+
+
+def _artifact_kind(target: FabricTarget) -> str:
+    artifact_kinds = {
+        FabricTarget.AIRFLOW_JOB: "airflow_package",
+        FabricTarget.DATAFLOW_GEN2: "dataflow_gen2_definition",
+        FabricTarget.DATA_PIPELINE: "fabric_pipeline",
+        FabricTarget.EVENTHOUSE: "eventhouse_kql",
+        FabricTarget.EVENTSTREAM: "eventstream_definition",
+        FabricTarget.SEMANTIC_MODEL: "semantic_model_definition",
+        FabricTarget.DATA_SCIENCE: "data_science_workbench",
+        FabricTarget.PURVIEW: "purview_governance_mapping",
+        FabricTarget.SQL_DATABASE: "sql_database_migration_spec",
+        FabricTarget.ONELAKE_SHORTCUT: "onelake_shortcut_spec",
+        FabricTarget.WAREHOUSE: "warehouse_ddl",
+        FabricTarget.LAKEHOUSE: "lakehouse_notebook",
+        FabricTarget.NOTEBOOK: "fabric_notebook",
+        FabricTarget.POWER_BI_REPORT: "power_bi_report_spec",
+        FabricTarget.MANUAL: "manual_migration_record",
+    }
+    return artifact_kinds[target]

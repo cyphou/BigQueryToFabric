@@ -37,6 +37,9 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert code_cell["execution_count"] is None
     assert code_cell["outputs"] == []
     assert json.loads((tmp_path / "fabric" / "pipeline.json").read_text())["mode"] == "dry-run"
+    manifest = json.loads((tmp_path / "fabric" / "target-manifest.json").read_text())
+    assert manifest["mode"] == "dry-run"
+    assert any(entry["artifactKind"] == "lakehouse_notebook" for entry in manifest["entries"])
 
 
 def test_generate_preserves_airflow_candidate(tmp_path: Path) -> None:
@@ -51,6 +54,13 @@ def test_generate_preserves_airflow_candidate(tmp_path: Path) -> None:
     )
     assert airflow["primaryTarget"] == "airflow_job"
     assert "notebook" in airflow["supportingTargets"]
+
+    manifest = json.loads((tmp_path / "fabric" / "target-manifest.json").read_text())
+    streaming = next(
+        item for item in manifest["entries"]
+        if item["sourceId"] == "gcp-data-platform.pubsub.events"
+    )
+    assert streaming["artifactKind"] == "eventhouse_kql"
 
 
 def test_discover_writes_a_canonical_inventory(monkeypatch, tmp_path: Path) -> None:
