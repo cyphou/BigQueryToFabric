@@ -29,8 +29,11 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert result == ExitCode.SUCCESS
     assert (tmp_path / "assessment.json").is_file()
     assert (tmp_path / "migration-plan.md").is_file()
-    assert "Evidence coverage:" in (tmp_path / "migration-plan.md").read_text()
-    assert "Parity evidence" in (tmp_path / "migration-plan.md").read_text()
+    migration_plan = (tmp_path / "migration-plan.md").read_text()
+    assert "Evidence coverage:" in migration_plan
+    assert "## Findings" in migration_plan
+    assert "TYPE_REDESIGN" in migration_plan
+    assert "Parity evidence" in migration_plan
     notebook = json.loads((tmp_path / "fabric" / "lakehouse_transform.ipynb").read_text())
     markdown_cell = notebook["cells"][0]
     code_cell = notebook["cells"][1]

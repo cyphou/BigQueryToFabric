@@ -36,6 +36,8 @@
 - Generated output must contain logical references, never secret values.
 - `manual_review_reasons` make known assessment constraints explicit in dry-run output. They do
   not prove remediation, parity, effective access, or deployment readiness.
+- Generated `Findings` are review evidence for migration planning. They do not prove remediation,
+  security parity, effective access, or deployment readiness.
 - Preserve redaction boundaries: inventories and generated artifacts may include only logical,
   non-secret references and redacted security-policy details. For BigQuery IAM and dataset access
   concepts, see [BigQuery access control](https://docs.cloud.google.com/bigquery/docs/access-control).

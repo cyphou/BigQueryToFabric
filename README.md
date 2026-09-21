@@ -58,10 +58,12 @@ The generated package contains:
 
 - `assessment.json` — score, evidence, SQL analysis, findings, and portfolio summaries.
 - `component-mapping.csv` — primary/supporting targets, compatibility, rationale, and actions.
-`migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves, including
-	`manual_review` decisions and deterministic `manual_review_reasons` codes.
+- `migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves, including
+	`manual_review` decisions and deterministic `manual_review_reasons` codes. The Markdown report
+	also includes a `Findings` section listing assessment findings by severity, code, category,
+	source, and message.
 - `lineage.mmd` — Mermaid dependency graph.
-`fabric/target-manifest.json` — target entries with `processingStage`, `wave`, source
+- `fabric/target-manifest.json` — target entries with `processingStage`, `wave`, source
 	`dependencies`, `manualReview`, and deterministic `manualReviewReasons`; its top-level
 	`stageReadiness` summarizes every stage represented by entries. Each summary includes `total`,
 	counts for `direct`, `transform`, `redesign`, and `unsupported`, `manualReview`, and a
@@ -81,6 +83,14 @@ values as `manualReview` and `manualReviewReasons`. The supported reason codes a
 `incomplete_external_adapter`, `depends_on_incomplete_external_adapter`, `sql_incompatibility`,
 and `cycle_or_unresolved_dependency`. This is offline planning metadata only and makes no cloud
 calls or deployment changes.
+
+### Migration-plan findings
+
+Generated `migration-plan.md` includes a `Findings` section that carries assessment findings into
+the review report. Each finding lists `severity`, `code`, `category`, `source`, and `message` so
+`WARN` and `FAIL` outcomes can be triaged from the plan without opening `assessment.json` first.
+These findings are dry-run evidence only; their presence does not prove remediation, deployment
+readiness, or Fabric runtime parity.
 
 ### Stage-readiness summary
 

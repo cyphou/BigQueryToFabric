@@ -110,6 +110,17 @@ the following codes before approving a migration wave: `external_dependency`,
 `manualReviewReasons` fields for target-level review. These are deterministic dry-run planning
 metadata and introduce no cloud calls or deployment behavior.
 
+### Migration-plan findings
+
+The generated `migration-plan.md` includes a `Findings` section copied from assessment output. Each
+entry lists `severity`, `code`, `category`, `source`, and `message`, making `WARN` and `FAIL`
+conditions visible in the human review report. Treat these entries as actionable review evidence:
+resolve, document, or explicitly accept each relevant finding before relying on a migration wave.
+
+The section is not proof that a finding has been remediated, that Fabric deployment is ready, or
+that runtime parity has been established. Use `assessment.json`, mapping output, generated artifacts,
+and independent parity/security checks for deeper review.
+
 ### Stage-readiness summary
 
 The generated `fabric/target-manifest.json` has a top-level `stageReadiness` object for each
@@ -135,8 +146,8 @@ or distinct row access policies.
 1. Run `bqtofabric assess` and resolve FAIL findings.
 2. Review target and type mappings, especially ARRAY, STRUCT, GEOGRAPHY, BIGNUMERIC, policies,
     UDFs, procedures, and external dependencies.
-3. Generate the migration plan, verify dependency waves and `stageReadiness`, and resolve or
-    explicitly accept every `manual_review_reasons` code.
+3. Generate the migration plan, review its `Findings` section, verify dependency waves and
+    `stageReadiness`, and resolve or explicitly accept every `manual_review_reasons` code.
 4. Generate dry-run Fabric artifacts and review SQL, notebooks, pipelines, identities, and names.
 5. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
 6. Use the native Fabric BigQuery connector for Dataflow Gen2, Pipeline Copy/Lookup, or Copy Job.

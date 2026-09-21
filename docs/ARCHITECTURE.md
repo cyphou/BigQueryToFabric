@@ -38,6 +38,11 @@ and `cycle_or_unresolved_dependency`. The report renderer exposes these values i
 `migration-plan.md`; the generated target manifest exposes them as `manualReview` and
 `manualReviewReasons`. These are dry-run planning fields and do not alter cloud behavior.
 
+The report renderer also carries assessment findings into `migration-plan.md`. The generated
+Markdown report includes a `Findings` section with each finding's severity, code, category, source,
+and message. This makes `WARN` and `FAIL` conditions visible in the human review artifact, but it is
+still dry-run evidence and does not prove remediation, deployment readiness, or runtime parity.
+
 The target manifest also has a top-level `stageReadiness` object. It contains one summary for
 each `processingStage` represented by an entry and omits absent stages. Each summary records
 `total`, compatibility counts (`direct`, `transform`, `redesign`, `unsupported`), `manualReview`,

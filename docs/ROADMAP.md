@@ -51,6 +51,17 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** The rollup prioritizes migration review only. It is not proof of execution, parity,
   security remediation, or deployment readiness.
 
+### Validated migration-plan findings section
+
+- **Expected:** The human-readable migration plan should make assessment `WARN` and `FAIL` findings
+  actionable without requiring reviewers to open `assessment.json` first.
+- **Implemented:** Generated `migration-plan.md` includes a `Findings` section. Each finding lists
+  `severity`, `code`, `category`, `source`, and `message`, preserving the assessment evidence inside
+  the dry-run report.
+- **Validated:** `python -m pytest tests/test_cli.py -q` passed with `8 passed`.
+- **Open:** Findings in the report are review evidence only. They do not prove remediation,
+  deployment readiness, runtime parity, or security parity.
+
 ### Validated streaming downstream guardrail
 
 - **Expected:** A `DATAFLOW_JOB` whose `properties.streaming` is `true` causes every transitive

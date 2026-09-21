@@ -84,11 +84,35 @@ def write_reports(
             f"{level}={count}" for level, count in assessment.compatibility_summary.items()
         ),
         "",
+        "## Findings",
+        "",
+        "| Severity | Code | Category | Source | Message |",
+        "|---|---|---|---|---|",
+    ]
+    finding_order = {"FAIL": 0, "WARN": 1, "INFO": 2}
+    for finding in sorted(
+        assessment.findings,
+        key=lambda item: (
+            finding_order.get(item.severity, 99),
+            item.source_id,
+            item.code,
+            item.message,
+        ),
+    ):
+        lines.append(
+            f"| {finding.severity} | {_markdown_cell(finding.code or '-')} | "
+            f"{_markdown_cell(finding.category or '-')} | `{finding.source_id}` | "
+            f"{_markdown_cell(finding.message)} |"
+        )
+    if not assessment.findings:
+        lines.append("| - | - | - | - | No findings. |")
+    lines.extend([
+        "",
         "## Component assessment",
         "",
         "| GCP component | Primary target | Supporting targets | Compatibility |",
         "|---|---|---|---|",
-    ]
+    ])
     for decision in sorted(assessment.decisions, key=lambda item: item.source_id):
         supporting = ", ".join(target.value for target in decision.supporting_targets) or "-"
         lines.append(
@@ -148,6 +172,10 @@ def write_reports(
 
 def _mermaid_id(source_id: str) -> str:
     return "n_" + "".join(character if character.isalnum() else "_" for character in source_id)
+
+
+def _markdown_cell(value: object) -> str:
+    return str(value).replace("|", "\\|").replace("\n", " ")
 
 
 def _write_fabric_artifacts(
