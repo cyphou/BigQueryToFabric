@@ -1,0 +1,441 @@
+{
+  "patterns": [
+    {
+      "name": "simple_select",
+      "description": "Simple SELECT with WHERE, GROUP BY, ORDER BY, LIMIT",
+      "source_sql": "SELECT user_id, COUNT(*) as order_count\nFROM orders\nWHERE created_at > '2024-01-01'\nGROUP BY user_id\nORDER BY order_count DESC\nLIMIT 10",
+      "patterns": ["select", "group_by", "order_by", "limit"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["SELECT", "COUNT(*)", "WHERE", "GROUP BY", "ORDER BY", "LIMIT"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["SELECT", "COUNT(*)", "WHERE", "GROUP BY", "ORDER BY", "LIMIT"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["SELECT", "COUNT", "WHERE", "GROUP BY", "ORDER BY"],
+          "compatibility": "direct",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "select_with_joins",
+      "description": "SELECT with multiple JOINs",
+      "source_sql": "SELECT o.order_id, c.customer_name, p.product_name\nFROM orders o\nINNER JOIN customers c ON o.customer_id = c.id\nLEFT JOIN products p ON o.product_id = p.id\nWHERE o.status = 'completed'",
+      "patterns": ["select", "joins", "multi_join"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["SELECT", "INNER JOIN", "LEFT JOIN"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["SELECT", "INNER JOIN", "LEFT JOIN"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["SELECT", "JOIN"],
+          "compatibility": "direct",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "unnest_array",
+      "description": "UNNEST with array operations",
+      "source_sql": "SELECT order_id, item\nFROM orders\nCROSS JOIN UNNEST(items) as item",
+      "patterns": ["select", "unnest", "array_operations"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["CROSS APPLY"],
+          "compatibility": "transform",
+          "warnings": ["UNNEST requires translation to CROSS APPLY"]
+        },
+        "spark_sql": {
+          "expected_contains": ["explode"],
+          "compatibility": "transform",
+          "warnings": ["UNNEST in Spark SQL should use explode"]
+        },
+        "pyspark": {
+          "expected_contains": ["explode"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "struct_extraction",
+      "description": "Struct field extraction",
+      "source_sql": "SELECT order_id, item.sku, item.quantity\nFROM orders,\nUNNEST(items) as item",
+      "patterns": ["select", "struct_types", "unnest"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["JSON"],
+          "compatibility": "transform",
+          "warnings": ["Struct types require mapping to T-SQL JSON"]
+        },
+        "spark_sql": {
+          "expected_contains": ["explode"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["explode"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "window_functions",
+      "description": "Window functions with OVER and PARTITION BY",
+      "source_sql": "SELECT order_id, amount,\n  SUM(amount) OVER (PARTITION BY customer_id ORDER BY order_date) as running_total,\n  ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date) as order_seq\nFROM orders",
+      "patterns": ["select", "window_functions", "window_with_partition"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["OVER", "PARTITION BY", "ROW_NUMBER"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["OVER", "PARTITION BY", "ROW_NUMBER"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["OVER"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "case_expression",
+      "description": "CASE expression for conditional logic",
+      "source_sql": "SELECT customer_id,\n  CASE\n    WHEN total_spent > 10000 THEN 'VIP'\n    WHEN total_spent > 5000 THEN 'Premium'\n    ELSE 'Standard'\n  END as customer_tier\nFROM customers",
+      "patterns": ["select", "case_expr"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["CASE", "WHEN", "THEN", "ELSE", "END"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["CASE", "WHEN", "THEN", "ELSE"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["CASE", "WHEN"],
+          "compatibility": "direct",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "coalesce_nullif",
+      "description": "COALESCE and NULLIF for null handling",
+      "source_sql": "SELECT order_id, COALESCE(discount, 0) as actual_discount,\n  NULLIF(quantity, 0) as non_zero_quantity\nFROM orders",
+      "patterns": ["select", "null_handling"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["COALESCE", "NULLIF"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["COALESCE", "NULLIF"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["COALESCE", "NULLIF"],
+          "compatibility": "direct",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "cast_types",
+      "description": "Type casting",
+      "source_sql": "SELECT CAST(order_date AS STRING) as date_str,\n  CAST(amount AS FLOAT64) as amount_float,\n  CAST(quantity AS INT64) as qty_int\nFROM orders",
+      "patterns": ["select", "cast"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["CAST"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["CAST"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["CAST"],
+          "compatibility": "direct",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "distinct_clause",
+      "description": "DISTINCT keyword",
+      "source_sql": "SELECT DISTINCT customer_id, status\nFROM orders\nORDER BY customer_id",
+      "patterns": ["select", "distinct", "order_by"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["DISTINCT"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["DISTINCT"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["DISTINCT"],
+          "compatibility": "direct",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "cte_with_union",
+      "description": "Common Table Expression with UNION",
+      "source_sql": "WITH recent_orders AS (\n  SELECT order_id, customer_id, amount\n  FROM orders\n  WHERE created_at > DATE_SUB(CURRENT_DATE(), INTERVAL 30 DAY)\n),\nall_orders AS (\n  SELECT order_id, customer_id, amount\n  FROM orders\n)\nSELECT * FROM recent_orders\nUNION ALL\nSELECT * FROM all_orders WHERE customer_id NOT IN (SELECT customer_id FROM recent_orders)",
+      "patterns": ["cte", "union", "select"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["WITH", "UNION ALL"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["WITH", "UNION"],
+          "compatibility": "direct",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["WITH", "UNION"],
+          "compatibility": "direct",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "qualify_clause",
+      "description": "QUALIFY clause for window function filtering",
+      "source_sql": "SELECT order_id, customer_id, ROW_NUMBER() OVER (PARTITION BY customer_id ORDER BY order_date) as rn\nFROM orders\nQUALIFY rn <= 3",
+      "patterns": ["select", "window_functions", "qualify"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["OVER", "PARTITION BY"],
+          "compatibility": "transform",
+          "warnings": ["QUALIFY requires manual translation"]
+        },
+        "spark_sql": {
+          "expected_contains": ["OVER"],
+          "compatibility": "transform",
+          "warnings": ["QUALIFY clause detected"]
+        },
+        "pyspark": {
+          "expected_contains": ["OVER"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "three_part_reference",
+      "description": "Cross-project/three-part table reference",
+      "source_sql": "SELECT o.order_id, c.customer_name\nFROM `project-id.dataset.orders` o\nINNER JOIN `other-project.other_dataset.customers` c ON o.customer_id = c.id",
+      "patterns": ["select", "joins"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["SELECT"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["SELECT"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["SELECT"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "external_table_query",
+      "description": "Query on external/Iceberg table",
+      "source_sql": "SELECT * FROM external_table\nWHERE partition_column = '2024-01-01'\nLIMIT 100",
+      "patterns": ["select", "limit"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["SELECT", "WHERE", "LIMIT"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["SELECT", "WHERE"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["SELECT", "WHERE"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "array_concat",
+      "description": "Array concatenation",
+      "source_sql": "SELECT order_id, ARRAY_CONCAT(tags1, tags2) as all_tags\nFROM orders",
+      "patterns": ["select", "array_operations"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["CONCAT"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["concat_ws", "CONCAT"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["concat"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "unsupported_script_block",
+      "description": "Script block with DECLARE and BEGIN/END (unsupported)",
+      "source_sql": "DECLARE @var INT;\nBEGIN\n  SET @var = 10;\n  SELECT @var;\nEND",
+      "patterns": [],
+      "conversions": {
+        "tsql": {
+          "expected_contains": [],
+          "compatibility": "redesign",
+          "warnings": ["Script command or procedural block detected"]
+        },
+        "spark_sql": {
+          "expected_contains": [],
+          "compatibility": "unsupported",
+          "warnings": ["Script command or procedural block detected"]
+        },
+        "pyspark": {
+          "expected_contains": [],
+          "compatibility": "unsupported",
+          "warnings": ["Script command or procedural block detected"]
+        }
+      }
+    },
+    {
+      "name": "unsupported_javascript_udf",
+      "description": "JavaScript UDF (requires manual implementation)",
+      "source_sql": "CREATE TEMP FUNCTION reverse_string(s STRING) RETURNS STRING\nLANGUAGE js AS 'return s.split(\"\").reverse().join(\"\");'\n;\nSELECT reverse_string('hello') as result",
+      "patterns": [],
+      "conversions": {
+        "tsql": {
+          "expected_contains": [],
+          "compatibility": "unsupported",
+          "warnings": ["JavaScript UDF"]
+        },
+        "spark_sql": {
+          "expected_contains": [],
+          "compatibility": "unsupported",
+          "warnings": ["JavaScript UDF"]
+        },
+        "pyspark": {
+          "expected_contains": [],
+          "compatibility": "unsupported",
+          "warnings": ["JavaScript UDF"]
+        }
+      }
+    },
+    {
+      "name": "dml_insert",
+      "description": "DML: INSERT statement",
+      "source_sql": "INSERT INTO orders (order_id, customer_id, amount)\nVALUES (1001, 5, 99.99)",
+      "patterns": ["dml"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["INSERT INTO"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["INSERT INTO"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["INSERT"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "dml_update",
+      "description": "DML: UPDATE statement",
+      "source_sql": "UPDATE orders\nSET status = 'shipped', updated_at = CURRENT_TIMESTAMP()\nWHERE order_id = 1001",
+      "patterns": ["dml"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["UPDATE", "SET"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["UPDATE", "SET"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["UPDATE"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    },
+    {
+      "name": "dml_delete",
+      "description": "DML: DELETE statement",
+      "source_sql": "DELETE FROM orders\nWHERE created_at < DATE_SUB(CURRENT_DATE(), INTERVAL 1 YEAR)",
+      "patterns": ["dml"],
+      "conversions": {
+        "tsql": {
+          "expected_contains": ["DELETE FROM"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "spark_sql": {
+          "expected_contains": ["DELETE FROM"],
+          "compatibility": "transform",
+          "warnings": []
+        },
+        "pyspark": {
+          "expected_contains": ["DELETE"],
+          "compatibility": "transform",
+          "warnings": []
+        }
+      }
+    }
+  ]
+}
