@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import json
+from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -84,11 +85,49 @@ def write_reports(
             f"{level}={count}" for level, count in assessment.compatibility_summary.items()
         ),
         "",
+        "## Assessment summary",
+        "",
+        "| Gate | Value |",
+        "|---|---:|",
+        f"| Findings | {len(assessment.findings)} |",
+        f"| FAIL findings | {_finding_counts(assessment).get('FAIL', 0)} |",
+        f"| WARN findings | {_finding_counts(assessment).get('WARN', 0)} |",
+        f"| Components requiring manual review | {sum(item.manual_review for item in plan.items)} |",
+        "",
+        "### Readiness by processing stage",
+        "",
+        "| Stage | Components | Readiness | Manual review |",
+        "|---|---:|---:|---:|",
+    ]
+    stage_readiness = _stage_readiness_summary(assessment.decisions, {
+        item.source_id: item for item in plan.items
+    })
+    for stage, summary in stage_readiness.items():
+        lines.append(
+            f"| {stage} | {summary['total']} | {summary['readiness']}% | "
+            f"{summary['manualReview']} |"
+        )
+    lines.extend([
+        "",
+        "### Manual-review reason counts",
+        "",
+        "| Reason | Components |",
+        "|---|---:|",
+    ])
+    reason_counts = Counter(
+        reason for item in plan.items for reason in item.manual_review_reasons
+    )
+    for reason, count in sorted(reason_counts.items()):
+        lines.append(f"| {_markdown_cell(reason)} | {count} |")
+    if not reason_counts:
+        lines.append("| - | 0 |")
+    lines.extend([
+        "",
         "## Findings",
         "",
         "| Severity | Code | Category | Source | Message |",
         "|---|---|---|---|---|",
-    ]
+    ])
     finding_order = {"FAIL": 0, "WARN": 1, "INFO": 2}
     for finding in sorted(
         assessment.findings,
@@ -168,6 +207,10 @@ def write_reports(
     if include_fabric_artifacts:
         written.extend(_write_fabric_artifacts(root / "fabric", inventory, assessment, plan))
     return tuple(written)
+
+
+def _finding_counts(assessment: AssessmentReport) -> Counter[str]:
+    return Counter(finding.severity for finding in assessment.findings)
 
 
 def _mermaid_id(source_id: str) -> str:

@@ -154,6 +154,15 @@ the review report. Each finding lists `severity`, `code`, `category`, `source`, 
 These findings are dry-run evidence only; their presence does not prove remediation, deployment
 readiness, or Fabric runtime parity.
 
+### Assessment summary
+
+The generated `migration-plan.md` also includes an `Assessment summary` section. Its Gate/Value
+table reports total findings, `FAIL` findings, `WARN` findings, and the number of components
+requiring manual review. The section also provides deterministic readiness percentages and manual
+review counts by processing stage, followed by counts for each manual-review reason. These are
+review summaries for prioritization, not proof of deployment readiness, runtime parity, security
+remediation, or finding remediation.
+
 ### Stage-readiness summary
 
 `fabric/target-manifest.json` groups entries by `processingStage` in its top-level

@@ -21,7 +21,7 @@ bqtofabric manifest-verify "$output/project/fabric/deployment-manifest.json"
 bqtofabric deployment-check "$output/project/fabric"
 ```
 
-Review `migration-plan.md` and its `Findings` section. Then inspect `assessment.json` for
+Review `migration-plan.md`, including its `Assessment summary` and `Findings` sections. Then inspect `assessment.json` for
 `findings`, `evidence_summary`, `discovery_coverage`, and `parity_summary`; inspect
 `fabric/target-manifest.json` for `stageReadiness`, `manualReview`, `manualReviewReasons`, and
 `processingStage`; and inspect `fabric/artifact-validation.json` and
@@ -153,6 +153,18 @@ The section is not proof that a finding has been remediated, that Fabric deploym
 that runtime parity has been established. Use `assessment.json`, mapping output, generated artifacts,
 and independent parity/security checks for deeper review.
 
+### Assessment summary
+
+The generated `migration-plan.md` starts its review detail with an `Assessment summary`. The
+Gate/Value table reports total findings, `FAIL` findings, `WARN` findings, and components requiring
+manual review. `Readiness by processing stage` reports each represented stage, its component count,
+deterministic readiness percentage, and manual-review count. `Manual-review reason counts` reports
+deterministic frequencies for the reasons attached to planned review items.
+
+Use these tables to prioritize review and compare the evidence in the detailed sections. They are
+deterministic review summaries only: they do not prove deployment readiness, runtime parity,
+security remediation, or finding remediation.
+
 ### Stage-readiness summary
 
 The generated `fabric/target-manifest.json` has a top-level `stageReadiness` object for each
@@ -178,7 +190,7 @@ or distinct row access policies.
 1. Run `bqtofabric assess` and resolve FAIL findings.
 2. Review target and type mappings, especially ARRAY, STRUCT, GEOGRAPHY, BIGNUMERIC, policies,
     UDFs, procedures, and external dependencies.
-3. Generate the migration plan, review its `Findings` section, verify dependency waves and
+3. Generate the migration plan, review its `Assessment summary` and `Findings` sections, verify dependency waves and
     `stageReadiness`, and resolve or explicitly accept every `manual_review_reasons` code.
 4. Generate dry-run Fabric artifacts and review SQL, notebooks, pipelines, identities, and names.
 5. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
