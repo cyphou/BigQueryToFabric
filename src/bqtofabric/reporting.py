@@ -92,6 +92,8 @@ def write_reports(
         f"| Findings | {len(assessment.findings)} |",
         f"| FAIL findings | {_finding_counts(assessment).get('FAIL', 0)} |",
         f"| WARN findings | {_finding_counts(assessment).get('WARN', 0)} |",
+        f"| Parity checks | {len(assessment.parity_summary)} |",
+        f"| Parity not run | {_parity_counts(assessment).get('not_run', 0)} |",
         f"| Components requiring manual review | {sum(item.manual_review for item in plan.items)} |",
         "",
         "### Readiness by processing stage",
@@ -211,6 +213,10 @@ def write_reports(
 
 def _finding_counts(assessment: AssessmentReport) -> Counter[str]:
     return Counter(finding.severity for finding in assessment.findings)
+
+
+def _parity_counts(assessment: AssessmentReport) -> Counter[str]:
+    return Counter(str(parity["status"]) for parity in assessment.parity_summary.values())
 
 
 def _mermaid_id(source_id: str) -> str:

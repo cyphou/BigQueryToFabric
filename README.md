@@ -158,10 +158,12 @@ readiness, or Fabric runtime parity.
 
 The generated `migration-plan.md` also includes an `Assessment summary` section. Its Gate/Value
 table reports total findings, `FAIL` findings, `WARN` findings, and the number of components
-requiring manual review. The section also provides deterministic readiness percentages and manual
-review counts by processing stage, followed by counts for each manual-review reason. These are
-review summaries for prioritization, not proof of deployment readiness, runtime parity, security
-remediation, or finding remediation.
+requiring manual review, plus `Parity checks` and `Parity not run` totals. The section also
+provides deterministic readiness percentages and manual-review counts by processing stage,
+followed by counts for each manual-review reason. `Parity not run` means runtime evidence is
+absent; it does not mean that parity succeeded. The detailed `Parity evidence` table is unchanged.
+These are review summaries for prioritization, not proof of deployment readiness, runtime parity,
+security remediation, or finding remediation.
 
 ### Stage-readiness summary
 

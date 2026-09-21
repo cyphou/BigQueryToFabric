@@ -35,6 +35,8 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert "TYPE_REDESIGN" in migration_plan
     assert "## Assessment summary" in migration_plan
     assert "| FAIL findings | " in migration_plan
+    assert "| Parity checks | 4 |" in migration_plan
+    assert "| Parity not run | 3 |" in migration_plan
     assert "### Readiness by processing stage" in migration_plan
     assert "### Manual-review reason counts" in migration_plan
     assert "Parity evidence" in migration_plan

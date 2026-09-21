@@ -80,10 +80,12 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Expected:** The human-readable migration plan should provide deterministic rollups that help
   reviewers prioritize findings, processing stages, and manual-review work.
 - **Implemented:** Generated `migration-plan.md` includes an `Assessment summary` with a Gate/Value
-  table for total, `FAIL`, and `WARN` findings plus components requiring manual review. It also
-  includes readiness percentage and manual-review counts by processing stage, and deterministic
-  manual-review reason frequencies. Existing findings, component, evidence, parity, and migration
-  wave sections remain in the report.
+  table for total, `FAIL`, and `WARN` findings, components requiring manual review, `Parity checks`,
+  and `Parity not run` totals. It also includes readiness percentage and manual-review counts by
+  processing stage, and deterministic manual-review reason frequencies. `Parity not run` means
+  runtime evidence is absent, not that parity succeeded. Existing findings, component, evidence,
+  parity, and migration wave sections remain in the report; the detailed `Parity evidence` table
+  is unchanged.
 - **Validated:** The reporting change was validated with the focused CLI tests and the full test
   suite; Ruff is clean for the changed reporting and CLI test files.
 - **Open:** These are deterministic review summaries only. They do not prove deployment readiness,

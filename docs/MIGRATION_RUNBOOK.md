@@ -159,7 +159,10 @@ The generated `migration-plan.md` starts its review detail with an `Assessment s
 Gate/Value table reports total findings, `FAIL` findings, `WARN` findings, and components requiring
 manual review. `Readiness by processing stage` reports each represented stage, its component count,
 deterministic readiness percentage, and manual-review count. `Manual-review reason counts` reports
-deterministic frequencies for the reasons attached to planned review items.
+deterministic frequencies for the reasons attached to planned review items. The Gate/Value table
+also reports `Parity checks` and `Parity not run` totals. `Parity not run` means runtime evidence
+is absent; it does not mean that parity succeeded. The detailed `Parity evidence` table is
+unchanged.
 
 Use these tables to prioritize review and compare the evidence in the detailed sections. They are
 deterministic review summaries only: they do not prove deployment readiness, runtime parity,
