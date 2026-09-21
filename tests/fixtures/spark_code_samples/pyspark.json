@@ -1,0 +1,52 @@
+{
+  "pyspark_read_write": {
+    "simple_read": "df = spark.read.parquet('gs://bucket/data')",
+    "read_with_options": "df = spark.read.format('csv').option('header', 'true').load('gs://bucket/data.csv')",
+    "write_parquet": "df.write.mode('overwrite').parquet('gs://bucket/output')",
+    "write_delta": "df.write.format('delta').mode('append').save('/Shortcuts/onelake/output')",
+    "multiline_read": "df = spark.read \\\n  .format('json') \\\n  .load('gs://bucket/events')",
+    "partitioned_write": "df.write.partitionBy('year', 'month').parquet('gs://bucket/data')"
+  },
+  "pyspark_transformations": {
+    "select_filter": "df.select('id', 'name').filter(df.age > 18)",
+    "groupby_agg": "df.groupBy('dept').agg({'salary': 'avg', 'bonus': 'sum'})",
+    "window_function": "from pyspark.sql.window import Window\nw = Window.partitionBy('dept').orderBy('salary')\ndf.withColumn('rank', rank().over(w))",
+    "union": "df_combined = df1.union(df2)",
+    "distinct": "df_unique = df.select('category').distinct()",
+    "orderby": "df_sorted = df.orderBy(df.salary.desc())"
+  },
+  "pyspark_spark_sql": {
+    "simple_query": "result = spark.sql('SELECT * FROM table WHERE id > 100')",
+    "cte_query": "result = spark.sql('''\n  WITH recent AS (\n    SELECT * FROM events WHERE date > '2024-01-01'\n  )\n  SELECT COUNT(*) FROM recent\n''')",
+    "join_query": "result = spark.sql('''\n  SELECT a.id, b.amount\n  FROM orders a\n  INNER JOIN details b ON a.id = b.order_id\n''')",
+    "dynamic_sql": "table_name = 'users'\nresult = spark.sql(f'SELECT * FROM {table_name}')",
+    "window_query": "result = spark.sql('''\n  SELECT id, salary,\n    ROW_NUMBER() OVER (ORDER BY salary DESC) as rank\n  FROM employees\n''')"
+  },
+  "pyspark_streaming": {
+    "readstream": "df_stream = spark.readStream \\\n  .format('eventhub') \\\n  .option('eventhubs.connectionString', conn_str) \\\n  .load()",
+    "writestream": "query = df_stream.writeStream \\\n  .format('delta') \\\n  .option('checkpointLocation', '/path/to/checkpoint') \\\n  .trigger(processingTime='30 seconds') \\\n  .start()",
+    "streaming_agg": "from pyspark.sql.functions import window\nagg = df_stream \\\n  .groupBy(window('timestamp', '10 minutes')) \\\n  .agg({'value': 'sum'}) \\\n  .writeStream.start()"
+  },
+  "scala_operations": {
+    "read_parquet": "val df = spark.read.parquet('gs://bucket/data')",
+    "dataframe_ops": "val result = df\n  .filter(col('age') > 18)\n  .select('id', 'name', 'age')\n  .orderBy(col('age').desc())",
+    "udf_definition": "def customUDF(value: String): String = {\n  value.toUpperCase() + '_PROCESSED'\n}\nval result = df.withColumn('new_col', customUDF(col('name')))",
+    "rdd_operations": "val rdd = spark.sparkContext.textFile('gs://bucket/data.txt')\nval mapped = rdd.map(line => line.split(','))\nval result = mapped.collect()",
+    "spark_sql": "val result = spark.sql('''\n  SELECT id, COUNT(*) as cnt\n  FROM events\n  GROUP BY id\n''')"
+  },
+  "storage_paths": {
+    "gcs": "gs://my-data-bucket/raw/events",
+    "hdfs": "hdfs://namenode.example.com:8020/data/warehouse",
+    "wasb": "wasb://container@storageaccount.blob.core.windows.net/data",
+    "abfs": "abfss://container@account.dfs.core.windows.net/delta",
+    "s3": "s3://aws-bucket/raw/events",
+    "onelake_shortcut": "/Shortcuts/gcs_databucket/processed/data"
+  },
+  "negative_controls": {
+    "embedded_credentials": "df = spark.read.parquet('gs://bucket/data?key=secret123&password=abc')",
+    "dynamic_sql_with_injection": "user_input = \"'; DROP TABLE users; --\"\nresult = spark.sql(f'SELECT * FROM table WHERE user_id = {user_input}')",
+    "rdd_operations": "rdd = spark.sparkContext.parallelize([1, 2, 3, 4, 5])\nmapped = rdd.map(x => x * 2)\nresult = mapped.collect()",
+    "custom_scala_udf": "def customAgg(values: Seq[Double]): Double = {\n  values.sum / values.length\n}",
+    "mllib_legacy": "from pyspark.mllib.tree import DecisionTree\nmodel = DecisionTree.trainClassifier(rdd, numClasses=2)"
+  }
+}

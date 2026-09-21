@@ -5,9 +5,14 @@ from .models import (
     ConversionWarning,
     ManualStep,
     RoutingDecision,
+    SparkCodeLanguage,
+    SparkConversion,
+    SparkOperation,
+    SparkPattern,
     SqlConversion,
     TargetDialect,
 )
+from .spark_converter import SparkConverter
 from .sql_converter import SqlConverter
 from .target_routing import classify_workload, estimate_complexity, route_to_dialect
 
@@ -16,6 +21,11 @@ __all__ = [
     "ConversionWarning",
     "ManualStep",
     "RoutingDecision",
+    "SparkCodeLanguage",
+    "SparkConversion",
+    "SparkConverter",
+    "SparkOperation",
+    "SparkPattern",
     "SqlConversion",
     "SqlConverter",
     "TargetDialect",
