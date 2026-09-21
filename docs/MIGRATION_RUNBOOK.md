@@ -56,6 +56,8 @@ not be established; it does not indicate a deployment failure or success.
 
     ```powershell
     bqtofabric discover <project-id> --output artifacts/<project-id>/inventory.json
+    # Optional, repeatable regional Dataflow discovery:
+    bqtofabric discover <project-id> --dataflow-region europe-west1 --output artifacts/<project-id>/inventory.json
     bqtofabric validate artifacts/<project-id>/inventory.json
     bqtofabric inventory artifacts/<project-id>/inventory.json
     bqtofabric assess artifacts/<project-id>/inventory.json
@@ -81,7 +83,7 @@ redacts credential-like metadata, and does not print provider response bodies.
 | Project/org IAM | No | No | No IAM API calls; live adapter and permission contract not implemented | Not extracted; manual security review required |
 | Connection IAM | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Distinct row access policies, BigQuery Data Policies, and policy tags | No | No | Live adapter and permission contract not yet implemented; security review required | Canonical/offline assessment type only |
-| Dataflow | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Dataflow regional jobs | Yes, only for explicitly requested `--dataflow-region` values | No | Security-administrator-validated, read-only Dataflow job visibility for each requested region; use least-privilege viewer guidance rather than broad administrative access | Live identity, state, type, labels, timestamps, and present environment/pipeline metadata; missing compatibility evidence remains a finding |
 | Composer | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Dataproc | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Dataform | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
@@ -102,19 +104,27 @@ BigQuery Connection API are enabled, then have a security administrator verify t
 least-privilege visibility in the matrix. Do not add credentials, tokens, or service-account keys to
 the inventory or command line.
 
-Dataflow, Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and
-Spanner have offline normalization and assessment support only; they do not have live adapters.
+Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner
+have offline normalization and assessment support only; they do not have live adapters. Dataflow
+discovery is regional and opt-in; it never scans all regions. Without `--dataflow-region`, the
+path remains BigQuery-only. Each requested region must have separately validated read-only
+Dataflow visibility; extraction triggers no deployment behavior.
 
 ### Discovery provenance
 
 Canonical components carry a `discovered_from` value so review can distinguish acquisition paths:
-imported canonical JSON defaults to `inventory`, the live BigQuery provider sets `bigquery_api`, and
-normalized external GCP payloads set `external_payload`. Assessment repeats the value for each object
+imported canonical JSON defaults to `inventory`, the live BigQuery provider sets `bigquery_api`, the
+Dataflow adapter sets `dataflow_api`, and normalized external GCP payloads set `external_payload`.
+Assessment repeats the value for each object
 in `evidence_summary` and reports deterministic counts by source in `discovery_coverage`.
 
 `external_payload` means that associated-service inventory was supplied for offline normalization; it
 does not mean BQToFabric called that service's API. Provenance is not a freshness assertion and does
 not validate when the source metadata was collected.
+
+For live Dataflow jobs, `properties.streaming` reflects the payload `type`. The adapter preserves
+`portable` and `connector_compatible` only when those fields are explicitly present; absent
+evidence remains visible to assessment and is never inferred.
 
 ### Incomplete external payloads
 

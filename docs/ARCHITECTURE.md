@@ -64,9 +64,11 @@ BigQuery API, BigQuery Data Transfer API, and BigQuery Connection API; see the [
 for the permission matrix.
 
 The provider makes no IAM API calls and does not call Cloud Resource Manager IAM policy APIs,
-connection `getIamPolicy`, the BigQuery Data Policy API, or external GCP service APIs. Consequently,
-project/org IAM, connection IAM, distinct row access policies, data policies, policy tags, and the
-external GCP families are canonical/offline assessment inputs rather than live extraction results.
+connection `getIamPolicy`, or the BigQuery Data Policy API. The optional Dataflow adapter makes
+read-only regional job-list calls only for explicitly requested regions; it does not scan all
+regions and does not extract IAM. Consequently, project/org IAM, connection IAM, distinct row
+access policies, data policies, policy tags, and the remaining external GCP families are
+canonical/offline assessment inputs rather than live extraction results.
 Missing security-policy coverage requires security review; it cannot be inferred from the discovered
 metadata.
 

@@ -13,7 +13,7 @@
 <p align="center">
 	<img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-146C94?style=for-the-badge"/>
 	<img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12+-3776AB?style=for-the-badge&amp;logo=python&amp;logoColor=white"/>
-	<img alt="Tests 73 passing" src="https://img.shields.io/badge/tests-73%20passing-1F883D?style=for-the-badge"/>
+	<img alt="Tests 81 passing" src="https://img.shields.io/badge/tests-81%20passing-1F883D?style=for-the-badge"/>
 	<img alt="Coverage 93.2 percent" src="https://img.shields.io/badge/coverage-93.2%25-12A594?style=for-the-badge"/>
 	<img alt="Dry run by default" src="https://img.shields.io/badge/cloud-dry--run%20default-F2C811?style=for-the-badge"/>
 	<a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2EA44F?style=for-the-badge"/></a>
@@ -24,7 +24,7 @@
 | 🔍 **Discovery** | Read-only BigQuery metadata · credentials redacted by construction |
 | 🧭 **Assessment** | 25 GCP/BigQuery source types · normalized readiness score · explainable findings |
 | 🏗️ **Fabric routing** | 15 target roles · Lakehouse/Notebook preference · workload overrides |
-| 🧪 **Quality** | 73 tests passed · 93.2% coverage · Ruff and Pyright clean |
+| 🧪 **Quality** | 81 tests passed · 93.2% coverage · Ruff and Pyright clean |
 | 🤖 **Agent model** | 10 specialist agents · exclusive ownership and documentation handoff validated |
 | 🔒 **Safety** | Deterministic output · no credentials · no cloud mutation |
 
@@ -41,6 +41,8 @@ python -m pip install -e ".[dev]"
 # Optional: discover a live project read-only (requires the gcp extra and ADC)
 python -m pip install -e ".[gcp]"
 bqtofabric discover my-gcp-project --output artifacts/inventory.json
+# Add one or more explicit Dataflow regions; no regions means BigQuery-only discovery.
+bqtofabric discover my-gcp-project --dataflow-region europe-west1 --output artifacts/inventory.json
 
 # Validate and inspect an inventory
 bqtofabric validate tests/fixtures/gcp_ecosystem_project.json
@@ -127,12 +129,14 @@ bqtofabric manifest-verify "$output/project/fabric/deployment-manifest.json"
 bqtofabric deployment-check "$output/project/fabric"
 ```
 
-The live step reads BigQuery metadata only and keeps all subsequent assessment, planning,
-generation, and readiness checks local and non-destructive. Dataflow, Composer, Dataproc,
-Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner are
-offline payload normalization and assessment inputs only; they do not have live discovery
-adapters. Never place credentials, tokens, service-account keys, or tenant/workspace secrets in
-inventories or generated artifacts.
+The live step reads BigQuery metadata and, only for explicitly supplied `--dataflow-region` values,
+regional Dataflow job metadata. It keeps all subsequent assessment, planning, generation, and
+readiness checks local and non-destructive. Dataflow job evidence remains conservative: `portable`
+and `connector_compatible` are absent unless supplied by the API payload, so assessment reports
+missing evidence rather than inferring compatibility. Composer, Dataproc, Dataform, Workflows,
+Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner remain offline payload
+normalization and assessment inputs only. Never place credentials, tokens, service-account keys,
+or tenant/workspace secrets in inventories or generated artifacts.
 
 
 ### Manual-review decisions
@@ -193,6 +197,8 @@ non-destructive.
 
 	```powershell
 	bqtofabric discover <project-id> --output artifacts/<project-id>/inventory.json
+		# Optional, repeatable regional Dataflow discovery; no region means BigQuery-only
+		bqtofabric discover <project-id> --dataflow-region europe-west1 --output artifacts/<project-id>/inventory.json
 	bqtofabric validate artifacts/<project-id>/inventory.json
 	bqtofabric inventory artifacts/<project-id>/inventory.json
 	bqtofabric assess artifacts/<project-id>/inventory.json
@@ -219,16 +225,16 @@ non-destructive.
 	enabled, and have a security administrator review the least-privilege guidance in the
 	[migration runbook](docs/MIGRATION_RUNBOOK.md). Provider response bodies are never printed.
 
-External GCP services -- Dataflow, Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI,
-Dataplex, Cloud SQL, and Spanner -- support offline normalization and assessment only. They do not
-have live discovery adapters.
+External GCP services -- Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI, Dataplex,
+Cloud SQL, and Spanner -- support offline normalization and assessment only. Dataflow is the first
+external live adapter, but discovery is read-only, regional, and opt-in through
+`--dataflow-region`; it does not perform an all-region scan.
 
 Every canonical component records `discovered_from`: imported inventories default to `inventory`,
-live BigQuery discovery records `bigquery_api`, and normalized external GCP payloads record
-`external_payload`. Assessment includes the per-object value in `evidence_summary` and deterministic
-counts by source in `discovery_coverage`. This distinguishes BigQuery API results from supplied
-associated-service inventory; it does not establish inventory freshness or add live adapters for
-non-BigQuery services.
+live BigQuery discovery records `bigquery_api`, Dataflow discovery records `dataflow_api`, and
+normalized external GCP payloads record `external_payload`. Assessment includes the per-object value
+in `evidence_summary` and deterministic counts by source in `discovery_coverage`. This distinguishes
+API results from supplied associated-service inventory; it does not establish inventory freshness.
 
 An `external_payload` component that lacks required offline evidence emits exactly one `FAIL`
 finding, `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER`, in the `adapter` category. The finding explains

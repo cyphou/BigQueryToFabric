@@ -11,6 +11,11 @@ from enum import IntEnum
 from pathlib import Path
 
 from .assessment import run_assessment
+from .dataflow_discovery import (
+    DataflowInventoryProvider,
+    create_dataflow_rest_client,
+    merge_dataflow_jobs,
+)
 from .deployment_manifest import verify_manifest
 from .deployment_readiness import check_deployment_readiness
 from .discovery import DiscoveryError, GoogleCloudInventoryProvider, create_rest_client
@@ -40,6 +45,7 @@ def build_parser() -> argparse.ArgumentParser:
     discover = subparsers.add_parser("discover")
     discover.add_argument("project")
     discover.add_argument("--output", "-o", type=Path, required=True)
+    discover.add_argument("--dataflow-region", action="append", default=[])
     manifest = subparsers.add_parser("manifest-verify")
     manifest.add_argument("manifest", type=Path)
     readiness = subparsers.add_parser("deployment-check")
@@ -47,10 +53,14 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _discover(project_id: str, output: Path) -> int:
+def _discover(project_id: str, output: Path, dataflow_regions: Sequence[str]) -> int:
     try:
         client = create_rest_client(project_id)
         inventory = GoogleCloudInventoryProvider(project_id, client).load()
+        if dataflow_regions:
+            dataflow_client = create_dataflow_rest_client(project_id)
+            jobs = DataflowInventoryProvider(project_id, dataflow_client).load(dataflow_regions)
+            inventory = merge_dataflow_jobs(inventory, jobs)
     except DiscoveryError as error:
         print(error)
         return ExitCode.DISCOVERY_FAILED
@@ -65,7 +75,7 @@ def _discover(project_id: str, output: Path) -> int:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if args.command == "discover":
-        return _discover(args.project, args.output)
+        return _discover(args.project, args.output, args.dataflow_region)
     if args.command == "manifest-verify":
         try:
             manifest = json.loads(args.manifest.read_text(encoding="utf-8"))

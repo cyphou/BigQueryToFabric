@@ -68,7 +68,9 @@ remediation, or deployment readiness.
 
 Discovery makes no IAM API calls. Project/org IAM, connection IAM bindings, distinct row access
 policies, BigQuery Data Policies, and policy tags are not extracted. Treat any mapping involving
-those controls as security review work, not verified source-rights parity. Dataflow, Composer,
-Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner are
-likewise canonical/offline assessment inputs until their live adapters and permission contracts exist.
+those controls as security review work, not verified source-rights parity. Dataflow job metadata is
+the first optional live external extraction, limited to explicitly requested regions; portability
+and connector compatibility remain evidence-driven. Composer, Dataproc, Dataform, Workflows,
+Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner are likewise canonical/offline
+assessment inputs until their live adapters and permission contracts exist.
 The complete extraction and permission matrix is in the [migration runbook](MIGRATION_RUNBOOK.md).

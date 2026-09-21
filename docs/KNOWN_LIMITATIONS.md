@@ -1,11 +1,16 @@
 # Known limitations
 
-- Discovery reads BigQuery metadata read-only and is verified offline against committed API
-  payloads; it has not been run against a live GCP estate, so `create_rest_client` and the `gcp`
-  extra remain unverified.
-- Component discovery records provenance explicitly as `inventory`, `bigquery_api`, or
+- Discovery reads BigQuery metadata and explicitly requested regional Dataflow jobs read-only and
+  is verified offline against committed API payloads; it has not been run against a live GCP estate,
+  so `create_rest_client`, the `gcp` extra, and live permission coverage remain unverified.
+- Component discovery records provenance explicitly as `inventory`, `bigquery_api`, `dataflow_api`, or
   `external_payload`. These values identify the input origin only; they are not freshness,
   trusted-execution, or effective-access proof.
+- Dataflow live discovery is opt-in and regional through repeatable `--dataflow-region` arguments;
+  it does not scan all regions. It records job identity, state, type, streaming classification,
+  labels, timestamps, and present environment/pipeline metadata only. `portable` and
+  `connector_compatible` remain absent unless directly supplied by the API payload, so assessment
+  reports missing evidence rather than inferring compatibility.
 - An associated GCP component supplied through `external_payload` without required adapter
   evidence produces FAIL `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` and propagates a manual-review
   requirement to downstream components. This signals incomplete scope or evidence, not a missing
@@ -30,7 +35,7 @@
   They do not prove remediation, parity, effective access, or deployment readiness.
 - Generated `Findings` are review evidence for migration planning. They do not prove remediation,
   security parity, effective access, or deployment readiness.
-- Dataflow, Composer, Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex,
-  Cloud SQL, and Spanner are limited to offline payload normalization and assessment unless a live
-  adapter is implemented. Their live adapters, extraction, conversion, and deployment remain
-  outside V1.
+- Composer, Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL,
+  and Spanner are limited to offline payload normalization and assessment. Dataflow has a live
+  adapter, but only for explicitly requested regions; all-region discovery, conversion, and
+  deployment remain outside this adapter's behavior.

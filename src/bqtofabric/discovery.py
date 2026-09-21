@@ -443,8 +443,8 @@ class RestBigQueryClient:
         return response.json()
 
 
-def create_rest_client(project_id: str) -> RestBigQueryClient:
-    """Build an authorized read-only client from Application Default Credentials."""
+def create_authorized_session(scopes: Sequence[str]) -> Any:
+    """Build an authorized Google session without exposing credential errors or payloads."""
     try:
         import google.auth  # pyright: ignore[reportMissingImports]
         from google.auth.transport.requests import (  # pyright: ignore[reportMissingImports]
@@ -456,9 +456,14 @@ def create_rest_client(project_id: str) -> RestBigQueryClient:
         ) from error
 
     try:
-        credentials, _ = google.auth.default(scopes=[READONLY_SCOPE])
+        credentials, _ = google.auth.default(scopes=list(scopes))
     except Exception as error:  # noqa: BLE001 - provider errors may embed credential details
         raise DiscoveryError(
             f"Could not obtain read-only Google credentials ({type(error).__name__})."
         ) from None
-    return RestBigQueryClient(project_id, AuthorizedSession(credentials))
+    return AuthorizedSession(credentials)
+
+
+def create_rest_client(project_id: str) -> RestBigQueryClient:
+    """Build an authorized read-only client from Application Default Credentials."""
+    return RestBigQueryClient(project_id, create_authorized_session((READONLY_SCOPE,)))

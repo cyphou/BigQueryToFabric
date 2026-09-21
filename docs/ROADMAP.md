@@ -12,12 +12,12 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 |---|---|
 | Supported source taxonomy | 25 GCP/BigQuery component types |
 | Fabric decision surface | 15 primary/supporting target roles |
-| Live discovery | BigQuery metadata, read-only, credential-redacting |
+| Live discovery | BigQuery metadata plus opt-in regional Dataflow jobs, read-only, credential-redacting |
 | Reference portfolio | 19 assessed components |
 | Reference recommendation | Lakehouse primary · hybrid architecture · Airflow retained |
 | Public CLI | 7 commands |
 | Generated package | 9 deterministic dry-run artifacts |
-| Test suite | 73 passed |
+| Test suite | 81 passed |
 | Coverage | 93.25% |
 | Static quality | Ruff clean · Pyright clean |
 | Agent contracts | 10 agents · exclusive ownership · documentation handoff · 1 skill validated |
@@ -138,18 +138,19 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 
 ### Validated discovery provenance
 
-- **Expected:** Assessment evidence must distinguish objects obtained through the BigQuery API from
-  canonical JSON inventory and supplied external GCP payloads, without claiming freshness or live
-  discovery coverage for associated services.
+- **Expected:** Assessment evidence must distinguish objects obtained through the BigQuery and
+  explicitly requested regional Dataflow APIs from canonical JSON inventory and supplied external
+  GCP payloads, without claiming freshness or live discovery coverage for unimplemented services.
 - **Implemented:** `BigQueryObject.discovered_from` defaults imported canonical JSON to `inventory`;
-  the live BigQuery provider stamps `bigquery_api`; and normalized external GCP payloads stamp
-  `external_payload`. Assessment exposes provenance per object in `evidence_summary` and reports
-  deterministic counts per source in `AssessmentReport.discovery_coverage`.
+  the live BigQuery provider stamps `bigquery_api`; the Dataflow adapter stamps `dataflow_api`;
+  and normalized external GCP payloads stamp `external_payload`. Assessment exposes provenance per
+  object in `evidence_summary` and reports deterministic counts per source in
+  `AssessmentReport.discovery_coverage`.
 - **Validated:** `python -m pytest tests/test_models.py tests/test_discovery.py
   tests/test_gcp_components.py tests/test_assessment.py -q` passed with `29 passed`.
 - **Open:** Provenance distinguishes collection paths only. It does not validate metadata freshness
-  and does not implement live adapters for Dataflow, Composer, Dataproc, Dataform, Workflows,
-  Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner.
+  and does not implement live adapters for Composer, Dataproc, Dataform, Workflows, Pub/Sub, GCS,
+  Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner.
 
 ### Validated incomplete external-payload guardrail
 
@@ -200,16 +201,21 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   manual security review because this evidence does not establish effective project, organization,
   group, or inherited IAM access. It makes no IAM API calls and does not extract project/org IAM,
   connection IAM, BigQuery Data Policies, policy tags, or distinct row access policies. Discovery
-  failures return exit code `3` without printing provider response bodies. Dataflow, Composer,
-  Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner remain offline
-  normalization/assessment only.
+  failures return exit code `3` without printing provider response bodies. When one or more
+  `--dataflow-region` values are explicitly supplied, it also lists regional Dataflow jobs with
+  pagination, redaction, deterministic mapping, and `discovered_from: dataflow_api`. A job's
+  `type` maps to `properties.streaming`; `portable` and `connector_compatible` are preserved only
+  when present in the payload, never inferred. Without a region argument, discovery remains
+  BigQuery-only. Composer, Dataproc, Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI,
+  Dataplex, Cloud SQL, and Spanner remain offline normalization/assessment only.
 - **Validated:** Discovery mapping, deterministic serialization, redaction, pagination, and
   provider-failure body suppression are covered by offline fixture tests.
 - **Open:** No authorized live-GCP sandbox test has run. The three required APIs, dataset metadata
-  visibility, and project-level job-history visibility must be verified in a live project before
-  this can claim live metadata parity. Project/org IAM, connection IAM, distinct row access
-  policies, data policies, policy tags, and all external-family adapters remain unimplemented and
-  require security review where they affect migration decisions.
+  visibility, project-level job-history visibility, and explicitly requested Dataflow-region
+  visibility must be verified in a live project before this can claim live metadata parity.
+  Project/org IAM, connection IAM, distinct row access policies, data policies, policy tags, and
+  the remaining external-family adapters remain unimplemented and require security review where
+  they affect migration decisions.
 
 - **Implement `GoogleCloudInventoryProvider` behind an optional `gcp` dependency group.** *Done.*
   The provider consumes BigQuery REST resources through a `BigQueryMetadataClient` protocol, so
@@ -236,15 +242,22 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Normalize external GCP adapter payloads into canonical `components`.** *Done.* The shared
   normalizer redacts metadata, preserves dependencies, sorts output deterministically, and ignores
   unknown kinds without inventing a source type.
-- **Add live adapters for Dataproc, Dataflow, Dataform, Composer, Workflows, Pub/Sub, GCS, Looker,
-  Vertex AI, Dataplex, Cloud SQL, and Spanner.** *Open.* Endpoint coverage, permissions, and an
-  authorized sandbox are still required; normalization alone does not claim live discovery.
+- **Add the first live external adapter for regional Dataflow jobs.** *Done and validated.*
+  Repeatable `--dataflow-region` values opt into read-only regional listing with pagination,
+  redaction, deterministic mapping, and `discovered_from: dataflow_api`. Streaming classification
+  comes from the payload `type`; portability and connector compatibility are never inferred when
+  evidence is absent. Offline tests cover mapping, pagination, redaction, deterministic output,
+  missing-evidence assessment, CLI merge, and BigQuery-only backward compatibility.
+- **Add live adapters for Dataproc, Dataform, Composer, Workflows, Pub/Sub, GCS, Looker, Vertex AI,
+  Dataplex, Cloud SQL, and Spanner.** *Open.* Endpoint coverage, permissions, and an authorized
+  sandbox are still required; normalization alone does not claim live discovery.
 
 **Exit gate**
 
 - A read-only integration test against an authorized sandbox inventories all enabled adapters.
-  *`not_run`.* `create_rest_client` and the `gcp` extra are unverified until an authorized
-  environment exists; no local check can promote them.
+  *`not_run`.* The Dataflow adapter is validated by offline tests, but no authorized live sandbox
+  run has verified the BigQuery and explicitly requested regional Dataflow paths together. The
+  remaining external adapters are not implemented; no local check can promote this broader gate.
 - No secret value appears in logs, JSON, snapshots, or exception messages. *Proven* by redaction
   tests over secret keys, nested private keys, bearer values, and a failing request.
 - Repeated discovery of an unchanged project produces equivalent canonical inventories. *Proven*
@@ -400,9 +413,9 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 ## Priority now
 
 **v0.2 continues with the remaining BigQuery surface**: jobs, scheduled queries, connections, and
-access policies. Scheduled queries and policies matter most, because the assessment already treats
-them as a Data Pipeline target and a security blocker respectively, so a project inventoried today
-looks safer than it is.
+access policies, alongside the next external adapters. Scheduled queries and policies matter most,
+because the assessment already treats them as a Data Pipeline target and a security blocker
+respectively, so a project inventoried today looks safer than it is.
 
 The wider GCP adapters follow the same seam: each one only has to emit `components` entries for
 kinds the mapping engine already understands. `create_rest_client` stays unverified until a
