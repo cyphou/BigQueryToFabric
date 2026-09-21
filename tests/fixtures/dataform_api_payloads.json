@@ -1,0 +1,127 @@
+{
+  "repositories": [
+    {
+      "name": "projects/demo-project/locations/us-central1/repositories/analytics-repo",
+      "displayName": "analytics-repo",
+      "labels": {
+        "environment": "production",
+        "team": "analytics",
+        "database": "analytics"
+      }
+    }
+  ],
+  "workflows": [
+    {
+      "name": "projects/demo-project/locations/us-central1/repositories/analytics-repo/workflows/daily-etl",
+      "displayName": "daily-etl",
+      "state": "ACTIVE",
+      "compilationStatus": {
+        "compilationState": "SUCCEEDED"
+      },
+      "releaseConfig": "projects/demo-project/locations/us-central1/repositories/analytics-repo/releaseConfigs/prod"
+    }
+  ],
+  "compilationResults": [
+    {
+      "name": "projects/demo-project/locations/us-central1/repositories/analytics-repo/compilationResults/result-001",
+      "compilationErrors": [],
+      "dataSourceA": {
+        "targets": [
+          {
+            "database": "analytics",
+            "schema": "stg",
+            "name": "events_raw",
+            "relationType": "TABLE",
+            "description": "Raw events from collection pipeline",
+            "disabled": false,
+            "isView": false
+          },
+          {
+            "database": "analytics",
+            "schema": "core",
+            "name": "dim_customers",
+            "relationType": "TABLE",
+            "description": "Customer master data",
+            "disabled": false,
+            "isView": false
+          },
+          {
+            "database": "analytics",
+            "schema": "core",
+            "name": "fact_revenue",
+            "relationType": "TABLE",
+            "description": "Fact table for revenue analysis",
+            "disabled": false,
+            "isView": false,
+            "incremental": true
+          },
+          {
+            "database": "analytics",
+            "schema": "core",
+            "name": "fct_assertions",
+            "relationType": "ASSERTION",
+            "description": "Quality assertions for fact tables",
+            "disabled": false
+          }
+        ],
+        "edges": [
+          {
+            "sourceTarget": {
+              "database": "analytics",
+              "schema": "stg",
+              "name": "events_raw"
+            },
+            "targetTarget": {
+              "database": "analytics",
+              "schema": "core",
+              "name": "dim_customers"
+            },
+            "edgeType": "FULL_REFRESH"
+          },
+          {
+            "sourceTarget": {
+              "database": "analytics",
+              "schema": "core",
+              "name": "dim_customers"
+            },
+            "targetTarget": {
+              "database": "analytics",
+              "schema": "core",
+              "name": "fact_revenue"
+            },
+            "edgeType": "INCREMENTAL"
+          },
+          {
+            "sourceTarget": {
+              "database": "analytics",
+              "schema": "core",
+              "name": "fact_revenue"
+            },
+            "targetTarget": {
+              "database": "analytics",
+              "schema": "core",
+              "name": "fct_assertions"
+            },
+            "edgeType": "ASSERTION"
+          }
+        ]
+      },
+      "repoSource": {
+        "gitCommitish": "main",
+        "path": "models"
+      }
+    }
+  ],
+  "workflowInvocations": [
+    {
+      "name": "projects/demo-project/locations/us-central1/repositories/analytics-repo/workflowInvocations/inv-001",
+      "workflow": "projects/demo-project/locations/us-central1/repositories/analytics-repo/workflows/daily-etl",
+      "state": "SUCCEEDED",
+      "executionTask": {
+        "invocation": "projects/demo-project/locations/us-central1/repositories/analytics-repo/compilationResults/result-001"
+      },
+      "startTime": "2024-09-21T06:00:00Z",
+      "endTime": "2024-09-21T06:30:00Z"
+    }
+  ]
+}

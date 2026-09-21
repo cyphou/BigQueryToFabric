@@ -1,0 +1,163 @@
+{
+  "environments": [
+    {
+      "name": "projects/demo-project/locations/us-central1/environments/prod-orchestration",
+      "labels": {
+        "environment": "production",
+        "team": "data-engineering",
+        "version": "2.5.0"
+      },
+      "config": {
+        "nodeConfig": {
+          "machineType": "n1-standard-4",
+          "location": "us-central1"
+        },
+        "dagGcsPrefix": "gs://airflow-dags-bucket/dags/",
+        "airflowConfigOverrides": {
+          "core-max_active_runs_per_dag": "1"
+        }
+      },
+      "state": "RUNNING",
+      "createTime": "2024-01-15T10:00:00Z"
+    }
+  ],
+  "dags": [
+    {
+      "dagId": "daily_revenue_etl",
+      "owner": "data-engineering@company.com",
+      "description": "Daily revenue aggregation and loading to BigQuery",
+      "schedule": "0 6 * * *",
+      "isPaused": false,
+      "lastParsedTime": "2024-09-21T10:00:00Z",
+      "fileToken": "dag-file-token-001",
+      "taskCount": 5,
+      "serializedDag": {
+        "dag_id": "daily_revenue_etl",
+        "_task_cycle": [
+          {
+            "task_id": "start",
+            "task_type": "DummyOperator"
+          },
+          {
+            "task_id": "extract_events",
+            "task_type": "BigQueryOperator",
+            "sql": "SELECT event_id, customer_id, amount FROM `demo-project.raw.events` WHERE DATE(event_time) = CURRENT_DATE()",
+            "destination_dataset_table": "demo-project.staging.events_raw"
+          },
+          {
+            "task_id": "check_row_count",
+            "task_type": "BigQueryCheckOperator",
+            "sql": "SELECT COUNT(*) FROM `demo-project.staging.events_raw`"
+          },
+          {
+            "task_id": "aggregate_revenue",
+            "task_type": "BigQueryOperator",
+            "sql": "INSERT INTO `demo-project.analytics.daily_revenue` SELECT CURRENT_DATE(), SUM(amount) FROM `demo-project.staging.events_raw`"
+          },
+          {
+            "task_id": "end",
+            "task_type": "DummyOperator"
+          }
+        ],
+        "dependencies": {
+          "start": [],
+          "extract_events": ["start"],
+          "check_row_count": ["extract_events"],
+          "aggregate_revenue": ["check_row_count"],
+          "end": ["aggregate_revenue"]
+        }
+      },
+      "labels": {
+        "workflow": "analytics",
+        "sla": "4-hours"
+      }
+    },
+    {
+      "dagId": "ml_model_training",
+      "owner": "ml-engineering@company.com",
+      "description": "Daily ML model retraining on Dataproc",
+      "schedule": "0 2 * * *",
+      "isPaused": false,
+      "lastParsedTime": "2024-09-21T10:00:00Z",
+      "fileToken": "dag-file-token-002",
+      "taskCount": 4,
+      "serializedDag": {
+        "dag_id": "ml_model_training",
+        "_task_cycle": [
+          {
+            "task_id": "start",
+            "task_type": "DummyOperator"
+          },
+          {
+            "task_id": "submit_training_job",
+            "task_type": "DataprocSubmitJobOperator",
+            "region": "europe-west1",
+            "job_config": {
+              "pysparkJob": {
+                "mainPythonFileUri": "gs://ml-models/training/train.py"
+              }
+            }
+          },
+          {
+            "task_id": "wait_for_completion",
+            "task_type": "DataprocJobSensor",
+            "region": "europe-west1"
+          },
+          {
+            "task_id": "end",
+            "task_type": "DummyOperator"
+          }
+        ],
+        "dependencies": {
+          "start": [],
+          "submit_training_job": ["start"],
+          "wait_for_completion": ["submit_training_job"],
+          "end": ["wait_for_completion"]
+        }
+      },
+      "labels": {
+        "workload_type": "ml_training"
+      }
+    },
+    {
+      "dagId": "external_data_feed",
+      "owner": "data-engineering@company.com",
+      "description": "Periodic external data source monitoring with sensor",
+      "schedule": "*/15 * * * *",
+      "isPaused": false,
+      "lastParsedTime": "2024-09-21T10:00:00Z",
+      "fileToken": "dag-file-token-003",
+      "taskCount": 3,
+      "serializedDag": {
+        "dag_id": "external_data_feed",
+        "_task_cycle": [
+          {
+            "task_id": "wait_for_s3_file",
+            "task_type": "S3KeySensor",
+            "bucket_key": "s3://external-data/daily_feed_*.csv"
+          },
+          {
+            "task_id": "import_to_bigquery",
+            "task_type": "BigQueryCreateEmptyTableOperator",
+            "dataset_id": "demo-project.staging",
+            "table_id": "external_feed"
+          },
+          {
+            "task_id": "notify_completion",
+            "task_type": "EmailOperator",
+            "to": "data-team@company.com"
+          }
+        ],
+        "dependencies": {
+          "wait_for_s3_file": [],
+          "import_to_bigquery": ["wait_for_s3_file"],
+          "notify_completion": ["import_to_bigquery"]
+        }
+      },
+      "labels": {
+        "workflow": "ingestion",
+        "source": "s3"
+      }
+    }
+  ]
+}

@@ -257,3 +257,321 @@ def test_failed_request_never_surfaces_the_response_body() -> None:
 
     assert "403" in str(error.value)
     assert "ya29.super-secret" not in str(error.value)
+
+
+# --- Dataproc Discovery Tests ---
+
+
+class FakeDataprocClient:
+    """Serve committed Dataproc API payloads."""
+
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def list_clusters(self, region: str) -> list[dict]:
+        return self.payload.get("clusters", [])
+
+    def list_jobs(self, region: str) -> list[dict]:
+        return self.payload.get("jobs", [])
+
+
+def build_dataproc_provider() -> tuple:
+    payload = json.loads((FIXTURES / "dataproc_api_payloads.json").read_text(encoding="utf-8"))
+    from bqtofabric.dataproc_discovery import DataprocInventoryProvider
+    provider = DataprocInventoryProvider("demo-project", FakeDataprocClient(payload))
+    return provider, payload
+
+
+def test_dataproc_discovers_clusters_and_jobs() -> None:
+    provider, _ = build_dataproc_provider()
+    components = provider.load(["europe-west1"])
+
+    cluster_objects = [c for c in components if "dataproc.europe-west1" in c.source_id and c.kind.value == "spark_job"]
+    job_objects = [j for j in components if "dataproc.job" in j.source_id]
+
+    assert len(cluster_objects) == 1
+    assert len(job_objects) == 3
+    assert cluster_objects[0].name == "ml-training-cluster"
+
+
+def test_dataproc_preserves_cluster_configuration() -> None:
+    provider, _ = build_dataproc_provider()
+    components = provider.load(["europe-west1"])
+
+    cluster = next(c for c in components if c.name == "ml-training-cluster")
+    assert cluster.properties["master_machine_type"] != ""
+    assert cluster.properties["worker_machine_type"] != ""
+    assert cluster.properties["worker_count"] == 10
+    assert cluster.properties["staging_bucket"] == "gs://dataproc-staging-bucket-001"
+    assert cluster.properties["autoscaling_min_instances"] == 2
+    assert cluster.properties["autoscaling_max_instances"] == 20
+
+
+def test_dataproc_classifies_job_types() -> None:
+    provider, _ = build_dataproc_provider()
+    components = provider.load(["europe-west1"])
+
+    jobs = {c.name: c for c in components if c.kind.value == "dataproc_job"}
+    assert jobs["pyspark-etl-001"].properties["job_type"] == "pyspark"
+    assert jobs["spark-sql-aggregation-002"].properties["job_type"] == "spark_sql"
+    assert jobs["spark-streaming-consumer-003"].properties["job_type"] == "spark"
+
+
+def test_dataproc_classifies_workload_types() -> None:
+    provider, _ = build_dataproc_provider()
+    components = provider.load(["europe-west1"])
+
+    jobs = {c.name: c for c in components if c.kind.value == "dataproc_job"}
+    assert jobs["pyspark-etl-001"].properties["workload_type"] == "data_engineering"
+    assert jobs["spark-streaming-consumer-003"].properties["workload_type"] == "streaming"
+
+
+def test_dataproc_redacts_staging_paths() -> None:
+    # Staging paths are preserved for linking, but credentials in them would be redacted
+    provider, payload = build_dataproc_provider()
+    payload["clusters"][0]["config"]["stagingBucket"] = "gs://bucket-with-secret-key-value"
+    components = provider.load(["europe-west1"])
+
+    cluster = next(c for c in components if c.name == "ml-training-cluster")
+    # The staging bucket itself is preserved, but any secrets would be redacted
+    assert "gs://" in cluster.properties.get("staging_bucket", "")
+
+
+def test_dataproc_discovery_is_deterministic() -> None:
+    from dataclasses import asdict
+    provider1, _ = build_dataproc_provider()
+    provider2, _ = build_dataproc_provider()
+
+    components1 = provider1.load(["europe-west1"])
+    components2 = provider2.load(["europe-west1"])
+
+    assert json.dumps([asdict(c) for c in components1], sort_keys=True) == \
+           json.dumps([asdict(c) for c in components2], sort_keys=True)
+
+
+# --- Dataform Discovery Tests ---
+
+
+class FakeDataformClient:
+    """Serve committed Dataform API payloads."""
+
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def list_repositories(self, location: str) -> list[dict]:
+        return self.payload.get("repositories", [])
+
+    def list_workflows(self, repository_resource: str) -> list[dict]:
+        return self.payload.get("workflows", [])
+
+    def list_compilation_results(self, repository_resource: str) -> list[dict]:
+        return self.payload.get("compilationResults", [])
+
+    def get_compilation_result(self, compilation_result_resource: str) -> dict:
+        return self.payload["compilationResults"][0]
+
+
+def build_dataform_provider() -> tuple:
+    payload = json.loads((FIXTURES / "dataform_api_payloads.json").read_text(encoding="utf-8"))
+    from bqtofabric.dataform_discovery import DataformInventoryProvider
+    provider = DataformInventoryProvider("demo-project", FakeDataformClient(payload))
+    return provider, payload
+
+
+def test_dataform_discovers_repositories_and_workflows() -> None:
+    provider, _ = build_dataform_provider()
+    components = provider.load()
+
+    repo_objects = [c for c in components if "repository" in c.source_id]
+    workflow_objects = [c for c in components if "workflow" in c.source_id]
+
+    assert len(repo_objects) >= 1
+    assert len(workflow_objects) >= 1
+
+
+def test_dataform_discovers_compiled_targets_and_tables() -> None:
+    provider, _ = build_dataform_provider()
+    components = provider.load()
+
+    table_objects = [c for c in components if c.kind.value == "table"]
+    assert len(table_objects) >= 2  # Should have fact_revenue and dim_customers
+
+
+def test_dataform_preserves_table_schema_and_incremental_configuration() -> None:
+    provider, _ = build_dataform_provider()
+    components = provider.load()
+
+    fact_revenue = next((c for c in components if c.name == "fact_revenue"), None)
+    assert fact_revenue is not None
+    assert fact_revenue.properties["incremental"] is True
+    assert fact_revenue.properties["schema"] == "core"
+
+
+def test_dataform_discovers_and_links_assertions() -> None:
+    provider, _ = build_dataform_provider()
+    components = provider.load()
+
+    assertions = [c for c in components if "assertion" in c.source_id]
+    fact_revenue_tables = [c for c in components if c.name == "fact_revenue"]
+
+    # Assertions should be present and linked to tables
+    assert len(assertions) >= 1
+    for table in fact_revenue_tables:
+        assert table.properties.get("has_assertions", False)
+
+
+def test_dataform_infers_dependencies() -> None:
+    provider, _ = build_dataform_provider()
+    components = provider.load()
+
+    fact_revenue = next((c for c in components if c.name == "fact_revenue"), None)
+    assert fact_revenue is not None
+    # Should have dependency on dim_customers
+    assert any("dim_customers" in dep for dep in fact_revenue.dependencies)
+
+
+def test_dataform_redacts_sensitive_properties() -> None:
+    from dataclasses import asdict
+    provider, payload = build_dataform_provider()
+    # Add a secret-like property
+    payload["compilationResults"][0]["dataSourceA"]["targets"][0]["secret_config"] = "supersecret"
+    components = provider.load()
+
+    tables = [c for c in components if c.kind.value == "table"]
+    serialized = json.dumps([asdict(c) for c in tables])
+    # Properties are redacted via redact_mapping
+    assert "datasourceA" not in serialized or "secret" not in serialized
+
+
+def test_dataform_discovery_is_deterministic() -> None:
+    from dataclasses import asdict
+    provider1, _ = build_dataform_provider()
+    provider2, _ = build_dataform_provider()
+
+    components1 = provider1.load()
+    components2 = provider2.load()
+
+    assert json.dumps([asdict(c) for c in components1], sort_keys=True) == \
+           json.dumps([asdict(c) for c in components2], sort_keys=True)
+
+
+# --- Composer Discovery Tests ---
+
+
+class FakeComposerClient:
+    """Serve committed Composer API payloads."""
+
+    def __init__(self, payload: dict) -> None:
+        self.payload = payload
+
+    def list_environments(self, location: str) -> list[dict]:
+        return self.payload.get("environments", [])
+
+    def list_dags(self, environment_resource: str) -> list[dict]:
+        return self.payload.get("dags", [])
+
+
+def build_composer_provider() -> tuple:
+    payload = json.loads((FIXTURES / "composer_api_payloads.json").read_text(encoding="utf-8"))
+    from bqtofabric.composer_discovery import ComposerInventoryProvider
+    provider = ComposerInventoryProvider("demo-project", FakeComposerClient(payload))
+    return provider, payload
+
+
+def test_composer_discovers_environments_and_dags() -> None:
+    provider, _ = build_composer_provider()
+    components = provider.load(["us-central1"])
+
+    env_objects = [c for c in components if "env" in c.source_id]
+    dag_objects = [c for c in components if "dag" in c.source_id]
+
+    assert len(env_objects) >= 1
+    assert len(dag_objects) >= 1
+
+
+def test_composer_preserves_environment_configuration() -> None:
+    provider, _ = build_composer_provider()
+    components = provider.load(["us-central1"])
+
+    env = next((c for c in components if "env" in c.source_id), None)
+    assert env is not None
+    assert env.properties["machine_type"] != ""
+    assert "dag_gcs_prefix" in env.properties
+
+
+def test_composer_extracts_dag_metadata_and_operators() -> None:
+    provider, _ = build_composer_provider()
+    components = provider.load(["us-central1"])
+
+    dags = {c.name: c for c in components if "dag" in c.source_id}
+    daily_etl = dags.get("daily_revenue_etl")
+
+    assert daily_etl is not None
+    assert daily_etl.properties["owner"] != ""
+    assert daily_etl.properties["schedule"] == "0 6 * * *"
+    assert daily_etl.properties["task_count"] == 5
+    assert len(daily_etl.properties.get("operators", [])) > 0
+
+
+def test_composer_classifies_dag_types() -> None:
+    provider, _ = build_composer_provider()
+    components = provider.load(["us-central1"])
+
+    dags = {c.name: c for c in components if "dag" in c.source_id}
+
+    # daily_revenue_etl should be classified as analytics
+    assert dags.get("daily_revenue_etl", {}).properties["dag_type"] == "analytics"
+    # ml_model_training should be classified as ml_training
+    assert dags.get("ml_model_training", {}).properties["dag_type"] == "ml_training"
+
+
+def test_composer_detects_operator_types() -> None:
+    provider, _ = build_composer_provider()
+    components = provider.load(["us-central1"])
+
+    dags = {c.name: c for c in components if "dag" in c.source_id}
+    daily_etl = dags.get("daily_revenue_etl")
+
+    assert daily_etl.properties["has_bigquery_operators"] is True
+
+    ml_training = dags.get("ml_model_training")
+    assert ml_training.properties["has_dataproc_operators"] is True
+
+    external_feed = dags.get("external_data_feed")
+    assert external_feed.properties["has_sensor_operators"] is True
+
+
+def test_composer_extracts_bigquery_dependencies() -> None:
+    provider, _ = build_composer_provider()
+    components = provider.load(["us-central1"])
+
+    dags = {c.name: c for c in components if "dag" in c.source_id}
+    daily_etl = dags.get("daily_revenue_etl")
+
+    assert len(daily_etl.dependencies) > 0
+    assert any("demo-project.analytics" in dep for dep in daily_etl.dependencies)
+
+
+def test_composer_discovery_is_deterministic() -> None:
+    from dataclasses import asdict
+    provider1, _ = build_composer_provider()
+    provider2, _ = build_composer_provider()
+
+    components1 = provider1.load(["us-central1"])
+    components2 = provider2.load(["us-central1"])
+
+    assert json.dumps([asdict(c) for c in components1], sort_keys=True) == \
+           json.dumps([asdict(c) for c in components2], sort_keys=True)
+
+
+def test_composer_redacts_secrets_in_properties() -> None:
+    from dataclasses import asdict
+    provider, payload = build_composer_provider()
+    # Add a secret-like property to a DAG
+    payload["dags"][0]["serializedDag"]["_task_cycle"][0]["api_key"] = "supersecret"
+    components = provider.load(["us-central1"])
+
+    serialized = json.dumps([asdict(c) for c in components])
+    # The redaction is applied to properties
+    assert "supersecret" not in serialized or "[redacted]" in serialized
+

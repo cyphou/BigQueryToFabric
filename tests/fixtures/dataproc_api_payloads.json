@@ -1,0 +1,114 @@
+{
+  "clusters": [
+    {
+      "projectId": "demo-project",
+      "clusterName": "ml-training-cluster",
+      "config": {
+        "masterConfig": {
+          "machineTypeUri": "projects/demo-project/zones/europe-west1-b/machineTypes/n1-standard-4"
+        },
+        "workerConfig": {
+          "machineTypeUri": "projects/demo-project/zones/europe-west1-b/machineTypes/n1-standard-8",
+          "numInstances": 10
+        },
+        "autoscalingConfig": {
+          "minInstances": 2,
+          "maxInstances": 20
+        },
+        "stagingBucket": "gs://dataproc-staging-bucket-001"
+      },
+      "status": {
+        "state": "RUNNING"
+      },
+      "labels": {
+        "environment": "production",
+        "team": "ml-engineering",
+        "top-secret-key": "[redacted]"
+      },
+      "createTime": "2024-09-01T10:00:00Z",
+      "name": "projects/demo-project/regions/europe-west1/clusters/ml-training-cluster"
+    }
+  ],
+  "jobs": [
+    {
+      "reference": {
+        "projectId": "demo-project",
+        "jobId": "pyspark-etl-001"
+      },
+      "placement": {
+        "clusterName": "ml-training-cluster"
+      },
+      "pysparkJob": {
+        "mainPythonFileUri": "gs://dataproc-staging-bucket-001/scripts/etl.py",
+        "pythonFileUris": [
+          "gs://dataproc-staging-bucket-001/libs/helpers.py"
+        ],
+        "args": [
+          "gs://input-data",
+          "gs://output-data"
+        ]
+      },
+      "status": {
+        "state": "DONE",
+        "stateStartTime": "2024-09-21T08:00:00Z"
+      },
+      "driverControlsFilesUri": "gs://dataproc-staging-bucket-001/driver-controls",
+      "labels": {
+        "workflow": "daily-etl",
+        "dataset": "events"
+      }
+    },
+    {
+      "reference": {
+        "projectId": "demo-project",
+        "jobId": "spark-sql-aggregation-002"
+      },
+      "placement": {
+        "clusterName": "ml-training-cluster"
+      },
+      "sparkSqlJob": {
+        "queryList": {
+          "queries": [
+            "CREATE TEMPORARY VIEW staging AS SELECT * FROM bigquery.table(`demo-project.raw.events`)",
+            "INSERT INTO bigquery.table(`demo-project.analytics.daily_revenue`) SELECT date, SUM(amount) FROM staging GROUP BY date"
+          ]
+        },
+        "jarFileUris": [
+          "gs://dataproc-staging-bucket-001/jars/spark-bigquery.jar"
+        ]
+      },
+      "status": {
+        "state": "DONE",
+        "stateStartTime": "2024-09-21T09:00:00Z"
+      },
+      "labels": {
+        "workflow": "analytics",
+        "dataset": "revenue"
+      }
+    },
+    {
+      "reference": {
+        "projectId": "demo-project",
+        "jobId": "spark-streaming-consumer-003"
+      },
+      "placement": {
+        "clusterName": "ml-training-cluster"
+      },
+      "sparkJob": {
+        "mainJarFileUri": "gs://dataproc-staging-bucket-001/jars/streaming-consumer.jar",
+        "args": [
+          "pubsub-subscription-id",
+          "bigquery.table(`demo-project.analytics.events_stream`)"
+        ]
+      },
+      "status": {
+        "state": "RUNNING",
+        "stateStartTime": "2024-09-21T06:00:00Z"
+      },
+      "labels": {
+        "workload_type": "streaming",
+        "dataset": "events_stream"
+      }
+    }
+  ]
+}
