@@ -15,6 +15,7 @@ from .assessment import AssessmentReport
 from .dataform_conversion import convert_dataform_workflow
 from .deployment_manifest import build_manifest
 from .fabric_artifacts import build_specialized_artifacts
+from .generator.artifact_generator import generate_artifacts
 from .mapping import FabricTarget, MappingDecision
 from .models import BigQueryInventory
 from .planner import MigrationPlan, PlanItem
@@ -234,6 +235,22 @@ def _write_fabric_artifacts(
     written: list[Path] = []
     targets = {decision.source_id: decision.target for decision in assessment.decisions}
 
+    # Use new artifact generators for production-ready output
+    try:
+        gen_report = generate_artifacts(inventory, assessment, root / "generated")
+        # Collect generated artifact paths
+        for artifact_list in gen_report.manifest.get("artifacts", {}).values():
+            if isinstance(artifact_list, list):
+                for artifact in artifact_list:
+                    if "path" in artifact:
+                        artifact_path = root / artifact["path"]
+                        if artifact_path.exists():
+                            written.append(artifact_path)
+    except Exception as error:
+        # Fall back to legacy minimal artifacts if generation fails
+        print(f"Warning: Artifact generation failed: {error}")
+
+    # Legacy artifact generation for compatibility
     sql_lines = ["-- Generated migration skeleton. Review before execution."]
     for item in sorted(inventory.objects(), key=lambda value: value.source_id):
         if targets[item.source_id] is FabricTarget.WAREHOUSE and item.columns:
