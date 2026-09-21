@@ -1,12 +1,44 @@
 # Migration runbook
 
+## Test the assessment locally
+
+The committed fixture provides a deterministic offline smoke test for the complete assessment
+package. It does not call GCP or Fabric:
+
+```powershell
+python -m pip install -e ".[dev]"
+python -m pytest
+
+$fixture = "tests/fixtures/gcp_ecosystem_project.json"
+$output = "artifacts/assessment-smoke"
+
+bqtofabric validate $fixture
+bqtofabric inventory $fixture
+bqtofabric assess $fixture
+bqtofabric plan $fixture --output "$output/plan"
+bqtofabric generate $fixture --output "$output/project"
+bqtofabric manifest-verify "$output/project/fabric/deployment-manifest.json"
+bqtofabric deployment-check "$output/project/fabric"
+```
+
+Review `migration-plan.md` and its `Findings` section. Then inspect `assessment.json` for
+`findings`, `evidence_summary`, `discovery_coverage`, and `parity_summary`; inspect
+`fabric/target-manifest.json` for `stageReadiness`, `manualReview`, `manualReviewReasons`, and
+`processingStage`; and inspect `fabric/artifact-validation.json` and
+`fabric/deployment-manifest.json`.
+
+`FAIL` findings block reliance on the affected recommendation until the evidence or compatibility
+issue is resolved or explicitly accepted. `WARN` findings require documented design or manual
+review. Discovery exit code `3` means the required read-only ADC, API, or metadata visibility could
+not be established; it does not indicate a deployment failure or success.
+
 ## Assess a live GCP project
 
 1. Install the optional dependencies and enable the **BigQuery API**, **BigQuery Data Transfer API**,
     and **BigQuery Connection API** for the target project.
 
     ```powershell
-    python -m pip install -e ".[gcp]"
+    python -m pip install -e ".[dev,gcp]"
     ```
 
 2. Authenticate with user Application Default Credentials (ADC). Do not use or store service-account JSON.

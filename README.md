@@ -13,7 +13,7 @@
 <p align="center">
 	<img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-146C94?style=for-the-badge"/>
 	<img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12+-3776AB?style=for-the-badge&amp;logo=python&amp;logoColor=white"/>
-	<img alt="Tests 30 passing" src="https://img.shields.io/badge/tests-30%20passing-1F883D?style=for-the-badge"/>
+	<img alt="Tests 73 passing" src="https://img.shields.io/badge/tests-73%20passing-1F883D?style=for-the-badge"/>
 	<img alt="Coverage 93.2 percent" src="https://img.shields.io/badge/coverage-93.2%25-12A594?style=for-the-badge"/>
 	<img alt="Dry run by default" src="https://img.shields.io/badge/cloud-dry--run%20default-F2C811?style=for-the-badge"/>
 	<a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2EA44F?style=for-the-badge"/></a>
@@ -24,7 +24,7 @@
 | 🔍 **Discovery** | Read-only BigQuery metadata · credentials redacted by construction |
 | 🧭 **Assessment** | 25 GCP/BigQuery source types · normalized readiness score · explainable findings |
 | 🏗️ **Fabric routing** | 15 target roles · Lakehouse/Notebook preference · workload overrides |
-| 🧪 **Quality** | 30 tests passed · 93.2% coverage · Ruff and Pyright clean |
+| 🧪 **Quality** | 73 tests passed · 93.2% coverage · Ruff and Pyright clean |
 | 🤖 **Agent model** | 10 specialist agents · exclusive ownership and documentation handoff validated |
 | 🔒 **Safety** | Deterministic output · no credentials · no cloud mutation |
 
@@ -71,6 +71,68 @@ The generated package contains:
 - `fabric/deployment-manifest.json` — immutable dry-run payload with SHA-256 integrity hash.
 - `fabric/artifact-validation.json` — offline structural validation results.
 - `fabric/deployment-manifest.json` is checked by `deployment-check`; readiness never performs apply.
+
+## How to Test the Assessment
+
+### Local fixture smoke test
+
+This workflow is deterministic, offline, and uses the committed sanitized fixture:
+`tests/fixtures/gcp_ecosystem_project.json`.
+
+```powershell
+python -m pip install -e ".[dev]"
+python -m pytest
+
+$fixture = "tests/fixtures/gcp_ecosystem_project.json"
+$output = "artifacts/assessment-smoke"
+
+bqtofabric validate $fixture
+bqtofabric inventory $fixture
+bqtofabric assess $fixture
+bqtofabric plan $fixture --output "$output/plan"
+bqtofabric generate $fixture --output "$output/project"
+bqtofabric manifest-verify "$output/project/fabric/deployment-manifest.json"
+bqtofabric deployment-check "$output/project/fabric"
+```
+
+Inspect the generated `migration-plan.md` `Findings` section, then review
+`assessment.json` fields `findings`, `evidence_summary`, `discovery_coverage`, and
+`parity_summary`. In `fabric/target-manifest.json`, check `stageReadiness`,
+`manualReview`, `manualReviewReasons`, and `processingStage`. Also inspect
+`fabric/artifact-validation.json` and `fabric/deployment-manifest.json`.
+
+Treat every `FAIL` as a blocking evidence or compatibility issue until it is resolved or
+explicitly accepted by the migration review. Triage `WARN` findings for required design or
+manual checks. Exit code `3` indicates that read-only discovery could not establish the required
+ADC, API, or metadata visibility; it is not a deployment result.
+
+### Live BigQuery metadata assessment
+
+Live discovery requires the optional `[gcp]` dependencies, user Application Default Credentials
+(ADC), and the BigQuery, BigQuery Data Transfer, and BigQuery Connection APIs enabled:
+
+```powershell
+python -m pip install -e ".[dev,gcp]"
+gcloud auth application-default login
+
+$project = "<project-id>"
+$output = "artifacts/$project"
+
+bqtofabric discover $project --output "$output/inventory.json"
+bqtofabric validate "$output/inventory.json"
+bqtofabric assess "$output/inventory.json"
+bqtofabric plan "$output/inventory.json" --output "$output/plan"
+bqtofabric generate "$output/inventory.json" --output "$output/project"
+bqtofabric manifest-verify "$output/project/fabric/deployment-manifest.json"
+bqtofabric deployment-check "$output/project/fabric"
+```
+
+The live step reads BigQuery metadata only and keeps all subsequent assessment, planning,
+generation, and readiness checks local and non-destructive. Dataflow, Composer, Dataproc,
+Dataform, Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner are
+offline payload normalization and assessment inputs only; they do not have live discovery
+adapters. Never place credentials, tokens, service-account keys, or tenant/workspace secrets in
+inventories or generated artifacts.
 
 
 ### Manual-review decisions
@@ -308,7 +370,7 @@ python -m pyright
 python -m pytest --cov=bqtofabric --cov-report=term-missing --cov-fail-under=80
 ```
 
-- `30 passed`
+- `73 passed`
 - `93.25%` package coverage
 - `0` Ruff findings
 - `0` Pyright errors or warnings

@@ -17,10 +17,23 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 | Reference recommendation | Lakehouse primary · hybrid architecture · Airflow retained |
 | Public CLI | 7 commands |
 | Generated package | 9 deterministic dry-run artifacts |
-| Test suite | 30 passed |
+| Test suite | 73 passed |
 | Coverage | 93.25% |
 | Static quality | Ruff clean · Pyright clean |
 | Agent contracts | 10 agents · exclusive ownership · documentation handoff · 1 skill validated |
+
+### Validated assessment test guide
+
+- **Expected:** Reviewers can reproduce the offline fixture assessment and understand the live
+  BigQuery read-only path, generated evidence, and `WARN`/`FAIL` triage without cloud mutation.
+- **Implemented:** README and the migration runbook document the exact install, pytest, validate,
+  inventory, assess, plan, generate, manifest, and deployment-check commands. They document
+  `findings`, `evidence_summary`, `discovery_coverage`, `parity_summary`, `stageReadiness`,
+  `manualReview`, `manualReviewReasons`, `processingStage`, and exit code `3`.
+- **Validated:** Documentation commands and artifact names were checked against the current CLI
+  workflow and generated-package contract; the repository baseline is `73 passed`.
+- **Open:** No authorized live-GCP sandbox run is claimed. Non-BigQuery GCP services remain
+  offline payload normalization and assessment inputs without live adapters.
 
 ### What v0.1.0 proves
 
