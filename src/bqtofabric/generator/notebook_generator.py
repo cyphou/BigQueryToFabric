@@ -29,6 +29,7 @@ class FabricNotebook:
     source_kind: ObjectKind
     cells: tuple[NotebookCell, ...]
     metadata: dict[str, Any] | None = None
+    valid: bool = True
 
     def to_ipynb_dict(self) -> dict[str, Any]:
         """Convert to Jupyter .ipynb format (nbformat 4)."""

@@ -20,6 +20,7 @@ class PipelineDefinition:
     source_kind: ObjectKind
     pipeline: dict[str, Any]
     warnings: tuple[str, ...] = ()
+    valid: bool = True
 
 
 class PipelineGenerator:

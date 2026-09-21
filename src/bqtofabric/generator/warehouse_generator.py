@@ -2,7 +2,11 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+
+import sqlglot
+from sqlglot import exp
+from sqlglot.errors import ParseError
 
 from ..assessment import AssessmentReport
 from ..mapping import FabricTarget, MappingDecision
@@ -20,6 +24,17 @@ class WarehouseScript:
     source_kind: ObjectKind
     script: str
     warnings: tuple[str, ...] = ()
+    valid: bool = True
+
+
+@dataclass(frozen=True, slots=True)
+class TsqlValidationResult:
+    """Result of validating T-SQL for Fabric Warehouse compatibility."""
+
+    valid: bool
+    reason: str | None = None
+    recommendation: str | None = None
+    unsupported_features: list[str] = field(default_factory=list)
 
 
 class WarehouseGenerator:
@@ -45,6 +60,7 @@ class WarehouseGenerator:
 
         lines: list[str] = []
         warnings: list[str] = []
+        valid = True
 
         # Header comment
         lines.extend(self._build_header(item, decision))
@@ -58,7 +74,8 @@ class WarehouseGenerator:
         if item.kind in {ObjectKind.TABLE, ObjectKind.MATERIALIZED_VIEW}:
             lines.extend(self._build_table_creation(item, schema_name, warnings))
         elif item.kind is ObjectKind.VIEW:
-            lines.extend(self._build_view_creation(item, schema_name, warnings))
+            view_lines, valid = self._build_view_creation(item, schema_name, warnings)
+            lines.extend(view_lines)
         elif item.kind is ObjectKind.SCHEDULED_QUERY:
             lines.extend(self._build_scheduled_query_artifacts(item, schema_name, warnings))
 
@@ -70,6 +87,7 @@ class WarehouseGenerator:
             source_kind=item.kind,
             script=script,
             warnings=tuple(warnings),
+            valid=valid,
         )
 
     def _build_header(self, item: BigQueryObject, decision: MappingDecision) -> list[str]:
@@ -130,11 +148,7 @@ class WarehouseGenerator:
 
         lines.append(",\n".join(col_defs))
 
-        # Add primary key if detectable
-        if item.clustering_fields:
-            lines.append(f",\n  PRIMARY KEY NONCLUSTERED ({', '.join(f'[{f}]' for f in item.clustering_fields)})\n")
-        else:
-            lines.append("\n")
+        lines.append("\n")
 
         lines.extend([
             ")\n",
@@ -142,20 +156,18 @@ class WarehouseGenerator:
             "\n",
         ])
 
-        # Add indexing recommendation for clustering columns
         if item.clustering_fields:
-            for field in item.clustering_fields:
-                lines.extend([
-                    "-- Recommended index for clustering column\n",
-                    f"CREATE NONCLUSTERED INDEX IX_{item.name}_{field}\n",
-                    f"  ON [{schema}].[{item.name}] ([{field}])\n",
-                    "GO\n",
-                    "\n",
-                ])
+            index_name = f"idx_{'_'.join(item.clustering_fields)}"
+            columns = ", ".join(item.clustering_fields)
+            lines.append(
+                f"-- Suggested index: CREATE INDEX {index_name} ON {item.name}({columns})\n\n"
+            )
 
         return lines
 
-    def _build_view_creation(self, item: BigQueryObject, schema: str, warnings: list[str]) -> list[str]:
+    def _build_view_creation(
+        self, item: BigQueryObject, schema: str, warnings: list[str]
+    ) -> tuple[list[str], bool]:
         """Build CREATE VIEW statement."""
         lines = [
             f"-- Create view: {item.name}\n",
@@ -167,21 +179,31 @@ class WarehouseGenerator:
             f"CREATE VIEW [{schema}].[{item.name}]\n",
             "AS\n",
         ]
+        valid = True
 
         if item.sql:
-            # Convert BigQuery SQL to T-SQL
-            converted_sql = self._convert_sql_to_tsql(item.sql, warnings)
-            lines.extend([f"{line}\n" for line in converted_sql.split("\n")])
+            validation = self._validate_t_sql_semantics(item.sql)
+            if not validation.valid:
+                valid = False
+                lines.append("# VALIDATION PENDING\n")
+                warnings.append(
+                    "REDESIGN: View SQL syntax requires manual review for Fabric Warehouse "
+                    "compatibility."
+                )
+                if validation.reason:
+                    warnings.append(f"Validation: {validation.reason}")
+            lines.extend([f"{line}\n" for line in item.sql.split("\n")])
         else:
             lines.append("-- TODO: MANUAL REVIEW - Add view definition from source\n")
             warnings.append("View SQL not provided; manual SQL definition required")
+            valid = False
 
         lines.extend([
             "GO\n",
             "\n",
         ])
 
-        return lines
+        return lines, valid
 
     def _build_scheduled_query_artifacts(self, item: BigQueryObject, schema: str, warnings: list[str]) -> list[str]:
         """Build artifacts for scheduled queries."""
@@ -234,33 +256,57 @@ class WarehouseGenerator:
 
         return type_mapping.warehouse_type
 
-    def _convert_sql_to_tsql(self, bq_sql: str, warnings: list[str]) -> str:
-        """Convert BigQuery SQL to T-SQL (basic conversion)."""
-        sql = bq_sql
+    def _validate_t_sql_semantics(self, sql: str) -> TsqlValidationResult:
+        """Validate SQL features that Fabric Warehouse does not support."""
+        try:
+            statements = sqlglot.parse(sql, read="tsql")
+        except ParseError as error:
+            return TsqlValidationResult(
+                valid=False,
+                reason=str(error),
+                recommendation="Rewrite the SQL using Fabric Warehouse T-SQL syntax.",
+                unsupported_features=["parse error"],
+            )
 
-        # Common BigQuery → T-SQL conversions
-        replacements = [
-            ("EXCEPT", "EXCEPT ALL"),  # BigQuery EXCEPT is EXCEPT ALL in T-SQL
-            ("ARRAY_AGG", "STRING_AGG"),  # Array aggregation
-            ("TIMESTAMP_MILLIS", "DATEADD(ms, ?, '1970-01-01')"),  # Timestamp conversion
-            ("CURRENT_TIMESTAMP()", "GETUTCDATE()"),  # Current timestamp
-            ("CURRENT_DATE()", "CAST(GETUTCDATE() AS DATE)"),  # Current date
-            ("DATE_ADD", "DATEADD"),  # Date arithmetic
-            ("_PARTITIONTIME", "[_partition_time]"),  # Partition column
-        ]
+        unsupported: list[str] = []
+        for statement in statements:
+            if statement is None:
+                continue
+            for node in statement.walk():
+                if isinstance(node, exp.Except) and node.args.get("distinct") is False:
+                    unsupported.append("EXCEPT ALL")
+                elif isinstance(node, exp.Intersect) and node.args.get("distinct") is False:
+                    unsupported.append("INTERSECT ALL")
+                elif isinstance(node, exp.Qualify):
+                    unsupported.append("QUALIFY")
+                elif isinstance(node, exp.Window) and not self._is_supported_window_frame(node):
+                    unsupported.append("window frame")
+                elif node.key in {"unnest", "array", "struct", "pivotany", "match_recognize"}:
+                    unsupported.append(node.key.upper())
 
-        for bq_pattern, tsql_pattern in replacements:
-            if bq_pattern in sql:
-                sql = sql.replace(bq_pattern, tsql_pattern)
-                warnings.append(f"SQL conversion: replaced {bq_pattern} with {tsql_pattern}")
+        if unsupported:
+            features = list(dict.fromkeys(unsupported))
+            return TsqlValidationResult(
+                valid=False,
+                reason=f"Unsupported Fabric Warehouse feature: {', '.join(features)}.",
+                recommendation="Rewrite the query using supported Fabric Warehouse T-SQL constructs.",
+                unsupported_features=features,
+            )
+        return TsqlValidationResult(valid=True)
 
-        # Check for unsupported patterns
-        if "STRUCT<" in sql or "ARRAY<" in sql:
-            warnings.append("SQL contains nested types (STRUCT/ARRAY); flatten may be required")
-
-        sql += "\n-- TODO: MANUAL REVIEW - Validate T-SQL syntax"
-
-        return sql
+    @staticmethod
+    def _is_supported_window_frame(window: exp.Window) -> bool:
+        """Allow only ROWS frames bounded by UNBOUNDED PRECEDING/FOLLOWING."""
+        specification = window.args.get("spec")
+        if specification is None:
+            return True
+        return (
+            specification.args.get("kind") == "ROWS"
+            and specification.args.get("start") == "UNBOUNDED"
+            and specification.args.get("start_side") == "PRECEDING"
+            and specification.args.get("end") in {None, "UNBOUNDED"}
+            and specification.args.get("end_side") in {None, "FOLLOWING"}
+        )
 
 
 def generate_all_warehouse_scripts(

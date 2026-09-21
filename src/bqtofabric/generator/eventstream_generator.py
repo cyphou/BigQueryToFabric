@@ -20,6 +20,7 @@ class EventstreamTopology:
     source_kind: ObjectKind
     topology: dict[str, Any]
     warnings: tuple[str, ...] = ()
+    valid: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,7 @@ class EventhouseSchema:
     source_kind: ObjectKind
     kql_script: str
     warnings: tuple[str, ...] = ()
+    valid: bool = True
 
 
 class EventstreamGenerator:

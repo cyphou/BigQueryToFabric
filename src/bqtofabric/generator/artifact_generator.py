@@ -74,6 +74,7 @@ class ArtifactGenerator:
                 "sourceId": source_id,
                 "name": notebook.title,
                 "path": str(output_path.relative_to(output_dir)),
+                "valid": notebook.valid,
             })
 
         # Generate warehouse scripts
@@ -86,6 +87,7 @@ class ArtifactGenerator:
                 "name": script.name,
                 "path": str(output_path.relative_to(output_dir)),
                 "warnings": list(script.warnings),
+                "valid": script.valid,
             })
 
         # Generate eventstreams
@@ -101,6 +103,7 @@ class ArtifactGenerator:
                 "name": eventstream.name,
                 "path": str(output_path.relative_to(output_dir)),
                 "warnings": list(eventstream.warnings),
+                "valid": eventstream.valid,
             })
 
         # Generate eventhouse schemas
@@ -113,6 +116,7 @@ class ArtifactGenerator:
                 "name": schema.name,
                 "path": str(output_path.relative_to(output_dir)),
                 "warnings": list(schema.warnings),
+                "valid": schema.valid,
             })
 
         # Generate semantic models
@@ -128,6 +132,7 @@ class ArtifactGenerator:
                 "name": model.name,
                 "path": str(output_path.relative_to(output_dir)),
                 "warnings": list(model.warnings),
+                "valid": model.valid,
             })
 
         # Generate pipelines
@@ -143,6 +148,7 @@ class ArtifactGenerator:
                 "name": pipeline.name,
                 "path": str(output_path.relative_to(output_dir)),
                 "warnings": list(pipeline.warnings),
+                "valid": pipeline.valid,
             })
 
         # Write manifest

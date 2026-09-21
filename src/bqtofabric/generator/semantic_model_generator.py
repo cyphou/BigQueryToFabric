@@ -20,6 +20,7 @@ class SemanticModelDefinition:
     source_kind: ObjectKind
     model: dict[str, Any]
     warnings: tuple[str, ...] = ()
+    valid: bool = True
 
 
 class SemanticModelGenerator:

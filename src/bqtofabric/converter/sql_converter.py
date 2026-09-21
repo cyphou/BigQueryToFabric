@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any
+from dataclasses import dataclass
+from dataclasses import replace
+from typing import Any, cast
 
 import sqlglot
 from sqlglot.errors import ParseError
@@ -11,7 +13,7 @@ from sqlglot.expressions import (
     Join,
 )
 
-from ..models import BigQueryObject
+from ..models import BigQueryObject, ObjectKind
 from .models import (
     CompatibilityLevel,
     ConversionWarning,
@@ -20,6 +22,37 @@ from .models import (
     TargetDialect,
 )
 from .target_routing import route_to_dialect
+
+
+@dataclass(frozen=True, slots=True)
+class MultiStatementConversionResult:
+    """Result of converting multiple SQL statements."""
+
+    statements: list[SqlConversion]
+    compatibility: CompatibilityLevel
+    warnings: list[ConversionWarning]
+
+    @property
+    def compatibility_level(self) -> CompatibilityLevel:
+        """Provide the legacy compatibility attribute for converter callers."""
+        return self.compatibility
+
+    def to_dict(self) -> dict[str, Any]:
+        """Serialize the aggregate result for artifact output."""
+        return {
+            "statements": [
+                {
+                    "statement_index": statement.metadata["statement_index"],
+                    "source_id": statement.source_id,
+                    "source_text": statement.source_text,
+                    "target_text": statement.target_text,
+                    "compatibility": statement.compatibility_level,
+                }
+                for statement in self.statements
+            ],
+            "compatibility": self.compatibility,
+            "warnings": [warning.message for warning in self.warnings],
+        }
 
 
 class SqlConverter:
@@ -38,7 +71,7 @@ class SqlConverter:
         obj: BigQueryObject,
         target_dialect: TargetDialect | None = None,
         preferences: dict[str, Any] | None = None,
-    ) -> SqlConversion:
+    ) -> SqlConversion | MultiStatementConversionResult:
         """
         Convert a BigQuery SQL object to the target dialect.
 
@@ -67,6 +100,9 @@ class SqlConverter:
             routing_rationale = routing.rationale
         else:
             routing_rationale = ""
+
+        if len(self._split_statements(obj.sql)) > 1:
+            return self.convert_multiple(obj.sql, target_dialect)
 
         # Parse source SQL.
         try:
@@ -141,6 +177,109 @@ class SqlConverter:
             rationale=routing_rationale or f"Converted for {target_dialect} target.",
             detected_patterns=patterns,
         )
+
+    def convert_multiple(
+        self,
+        statements_text: str,
+        target_dialect: TargetDialect = TargetDialect.TSQL,
+    ) -> MultiStatementConversionResult:
+        """Convert SQL statements independently without merging their transaction scope."""
+        statements = self._split_statements(statements_text)
+        conversions: list[SqlConversion] = []
+        warnings: list[ConversionWarning] = []
+
+        for index, statement_text in enumerate(statements, start=1):
+            obj = BigQueryObject(
+                source_id=f"statement_{index}",
+                name=f"statement_{index}",
+                kind=ObjectKind.SQL_SCRIPT,
+                sql=statement_text,
+            )
+            conversion = cast(SqlConversion, self.convert(obj, target_dialect))
+            conversions.append(
+                replace(
+                    conversion,
+                    source_id=f"statement_{index}",
+                    metadata={"statement_index": index},
+                )
+            )
+            warnings.extend(conversion.warnings)
+
+        has_dml = any("dml" in conversion.detected_patterns for conversion in conversions)
+        has_failure = any(
+            conversion.compatibility_level
+            in {CompatibilityLevel.REDESIGN, CompatibilityLevel.UNSUPPORTED}
+            for conversion in conversions
+        )
+        if has_dml:
+            warnings.append(
+                ConversionWarning(
+                    "Multi-statement DML is unsupported in T-SQL/Spark; require separate "
+                    "transactions or a stored procedure.",
+                    category="semantics",
+                    severity="error",
+                )
+            )
+            conversions = [replace(conversion, target_text="") for conversion in conversions]
+
+        compatibility = (
+            CompatibilityLevel.REDESIGN
+            if has_dml or has_failure
+            else CompatibilityLevel.DIRECT
+            if all(
+                conversion.compatibility_level == CompatibilityLevel.DIRECT
+                for conversion in conversions
+            )
+            else CompatibilityLevel.TRANSFORM
+        )
+        return MultiStatementConversionResult(conversions, compatibility, warnings)
+
+    @staticmethod
+    def _split_statements(statements_text: str) -> list[str]:
+        """Split on semicolons outside quoted strings and SQL comments."""
+        statements: list[str] = []
+        start = 0
+        index = 0
+        quote: str | None = None
+        in_line_comment = False
+        in_block_comment = False
+
+        while index < len(statements_text):
+            character = statements_text[index]
+            next_character = statements_text[index + 1] if index + 1 < len(statements_text) else ""
+
+            if in_line_comment:
+                if character == "\n":
+                    in_line_comment = False
+            elif in_block_comment:
+                if character == "*" and next_character == "/":
+                    in_block_comment = False
+                    index += 1
+            elif quote:
+                if character == quote:
+                    if next_character == quote:
+                        index += 1
+                    else:
+                        quote = None
+            elif character in {"'", '"', "`"}:
+                quote = character
+            elif character == "-" and next_character == "-":
+                in_line_comment = True
+                index += 1
+            elif character == "/" and next_character == "*":
+                in_block_comment = True
+                index += 1
+            elif character == ";":
+                statement = statements_text[start:index].strip()
+                if statement:
+                    statements.append(statement)
+                start = index + 1
+            index += 1
+
+        trailing_statement = statements_text[start:].strip()
+        if trailing_statement:
+            statements.append(trailing_statement)
+        return statements
 
     def _detect_patterns(self, stmt: Expression) -> tuple[str, ...]:
         """Detect SQL patterns in parsed statement."""
