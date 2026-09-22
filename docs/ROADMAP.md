@@ -22,6 +22,18 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 | Static quality | Ruff clean · Pyright clean |
 | Agent contracts | 10 agents · exclusive ownership · documentation handoff · 1 skill validated |
 
+### Validated static-quality gate closure
+
+- **Expected:** The repository's local typing and lint gates complete without errors while legacy
+  callers retain the `MultiStatementConversionResult` compatibility surface and schema comparison
+  accepts sequences of mappings.
+- **Implemented:** The stale `models_broken.py` backup was removed; source and test typing now
+  narrow optional results before use; schema comparison accepts sequence-based mapping input; and
+  the legacy conversion-result compatibility surface remains available.
+- **Validated:** `python -m pyright` returns 0 errors, and `python -m ruff check src tests` passes.
+- **Open:** These local static checks do not validate generated artifacts against official Fabric
+  schemas or APIs, establish runtime or data parity, or authorize deployment.
+
 ### Validated assessment test guide
 
 - **Expected:** Reviewers can reproduce the offline fixture assessment and understand the live
@@ -31,7 +43,8 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   `findings`, `evidence_summary`, `discovery_coverage`, `parity_summary`, `stageReadiness`,
   `manualReview`, `manualReviewReasons`, `processingStage`, and exit code `3`.
 - **Validated:** Documentation commands and artifact names were checked against the current CLI
-  workflow and generated-package contract; the repository baseline is `73 passed`.
+  workflow and generated-package contract. The static-quality gates pass with `python -m pyright`
+  and `python -m ruff check src tests`.
 - **Open:** No authorized live-GCP sandbox run is claimed. Non-BigQuery GCP services remain
   offline payload normalization and assessment inputs without live adapters.
 
@@ -51,6 +64,50 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Validated:** `python -m pytest tests/test_cli.py -q` passed with `8 passed`.
 - **Open:** This is a deterministic dry-run review artifact only. It does not execute processing paths, connect to GCP or Fabric, deploy anything, or establish runtime data parity.
 
+### Validated Composer pipeline schedule compatibility
+
+- **Expected:** Composer DAG schedules should use one canonical inventory field while legacy
+  inventories retain preset Fabric pipeline trigger mapping.
+- **Implemented:** Composer normalization writes `schedule_interval` and retains `schedule` for
+  compatibility. Pipeline generation reads `schedule_interval` first and falls back to `schedule`;
+  `@daily`, `@hourly`, and `@weekly` map to the corresponding Fabric pipeline triggers.
+- **Validated:** `python -m pytest tests/test_discovery.py tests/test_artifact_generation.py -v`
+  passed with `79 passed`.
+- **Open:** Raw cron expressions remain review-required and are not automatically mapped. This
+  behavior is deterministic dry-run generation only; it does not establish trigger execution,
+  scheduling parity, or production readiness.
+
+### Validated Composer adapter evidence
+
+- **Expected:** Composer DAG evidence must retain a usable runtime-version signal and declared task
+  connection names without serializing connection configuration or secrets. Assessment must treat a
+  declared empty connection list as complete evidence while preserving a missing list as incomplete.
+- **Implemented:** Normalization sets `runtime_version` from the Composer image version when
+  available, otherwise the sanitized environment-version label, otherwise `unknown`. It inventories
+  declared names from `conn_id`, `connection_id`, `gcp_conn_id`, and `google_cloud_conn_id` only.
+  `connections: []` explicitly records that no task declared a connection; assessment treats this
+  as complete Composer evidence, whereas an absent `connections` field remains incomplete.
+- **Validated:** `python -m pytest tests/test_discovery.py tests/test_assessment.py -v` passed with
+  `53 passed`.
+- **Open:** Connection configuration, secret bindings, and effective runtime access are not
+  serialized or inferred. They require manual review; this offline contract does not add a live
+  Composer adapter or prove runtime access parity.
+
+### Validated Dataproc adapter evidence
+
+- **Expected:** Normalized Dataproc jobs retain canonical language and runtime-version evidence so
+  assessment can distinguish supported source detail from absent or ambiguous metadata.
+- **Implemented:** Job discovery maps PySpark to `language: python`, Spark SQL and Hive to
+  `language: sql`, and Pig to `language: pig`; unsupported or ambiguous job types use `unknown`.
+  It preserves the existing `runtime` job classification. `runtime_version` is inherited from the
+  referenced cluster's `config.softwareConfig.imageVersion` when present, otherwise `unknown`.
+  Assessment treats `unknown` and `not specified` as missing evidence rather than complete
+  evidence.
+- **Validated:** `python -m pytest tests/test_discovery.py tests/test_assessment.py -v` passed with
+  `54 passed`.
+- **Open:** Runtime-version readiness cannot be complete until the value is supplied or Dataproc
+  is re-discovered from a payload whose referenced cluster includes `imageVersion`.
+
 ### Validated stage-readiness summary
 
 - **Expected:** The generated target manifest provides a deterministic per-stage compatibility
@@ -63,6 +120,42 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Validated:** `python -m pytest tests/test_cli.py -q` passed with `8 passed`.
 - **Open:** The rollup prioritizes migration review only. It is not proof of execution, parity,
   security remediation, or deployment readiness.
+
+### Validated Eventhouse empty-schema artifact guard
+
+- **Expected:** An Eventhouse artifact whose source schema has no columns is invalid and must not
+  produce executable KQL definitions; normal Eventhouse schema generation remains unchanged.
+- **Implemented:** The generated Eventhouse artifact emits review comments only, omitting KQL
+  `CREATE TABLE`, ingestion mapping, and materialized-view statements. It includes a `REDESIGN`
+  warning, and the artifact manifest propagates `valid: false` for the affected artifact.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py -v` passed with `40 passed`.
+- **Open:** This structural dry-run guard is not official Fabric validation or deployment. An
+  approved artifact still requires Fabric schema validation and an explicit deployment workflow.
+
+### Validated Eventstream dry-run review scaffold
+
+- **Expected:** Generated Eventstream output must be clearly non-deployable when BQToFabric cannot
+  emit an official Fabric Eventstream definition. It must not invent connection identifiers.
+- **Implemented:** The Eventstream artifact sets `deployable: false` and `valid: false`. Its source
+  node uses `connectionReference: review_required` instead of a fabricated `connectionId`, and
+  includes explicit authoring TODOs. The artifact manifest propagates `valid: false`.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py -v` passed with `40 passed`.
+- **Open:** This is a deterministic dry-run review scaffold, not an official Fabric Eventstream
+  definition. Author it against the official Fabric API/schema and supply approved connections
+  before deployment.
+
+### Validated semantic-model empty-schema guard
+
+- **Expected:** A semantic model for a table, view, or materialized view without discovered
+  columns must not reference a first column or produce a deployable definition. Schema-backed
+  semantic-model generation must remain unchanged.
+- **Implemented:** The generator returns an invalid review-only scaffold with `valid: false`,
+  `deployable: false`, and `validationStatus: pending_source_schema`. It omits tables, measures,
+  relationships, and connection placeholders, and emits a `REDESIGN` warning requiring source
+  schema discovery and regeneration.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py -v` passed with `42 passed`.
+- **Open:** This dry-run guard is not official Fabric semantic-model schema/API validation. Validate
+  the regenerated semantic model before deployment.
 
 ### Validated migration-plan findings section
 
@@ -110,7 +203,8 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   human-readable migration plan and generated target manifest expose the decision and reasons.
 - **Implemented:** `PlanItem.manual_review_reasons` uses the codes `external_dependency`,
   `incompatible_mapping`, `streaming_downstream_review`, `incomplete_external_adapter`,
-  `depends_on_incomplete_external_adapter`, `sql_incompatibility`, and
+  `depends_on_incomplete_external_adapter`, `incomplete_dataform_compilation`,
+  `depends_on_incomplete_dataform_compilation`, `sql_incompatibility`, and
   `cycle_or_unresolved_dependency`. `migration-plan.md` renders `manual_review` and the reason
   codes; `fabric/target-manifest.json` exposes the matching `manualReview` and
   `manualReviewReasons` fields. `manual_review` remains the decision flag; reasons make the
@@ -167,6 +261,26 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   implement external GCP live adapters; users must supply complete offline evidence before a
   reviewed migration decision can rely on the affected component.
 
+### Validated Dataform adapter evidence
+
+- **Expected:** Successfully discovered Dataform compilation targets must aggregate deterministic
+  evidence on the corresponding repository and workflow records. Explicitly empty or false evidence
+  must remain known, while a failed compilation-detail request must stay incomplete and block
+  assessment rather than being mistaken for a successful empty result.
+- **Implemented:** Repository and workflow records receive `models`, `assertions`, and
+  `incremental` evidence from successful compiled targets and edges. `models` is the sorted list of
+  compiled table/view target names; `assertions` and `incremental` are booleans. `models: []`,
+  `assertions: false`, and `incremental: false` remain complete evidence. A failed detail request
+  emits a `dataform_workflow` fallback with `discovered_from: dataform_api`,
+  `discovery_incomplete: true`, and `lineage_status: unavailable`; assessment emits `FAIL`
+  `DATAFORM_COMPILATION_DETAILS_UNAVAILABLE`, and planning applies
+  `incomplete_dataform_compilation` to the fallback and
+  `depends_on_incomplete_dataform_compilation` to downstream objects.
+- **Validated:** `python -m pytest tests/test_discovery.py tests/test_assessment.py
+  tests/test_dataform_conversion.py -v` passed with `56 passed`.
+- **Open:** A fallback does not recover the compilation graph. Re-run discovery after Dataform API
+  or access recovery before relying on lineage-dependent migration decisions.
+
 ### What v0.1.0 does not prove
 
 - Completeness against a live GCP organization or project.
@@ -182,6 +296,21 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 4. **Preserve source intent.** Airflow remains Airflow when that reduces migration risk; each workload retains an appropriate target.
 5. **Fail closed on security.** Missing policy equivalence is a blocker, not a warning to ignore.
 6. **Deterministic artifacts.** The same inventory and configuration must produce byte-stable output.
+
+### Validated artifact-order determinism
+
+- **Expected:** Equivalent inventories must generate the same artifact paths and bytes regardless
+  of component ordering, and distinct source IDs must never overwrite each other's artifacts.
+- **Implemented:** `ArtifactGenerator` writes each artifact category in sorted source-ID order,
+  serializes JSON artifacts, manifests, and notebooks with sorted keys, and aggregates warnings in
+  source-ID order. Every artifact filename combines a filesystem-safe source ID with the first 12
+  hexadecimal characters of that source ID's SHA-256 digest; generated manifest paths use those
+  filenames.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py -v` passed with `44 passed`.
+  The test covers reversed component ordering, same-name source objects, and source IDs that
+  normalize to the same safe text.
+- **Open:** This deterministic filename contract does not validate generated definitions against
+  Fabric schemas or deploy them.
 
 ## Release tracks
 
@@ -322,6 +451,16 @@ result = converter.convert(bigquery_obj, TargetDialect.SPARK_SQL)
 ### v0.4 — Fabric project generation
 
 **Goal:** generate structurally valid, importable Fabric project definitions.
+
+- **Expected:** Generated Warehouse DDL must preserve existing target objects during dry-run
+  generation; it must never emit destructive `DROP TABLE` or `DROP VIEW` statements.
+- **Implemented:** Warehouse table and scheduled-query targets use create-if-absent behavior and
+  explicitly preserve existing objects. Warehouse views are created only when absent through a
+  guarded dynamic statement, preserving an existing view definition.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py -v` passed with `39 passed`.
+- **Open:** The generated dry-run Warehouse output still requires official Fabric schema and
+  deployment validation; this test result does not establish that validation or deployment
+  readiness.
 
 - Generate Lakehouse metadata and Delta DDL with Bronze/Silver/Gold layouts.
 - Generate Fabric notebooks with valid metadata, parameters, lakehouse bindings, outputs, and dependencies.

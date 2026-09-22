@@ -23,6 +23,8 @@ _SECRET_KEY_MARKERS = (
     "password",
     "passwd",
     "credential",
+    "service_account",
+    "serviceaccount",
     "private_key",
     "privatekey",
     "api_key",

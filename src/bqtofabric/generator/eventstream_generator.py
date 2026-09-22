@@ -55,8 +55,12 @@ class EventstreamGenerator:
             return None
 
         warnings: list[str] = []
+        warnings.append(
+            "REDESIGN: Eventstream topology is a review-only scaffold and is not an official Fabric definition."
+        )
         topology: dict[str, Any] = {
             "mode": "dry-run",
+            "deployable": False,
             "version": "1.0",
             "sourceId": item.source_id,
             "sourceKind": item.kind.value,
@@ -98,6 +102,7 @@ class EventstreamGenerator:
             source_kind=item.kind,
             topology=topology,
             warnings=tuple(warnings),
+            valid=False,
         )
 
     def _build_source_node(
@@ -116,7 +121,7 @@ class EventstreamGenerator:
         return {
             "type": "source",
             "sourceType": source_type,
-            "connectionId": f"conn_{item.source_id}",
+            "connectionReference": "review_required",
             "topicOrQueue": item.name,
             "consumerGroup": "$Default",
             "dataFormat": item.properties.get("format", "JSON"),
@@ -126,6 +131,7 @@ class EventstreamGenerator:
             },
             "warnings": [
                 f"TODO: MANUAL REVIEW - Configure {source_type} connection details",
+                "TODO: MANUAL REVIEW - Bind an official Fabric connection ID during authoring",
                 "TODO: MANUAL REVIEW - Validate consumer group and partition assignment",
             ],
         }
@@ -196,6 +202,24 @@ class EventhouseGenerator:
             "\n",
         ])
 
+        if not item.columns:
+            warnings.append(
+                "REDESIGN: Eventhouse schema generation requires source columns; no KQL was emitted."
+            )
+            lines.extend([
+                "// VALIDATION PENDING: source schema is required before creating the Eventhouse table.\n",
+                "// TODO: MANUAL REVIEW - supply columns and regenerate this dry-run artifact.\n",
+            ])
+            return EventhouseSchema(
+                name=f"eventhouse_{item.name}",
+                description=f"Generated from {item.kind.value} {item.source_id}",
+                source_id=item.source_id,
+                source_kind=item.kind,
+                kql_script="".join(lines),
+                warnings=tuple(warnings),
+                valid=False,
+            )
+
         # Create table
         table_name = item.name
         lines.extend([
@@ -203,13 +227,12 @@ class EventhouseGenerator:
         ])
 
         # Build column definitions
-        if item.columns:
-            col_defs: list[str] = []
-            for col in item.columns:
-                kql_type = self._map_to_kql_type(col.data_type, warnings)
-                col_defs.append(f"  {col.name}: {kql_type}")
+        col_defs: list[str] = []
+        for col in item.columns:
+            kql_type = self._map_to_kql_type(col.data_type, warnings)
+            col_defs.append(f"  {col.name}: {kql_type}")
 
-            lines.append(",\n".join(col_defs))
+        lines.append(",\n".join(col_defs))
 
         # Add ingestion timestamp
         lines.extend([

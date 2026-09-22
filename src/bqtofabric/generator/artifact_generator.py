@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -67,8 +69,8 @@ class ArtifactGenerator:
 
         # Generate notebooks
         notebooks = generate_all_notebooks(self.inventory, self.assessment)
-        for source_id, notebook in notebooks.items():
-            output_path = lakehouse_dir / f"notebook_{source_id.replace('.', '_')}.ipynb"
+        for source_id, notebook in sorted(notebooks.items()):
+            output_path = lakehouse_dir / self._artifact_filename("notebook", source_id, ".ipynb")
             self._write_notebook(notebook, output_path)
             manifest["artifacts"].setdefault("notebooks", []).append({
                 "sourceId": source_id,
@@ -79,8 +81,8 @@ class ArtifactGenerator:
 
         # Generate warehouse scripts
         warehouse_scripts = generate_all_warehouse_scripts(self.inventory, self.assessment)
-        for source_id, script in warehouse_scripts.items():
-            output_path = warehouse_dir / f"{script.name}.sql"
+        for source_id, script in sorted(warehouse_scripts.items()):
+            output_path = warehouse_dir / self._artifact_filename("warehouse", source_id, ".sql")
             output_path.write_text(script.script, encoding="utf-8")
             manifest["artifacts"].setdefault("warehouse", []).append({
                 "sourceId": source_id,
@@ -92,10 +94,12 @@ class ArtifactGenerator:
 
         # Generate eventstreams
         eventstreams = generate_all_eventstreams(self.inventory, self.assessment)
-        for source_id, eventstream in eventstreams.items():
-            output_path = realtime_dir / f"{eventstream.name}_topology.json"
+        for source_id, eventstream in sorted(eventstreams.items()):
+            output_path = realtime_dir / self._artifact_filename(
+                "eventstream", source_id, "_topology.json"
+            )
             output_path.write_text(
-                json.dumps(eventstream.topology, indent=2),
+            json.dumps(eventstream.topology, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
             manifest["artifacts"].setdefault("eventstreams", []).append({
@@ -108,8 +112,10 @@ class ArtifactGenerator:
 
         # Generate eventhouse schemas
         eventhouse_schemas = generate_all_eventhouse_schemas(self.inventory, self.assessment)
-        for source_id, schema in eventhouse_schemas.items():
-            output_path = realtime_dir / f"{schema.name}_schema.kql"
+        for source_id, schema in sorted(eventhouse_schemas.items()):
+            output_path = realtime_dir / self._artifact_filename(
+                "eventhouse", source_id, "_schema.kql"
+            )
             output_path.write_text(schema.kql_script, encoding="utf-8")
             manifest["artifacts"].setdefault("eventhouse", []).append({
                 "sourceId": source_id,
@@ -121,10 +127,12 @@ class ArtifactGenerator:
 
         # Generate semantic models
         semantic_models = generate_all_semantic_models(self.inventory, self.assessment)
-        for source_id, model in semantic_models.items():
-            output_path = semantic_dir / f"{model.name}_definition.json"
+        for source_id, model in sorted(semantic_models.items()):
+            output_path = semantic_dir / self._artifact_filename(
+                "semantic_model", source_id, "_definition.json"
+            )
             output_path.write_text(
-                json.dumps(model.model, indent=2),
+            json.dumps(model.model, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
             manifest["artifacts"].setdefault("semantic_models", []).append({
@@ -137,10 +145,12 @@ class ArtifactGenerator:
 
         # Generate pipelines
         pipelines = generate_all_pipelines(self.inventory, self.assessment)
-        for source_id, pipeline in pipelines.items():
-            output_path = pipeline_dir / f"{pipeline.name}_definition.json"
+        for source_id, pipeline in sorted(pipelines.items()):
+            output_path = pipeline_dir / self._artifact_filename(
+                "pipeline", source_id, "_definition.json"
+            )
             output_path.write_text(
-                json.dumps(pipeline.pipeline, indent=2),
+            json.dumps(pipeline.pipeline, indent=2, sort_keys=True),
                 encoding="utf-8",
             )
             manifest["artifacts"].setdefault("pipelines", []).append({
@@ -153,18 +163,18 @@ class ArtifactGenerator:
 
         # Write manifest
         manifest_path = output_dir / "manifest.json"
-        manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
 
         # Collect all warnings
-        for script in warehouse_scripts.values():
+        for _, script in sorted(warehouse_scripts.items()):
             warnings.extend(script.warnings)
-        for eventstream in eventstreams.values():
+        for _, eventstream in sorted(eventstreams.items()):
             warnings.extend(eventstream.warnings)
-        for schema in eventhouse_schemas.values():
+        for _, schema in sorted(eventhouse_schemas.items()):
             warnings.extend(schema.warnings)
-        for model in semantic_models.values():
+        for _, model in sorted(semantic_models.items()):
             warnings.extend(model.warnings)
-        for pipeline in pipelines.values():
+        for _, pipeline in sorted(pipelines.items()):
             warnings.extend(pipeline.warnings)
 
         return ArtifactGenerationReport(
@@ -191,9 +201,16 @@ class ArtifactGenerator:
     def _write_notebook(notebook, output_path: Path) -> None:
         """Write notebook to .ipynb file."""
         output_path.write_text(
-            json.dumps(notebook.to_ipynb_dict(), indent=2),
+            json.dumps(notebook.to_ipynb_dict(), indent=2, sort_keys=True),
             encoding="utf-8",
         )
+
+    @staticmethod
+    def _artifact_filename(prefix: str, source_id: str, suffix: str) -> str:
+        """Build a stable filename that remains unique for distinct source IDs."""
+        safe_source_id = re.sub(r"[^A-Za-z0-9._-]+", "_", source_id).strip("._")
+        source_hash = hashlib.sha256(source_id.encode("utf-8")).hexdigest()[:12]
+        return f"{prefix}_{safe_source_id or 'unknown'}_{source_hash}{suffix}"
 
 
 def generate_artifacts(

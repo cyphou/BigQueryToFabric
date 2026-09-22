@@ -34,7 +34,7 @@ class ComposerInventoryProvider:
 
                 if env_resource:
                     for dag in self.client.list_dags(env_resource):
-                        components.append(self._map_dag(location, env.get("displayName", ""), dag))
+                        components.append(self._map_dag(location, env, dag))
 
         return tuple(sorted(components, key=lambda item: item.source_id))
 
@@ -76,11 +76,20 @@ class ComposerInventoryProvider:
             properties=redact_mapping(properties),
         )
 
-    def _map_dag(self, location: str, env_name: str, resource: dict[str, Any]) -> BigQueryObject:
+    def _map_dag(
+        self, location: str, environment: dict[str, Any], resource: dict[str, Any]
+    ) -> BigQueryObject:
         """Map a Cloud Composer DAG to a canonical object."""
         dag_id = str(resource.get("dagId", ""))
         if not dag_id:
             raise DiscoveryError("Composer DAG resource is missing dagId")
+
+        env_name = str(environment.get("displayName", environment.get("name", "").rsplit("/", 1)[-1]))
+        environment_config = environment.get("config", {})
+        runtime_version = str(
+            environment_config.get("softwareConfig", {}).get("imageVersion")
+            or environment.get("labels", {}).get("version", "unknown")
+        )
 
         serialized_dag = resource.get("serializedDag", {})
         task_cycle = serialized_dag.get("_task_cycle", [])
@@ -90,9 +99,11 @@ class ComposerInventoryProvider:
             "dag_id": dag_id,
             "environment": env_name,
             "location": location,
+            "runtime_version": runtime_version,
             "owner": resource.get("owner", ""),
             "description": resource.get("description", ""),
             "schedule": resource.get("schedule", ""),
+            "schedule_interval": resource.get("schedule", ""),
             "is_paused": resource.get("isPaused", False),
             "task_count": resource.get("taskCount", 0),
             "last_parsed_time": resource.get("lastParsedTime", ""),
@@ -110,7 +121,10 @@ class ComposerInventoryProvider:
             if deps:
                 task_dependencies[task_id] = list(deps)
 
+            connections = _extract_connections(task_cycle)
+
         properties["operators"] = sorted(operator_types)
+        properties["connections"] = sorted(connections)
         properties["has_bigquery_operators"] = any(
             "BigQuery" in op for op in operator_types
         )
@@ -194,6 +208,18 @@ def _extract_bq_dependencies(task_cycle: list[dict[str, Any]]) -> set[str]:
                 dependencies.add(f"{dataset}.{table}")
 
     return dependencies
+
+
+def _extract_connections(task_cycle: list[dict[str, Any]]) -> set[str]:
+    """Extract declared Airflow connection names without serializing connection settings."""
+    connection_keys = ("conn_id", "connection_id", "gcp_conn_id", "google_cloud_conn_id")
+    connections: set[str] = set()
+    for task in task_cycle:
+        for key in connection_keys:
+            value = task.get(key)
+            if isinstance(value, str) and value:
+                connections.add(value)
+    return connections
 
 
 class RestComposerClient:

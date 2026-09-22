@@ -108,6 +108,14 @@ def test_discovered_dataset_access_policy_preserves_provenance_and_redacts_secre
     assert "BEGIN PRIVATE KEY" not in json.dumps(policy.properties)
 
 
+def test_discovery_redacts_service_account_paths() -> None:
+    """Service-account key-file paths must not persist in discovered inventories."""
+    redacted = redact_mapping({"service_account_path": r"C:\secrets\gcp-sa.json"})
+
+    assert redacted["service_account_path"] == REDACTED
+    assert "gcp-sa.json" not in json.dumps(redacted)
+
+
 def test_legacy_api_type_names_are_normalized_for_the_type_mapper() -> None:
     inventory = build_provider().load()
     events = next(item for item in inventory.objects() if item.name == "events")
@@ -315,6 +323,9 @@ def test_dataproc_classifies_job_types() -> None:
     assert jobs["pyspark-etl-001"].properties["job_type"] == "pyspark"
     assert jobs["spark-sql-aggregation-002"].properties["job_type"] == "spark_sql"
     assert jobs["spark-streaming-consumer-003"].properties["job_type"] == "spark"
+    assert jobs["pyspark-etl-001"].properties["language"] == "python"
+    assert jobs["spark-sql-aggregation-002"].properties["language"] == "sql"
+    assert jobs["pyspark-etl-001"].properties["runtime_version"] == "unknown"
 
 
 def test_dataproc_classifies_workload_types() -> None:
@@ -388,6 +399,11 @@ def test_dataform_discovers_repositories_and_workflows() -> None:
     assert len(repo_objects) >= 1
     assert len(workflow_objects) >= 1
 
+    workflow = next(item for item in workflow_objects if item.name == "daily-etl")
+    assert workflow.properties["models"] == ["dim_customers", "events_raw", "fact_revenue"]
+    assert workflow.properties["assertions"] is True
+    assert workflow.properties["incremental"] is True
+
 
 def test_dataform_discovers_compiled_targets_and_tables() -> None:
     provider, _ = build_dataform_provider()
@@ -455,6 +471,21 @@ def test_dataform_discovery_is_deterministic() -> None:
            json.dumps([asdict(c) for c in components2], sort_keys=True)
 
 
+def test_dataform_compilation_fetch_failure_retains_review_component() -> None:
+    """Unavailable compilation details must remain visible rather than silently dropping lineage."""
+    provider, _ = build_dataform_provider()
+
+    def unavailable(_: str) -> dict:
+        raise DiscoveryError("Dataform compilation detail request failed")
+
+    provider.client.get_compilation_result = unavailable
+    components = provider.load()
+    fallback = next(item for item in components if ".dataform.compilation." in item.source_id)
+
+    assert fallback.properties["discovery_incomplete"] is True
+    assert fallback.properties["lineage_status"] == "unavailable"
+
+
 # --- Composer Discovery Tests ---
 
 
@@ -509,6 +540,9 @@ def test_composer_extracts_dag_metadata_and_operators() -> None:
     assert daily_etl is not None
     assert daily_etl.properties["owner"] != ""
     assert daily_etl.properties["schedule"] == "0 6 * * *"
+    assert daily_etl.properties["schedule_interval"] == "0 6 * * *"
+    assert daily_etl.properties["runtime_version"] == "2.5.0"
+    assert daily_etl.properties["connections"] == []
     assert daily_etl.properties["task_count"] == 5
     assert len(daily_etl.properties.get("operators", [])) > 0
 
@@ -520,9 +554,13 @@ def test_composer_classifies_dag_types() -> None:
     dags = {c.name: c for c in components if "dag" in c.source_id}
 
     # daily_revenue_etl should be classified as analytics
-    assert dags.get("daily_revenue_etl", {}).properties["dag_type"] == "analytics"
+    daily_etl = dags.get("daily_revenue_etl")
+    assert daily_etl is not None
+    assert daily_etl.properties["dag_type"] == "analytics"
     # ml_model_training should be classified as ml_training
-    assert dags.get("ml_model_training", {}).properties["dag_type"] == "ml_training"
+    ml_training = dags.get("ml_model_training")
+    assert ml_training is not None
+    assert ml_training.properties["dag_type"] == "ml_training"
 
 
 def test_composer_detects_operator_types() -> None:
@@ -532,13 +570,26 @@ def test_composer_detects_operator_types() -> None:
     dags = {c.name: c for c in components if "dag" in c.source_id}
     daily_etl = dags.get("daily_revenue_etl")
 
+    assert daily_etl is not None
     assert daily_etl.properties["has_bigquery_operators"] is True
 
     ml_training = dags.get("ml_model_training")
+    assert ml_training is not None
     assert ml_training.properties["has_dataproc_operators"] is True
 
     external_feed = dags.get("external_data_feed")
+    assert external_feed is not None
     assert external_feed.properties["has_sensor_operators"] is True
+
+
+def test_composer_extracts_declared_connection_names() -> None:
+    provider, payload = build_composer_provider()
+    payload["dags"][0]["serializedDag"]["_task_cycle"][1]["gcp_conn_id"] = "analytics-prod"
+
+    components = provider.load(["us-central1"])
+    daily_etl = next(item for item in components if item.name == "daily_revenue_etl")
+
+    assert daily_etl.properties["connections"] == ["analytics-prod"]
 
 
 def test_composer_extracts_bigquery_dependencies() -> None:
@@ -548,6 +599,7 @@ def test_composer_extracts_bigquery_dependencies() -> None:
     dags = {c.name: c for c in components if "dag" in c.source_id}
     daily_etl = dags.get("daily_revenue_etl")
 
+    assert daily_etl is not None
     assert len(daily_etl.dependencies) > 0
     assert any("demo-project.analytics" in dep for dep in daily_etl.dependencies)
 

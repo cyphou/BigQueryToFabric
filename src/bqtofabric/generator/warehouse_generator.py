@@ -130,10 +130,10 @@ class WarehouseGenerator:
         lines.extend([
             "\n",
             f"IF OBJECT_ID(N'[{schema}].[{item.name}]', N'U') IS NOT NULL\n",
-            f"  DROP TABLE [{schema}].[{item.name}]\n",
-            "GO\n",
-            "\n",
-            f"CREATE TABLE [{schema}].[{item.name}] (\n",
+            f"  PRINT 'Existing table [{schema}].[{item.name}] preserved.'\n",
+            "ELSE\n",
+            "BEGIN\n",
+            f"  CREATE TABLE [{schema}].[{item.name}] (\n",
         ])
 
         # Build column definitions
@@ -146,12 +146,13 @@ class WarehouseGenerator:
                 col_def += f" -- {col.description}"
             col_defs.append(col_def)
 
-        lines.append(",\n".join(col_defs))
+        lines.append(",\n".join(f"  {column.strip()}" for column in col_defs))
 
         lines.append("\n")
 
         lines.extend([
-            ")\n",
+            "  )\n",
+            "END\n",
             "GO\n",
             "\n",
         ])
@@ -171,13 +172,8 @@ class WarehouseGenerator:
         """Build CREATE VIEW statement."""
         lines = [
             f"-- Create view: {item.name}\n",
+            "-- Existing views are preserved; review and explicitly replace them if required.\n",
             "\n",
-            f"IF OBJECT_ID(N'[{schema}].[{item.name}]', N'V') IS NOT NULL\n",
-            f"  DROP VIEW [{schema}].[{item.name}]\n",
-            "GO\n",
-            "\n",
-            f"CREATE VIEW [{schema}].[{item.name}]\n",
-            "AS\n",
         ]
         valid = True
 
@@ -192,7 +188,15 @@ class WarehouseGenerator:
                 )
                 if validation.reason:
                     warnings.append(f"Validation: {validation.reason}")
-            lines.extend([f"{line}\n" for line in item.sql.split("\n")])
+            escaped_sql = item.sql.replace("'", "''")
+            lines.extend([
+                f"IF OBJECT_ID(N'[{schema}].[{item.name}]', N'V') IS NULL\n",
+                "BEGIN\n",
+                f"  EXEC(N'CREATE VIEW [{schema}].[{item.name}] AS {escaped_sql}')\n",
+                "END\n",
+                "ELSE\n",
+                f"  PRINT 'Existing view [{schema}].[{item.name}] preserved.'\n",
+            ])
         else:
             lines.append("-- TODO: MANUAL REVIEW - Add view definition from source\n")
             warnings.append("View SQL not provided; manual SQL definition required")
@@ -217,24 +221,25 @@ class WarehouseGenerator:
         table_name = f"{item.name}_result"
         lines.extend([
             f"IF OBJECT_ID(N'[{schema}].[{table_name}]', N'U') IS NOT NULL\n",
-            f"  DROP TABLE [{schema}].[{table_name}]\n",
-            "GO\n",
-            "\n",
-            f"CREATE TABLE [{schema}].[{table_name}] (\n",
+            f"  PRINT 'Existing table [{schema}].[{table_name}] preserved.'\n",
+            "ELSE\n",
+            "BEGIN\n",
+            f"  CREATE TABLE [{schema}].[{table_name}] (\n",
         ])
 
+        col_defs: list[str] = []
         if item.columns:
-            col_defs: list[str] = []
             for col in item.columns:
                 col_type = self._map_column_type(col, warnings)
                 nullable = "NOT NULL" if not col.nullable else "NULL"
                 col_defs.append(f"  [{col.name}] {col_type} {nullable}")
 
-            lines.append(",\n".join(col_defs))
+        col_defs.append("  [_load_timestamp] DATETIME2 DEFAULT GETUTCDATE()")
+        lines.append(",\n".join(col_defs))
 
         lines.extend([
-            ",\n  [_load_timestamp] DATETIME2 DEFAULT GETUTCDATE()\n",
-            ")\n",
+            "\n  )\n",
+            "END\n",
             "GO\n",
             "\n",
             "-- Merge or insert logic would go here\n",

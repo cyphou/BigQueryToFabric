@@ -15,7 +15,6 @@ from bqtofabric.converter.pyspark_patterns import PySpark_PatternMatcher, analyz
 from bqtofabric.converter.scala_patterns import ScalaPatternMatcher, analyze_scala_code
 from bqtofabric.converter.storage_mapping import StoragePathMapper
 
-
 # =========================================================================
 # FIXTURES
 # =========================================================================
@@ -96,7 +95,6 @@ def test_pyspark_write_delta() -> None:
 def test_pyspark_write_to_table() -> None:
     """Test detection of .saveAsTable()."""
     code = "df.write.mode('overwrite').option('path', 'gs://bucket/table').saveAsTable('my_table')"
-    read_patterns = PySpark_PatternMatcher.detect_read_patterns(code)
     # saveAsTable appears as write pattern
     patterns = PySpark_PatternMatcher.detect_dataframe_operations(code)
     assert len(patterns) > 0
@@ -205,7 +203,6 @@ def test_pyspark_window_function() -> None:
     df = df.withColumn('rank', rank().over(w))
     """
     patterns = analyze_pyspark_code(code)
-    op_names = [p.name for p in patterns]
     # window and over should be detected
     assert len(patterns) > 0
 
@@ -776,4 +773,4 @@ def test_pattern_detection_idempotent() -> None:
     patterns2 = analyze_pyspark_code(code)
     
     assert len(patterns1) == len(patterns2)
-    assert set(p.name for p in patterns1) == set(p.name for p in patterns2)
+    assert {pattern.name for pattern in patterns1} == {pattern.name for pattern in patterns2}

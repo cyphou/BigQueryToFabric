@@ -5,8 +5,8 @@ from pathlib import Path
 
 import pytest
 
-from bqtofabric.assessment import run_assessment
-from bqtofabric.generator.artifact_generator import ArtifactGenerator, generate_artifacts
+from bqtofabric.assessment import AssessmentReport, run_assessment
+from bqtofabric.generator.artifact_generator import ArtifactGenerator
 from bqtofabric.generator.eventstream_generator import (
     EventhouseGenerator,
     EventstreamGenerator,
@@ -18,7 +18,6 @@ from bqtofabric.generator.warehouse_generator import WarehouseGenerator
 from bqtofabric.mapping import FabricTarget, MappingDecision
 from bqtofabric.models import BigQueryInventory, BigQueryObject, Column, ObjectKind
 from bqtofabric.type_mapping import Compatibility
-
 
 # Fixtures
 
@@ -154,7 +153,7 @@ def basic_inventory(simple_table, simple_view, spark_job) -> BigQueryInventory:
 
 
 @pytest.fixture
-def basic_assessment(basic_inventory) -> dict:
+def basic_assessment(basic_inventory) -> AssessmentReport:
     """Run assessment on basic inventory."""
     return run_assessment(basic_inventory)
 
@@ -164,6 +163,55 @@ def basic_assessment(basic_inventory) -> dict:
 
 class TestNotebookGenerator:
     """Tests for Lakehouse notebook generation."""
+
+    def test_notebook_validation_rejects_undefined_source(self, spark_job) -> None:
+        """A notebook that uses df_source before defining it is not executable."""
+        from bqtofabric.artifact_validation import NotebookValidator
+
+        job_without_source = BigQueryObject(
+            source_id=spark_job.source_id,
+            name=spark_job.name,
+            kind=spark_job.kind,
+            dataset=spark_job.dataset,
+            properties=spark_job.properties,
+        )
+        decision = MappingDecision(
+            source_id=job_without_source.source_id,
+            source_kind=job_without_source.kind,
+            target=FabricTarget.NOTEBOOK,
+            compatibility=Compatibility.TRANSFORM,
+            rationale="Test validation.",
+        )
+        inventory = BigQueryInventory(
+            project_id="test", datasets=(), components=(job_without_source,), metadata={}
+        )
+        notebook = NotebookGenerator(inventory, run_assessment(inventory)).generate_notebook(
+            job_without_source, decision
+        )
+
+        assert notebook is not None
+        result = NotebookValidator(notebook).validate()
+        assert result.valid is False
+        assert any("df_source" in error for error in result.errors)
+
+    def test_notebook_validation_accepts_defined_source(self, spark_job) -> None:
+        """A source DataFrame defined in an earlier cell passes the DataFrame dependency check."""
+        from bqtofabric.artifact_validation import NotebookValidator
+
+        decision = MappingDecision(
+            source_id=spark_job.source_id,
+            source_kind=spark_job.kind,
+            target=FabricTarget.NOTEBOOK,
+            compatibility=Compatibility.TRANSFORM,
+            rationale="Test validation.",
+        )
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(spark_job,), metadata={})
+        notebook = NotebookGenerator(inventory, run_assessment(inventory)).generate_notebook(
+            spark_job, decision
+        )
+
+        assert notebook is not None
+        assert NotebookValidator(notebook).validate().valid is True
 
     def test_generate_notebook_from_spark_job(self, spark_job):
         """Test notebook generation from Spark job."""
@@ -200,6 +248,7 @@ class TestNotebookGenerator:
         gen = NotebookGenerator(inventory, assessment)
         notebook = gen.generate_notebook(spark_job, decision)
 
+        assert notebook is not None
         cell_types = [cell.cell_type for cell in notebook.cells]
         assert "markdown" in cell_types  # Title cell
         assert "code" in cell_types  # Config and code cells
@@ -219,6 +268,7 @@ class TestNotebookGenerator:
 
         gen = NotebookGenerator(inventory, assessment)
         notebook = gen.generate_notebook(spark_job, decision)
+        assert notebook is not None
         ipynb_dict = notebook.to_ipynb_dict()
 
         assert ipynb_dict["nbformat"] == 4
@@ -242,6 +292,7 @@ class TestNotebookGenerator:
         gen = NotebookGenerator(inventory, assessment)
         notebook = gen.generate_notebook(spark_job, decision)
 
+        assert notebook is not None
         # Check that source ID is preserved in first cell
         first_cell_text = "".join(notebook.cells[0].source)
         assert spark_job.source_id in first_cell_text
@@ -262,6 +313,7 @@ class TestNotebookGenerator:
         gen = NotebookGenerator(inventory, assessment)
         notebook = gen.generate_notebook(spark_job, decision)
 
+        assert notebook is not None
         warnings_cell_text = "".join(notebook.cells[-1].source)
         # Check for markdown or code styling of TODO
         assert "TODO" in warnings_cell_text or "todo" in warnings_cell_text.lower()
@@ -290,6 +342,101 @@ class TestNotebookGenerator:
 
 class TestWarehouseGenerator:
     """Tests for Warehouse DDL/DML generation."""
+
+    def test_validate_except_all_is_unsupported(self, simple_view) -> None:
+        """Fabric Warehouse does not support EXCEPT ALL."""
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(simple_view,), metadata={})
+        gen = WarehouseGenerator(inventory, run_assessment(inventory))
+
+        result = gen._validate_t_sql_semantics("SELECT id FROM a EXCEPT ALL SELECT id FROM b")
+
+        assert result.valid is False
+        assert result.reason is not None
+        assert "EXCEPT ALL" in result.reason
+
+    def test_validate_except_distinct_is_valid(self, simple_view) -> None:
+        """Ordinary EXCEPT retains its T-SQL-compatible distinct semantics."""
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(simple_view,), metadata={})
+        gen = WarehouseGenerator(inventory, run_assessment(inventory))
+
+        result = gen._validate_t_sql_semantics("SELECT id FROM a EXCEPT SELECT id FROM b")
+
+        assert result.valid is True
+
+    def test_generate_view_preserves_sql_pending_validation(self, simple_view) -> None:
+        """Unsupported source SQL must be preserved and visibly blocked for review."""
+        view = BigQueryObject(
+            source_id="project.dataset.v_sales",
+            name="v_sales",
+            kind=ObjectKind.VIEW,
+            dataset="dataset",
+            sql="SELECT id FROM a EXCEPT ALL SELECT id FROM b",
+        )
+        decision = MappingDecision(
+            source_id=view.source_id,
+            source_kind=view.kind,
+            target=FabricTarget.WAREHOUSE,
+            compatibility=Compatibility.REDESIGN,
+            rationale="EXCEPT ALL requires a semantic rewrite.",
+        )
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(view,), metadata={})
+        script = WarehouseGenerator(inventory, run_assessment(inventory)).generate_warehouse_script(view, decision)
+
+        assert script is not None
+        assert "# VALIDATION PENDING" in script.script
+        assert "EXCEPT ALL" in script.script
+        assert script.valid is False
+        assert any("REDESIGN" in warning for warning in script.warnings)
+
+    def test_generate_table_does_not_infer_primary_key(self, simple_table) -> None:
+        """Clustering metadata is an index hint, not a primary-key declaration."""
+        decision = MappingDecision(
+            source_id=simple_table.source_id,
+            source_kind=simple_table.kind,
+            target=FabricTarget.WAREHOUSE,
+            compatibility=Compatibility.DIRECT,
+            rationale="Table mapping.",
+        )
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(simple_table,), metadata={})
+        script = WarehouseGenerator(inventory, run_assessment(inventory)).generate_warehouse_script(
+            simple_table, decision
+        )
+
+        assert script is not None
+        assert "PRIMARY KEY" not in script.script
+        assert "Suggested index" in script.script
+
+    def test_warehouse_scripts_preserve_existing_objects(self, simple_table, simple_view):
+        """Dry-run Warehouse scripts must not drop or replace existing target objects."""
+        decision = MappingDecision(
+            source_id=simple_table.source_id,
+            source_kind=simple_table.kind,
+            target=FabricTarget.WAREHOUSE,
+            compatibility=Compatibility.DIRECT,
+            rationale="Non-destructive generation.",
+        )
+        inventory = BigQueryInventory(
+            project_id="test", datasets=(), components=(simple_table, simple_view), metadata={}
+        )
+        generator = WarehouseGenerator(inventory, run_assessment(inventory))
+        table_script = generator.generate_warehouse_script(simple_table, decision)
+        view_script = generator.generate_warehouse_script(
+            simple_view,
+            MappingDecision(
+                source_id=simple_view.source_id,
+                source_kind=simple_view.kind,
+                target=FabricTarget.WAREHOUSE,
+                compatibility=Compatibility.DIRECT,
+                rationale="Non-destructive generation.",
+            ),
+        )
+
+        assert table_script is not None
+        assert view_script is not None
+        assert "DROP TABLE" not in table_script.script
+        assert "DROP VIEW" not in view_script.script
+        assert "preserved" in table_script.script
+        assert "preserved" in view_script.script
 
     def test_generate_table_ddl(self, simple_table):
         """Test T-SQL table creation from BigQuery table."""
@@ -326,6 +473,7 @@ class TestWarehouseGenerator:
         gen = WarehouseGenerator(inventory, assessment)
         script = gen.generate_warehouse_script(simple_table, decision)
 
+        assert script is not None
         for col in simple_table.columns:
             assert col.name in script.script
 
@@ -410,6 +558,7 @@ class TestWarehouseGenerator:
         gen = WarehouseGenerator(inventory, assessment)
         script = gen.generate_warehouse_script(simple_table, decision)
 
+        assert script is not None
         assert script.script.lstrip().startswith("/*")
 
 
@@ -420,7 +569,7 @@ class TestEventstreamGenerator:
     """Tests for Eventstream topology generation."""
 
     def test_generate_eventstream_from_pubsub(self, streaming_topic):
-        """Test eventstream generation from Pub/Sub topic."""
+        """Eventstream output must remain a non-deployable review scaffold."""
         decision = MappingDecision(
             source_id=streaming_topic.source_id,
             source_kind=streaming_topic.kind,
@@ -436,9 +585,13 @@ class TestEventstreamGenerator:
 
         assert eventstream is not None
         assert eventstream.source_id == streaming_topic.source_id
-        # The topology IS a dict, not nested under a key
         assert isinstance(eventstream.topology, dict)
         assert "nodes" in eventstream.topology
+        assert eventstream.valid is False
+        assert eventstream.topology["deployable"] is False
+        assert "connectionId" not in eventstream.topology["nodes"]["source"]
+        assert eventstream.topology["nodes"]["source"]["connectionReference"] == "review_required"
+        assert any("not an official Fabric definition" in warning for warning in eventstream.warnings)
 
     def test_eventstream_has_source_and_destination(self, streaming_topic):
         """Test that eventstream topology includes source and destination nodes."""
@@ -455,6 +608,7 @@ class TestEventstreamGenerator:
         gen = EventstreamGenerator(inventory, assessment)
         eventstream = gen.generate_eventstream(streaming_topic, decision)
 
+        assert eventstream is not None
         assert "source" in eventstream.topology["nodes"]
         assert "destination" in eventstream.topology["nodes"]
 
@@ -492,8 +646,34 @@ class TestEventstreamGenerator:
         gen = EventhouseGenerator(inventory, assessment)
         schema = gen.generate_eventhouse_schema(streaming_topic, decision)
 
+        assert schema is not None
         for col in streaming_topic.columns:
             assert col.name in schema.kql_script
+
+    def test_eventhouse_schema_without_columns_is_review_only(self):
+        """Missing source schema must block Eventhouse KQL emission."""
+        topic = BigQueryObject(
+            source_id="project.pubsub.unknown_schema",
+            name="unknown_schema",
+            kind=ObjectKind.PUBSUB_TOPIC,
+        )
+        decision = MappingDecision(
+            source_id=topic.source_id,
+            source_kind=topic.kind,
+            target=FabricTarget.EVENTHOUSE,
+            compatibility=Compatibility.REDESIGN,
+            rationale="Source schema must be discovered first.",
+        )
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(topic,), metadata={})
+
+        schema = EventhouseGenerator(inventory, run_assessment(inventory)).generate_eventhouse_schema(
+            topic, decision
+        )
+
+        assert schema is not None
+        assert schema.valid is False
+        assert ".create-or-alter table" not in schema.kql_script
+        assert any("no KQL was emitted" in warning for warning in schema.warnings)
 
 
 # Semantic Model Generator Tests
@@ -537,10 +717,38 @@ class TestSemanticModelGenerator:
         gen = SemanticModelGenerator(inventory, assessment)
         model = gen.generate_semantic_model(simple_table, decision)
 
+        assert model is not None
         # Should have measures for INT64 and FLOAT64 columns
         assert len(model.model["measures"]) > 0
         measure_names = [m["name"] for m in model.model["measures"]]
         assert any("Sum" in name or "sum" in name for name in measure_names)
+
+    def test_semantic_model_without_columns_is_review_only(self):
+        """A source without columns must not crash or emit a deployable model definition."""
+        table = BigQueryObject(
+            source_id="project.dataset.unknown_schema",
+            name="unknown_schema",
+            kind=ObjectKind.TABLE,
+            dataset="dataset",
+        )
+        decision = MappingDecision(
+            source_id=table.source_id,
+            source_kind=table.kind,
+            target=FabricTarget.SEMANTIC_MODEL,
+            compatibility=Compatibility.REDESIGN,
+            rationale="Source schema must be discovered first.",
+        )
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(table,), metadata={})
+
+        model = SemanticModelGenerator(inventory, run_assessment(inventory)).generate_semantic_model(
+            table, decision
+        )
+
+        assert model is not None
+        assert model.valid is False
+        assert model.model["deployable"] is False
+        assert "tables" not in model.model
+        assert any("no model definition was emitted" in warning for warning in model.warnings)
 
 
 # Pipeline Generator Tests
@@ -583,14 +791,46 @@ class TestPipelineGenerator:
         gen = PipelineGenerator(inventory, assessment)
         pipeline = gen.generate_pipeline(scheduled_query, decision)
 
+        assert pipeline is not None
         activities = pipeline.pipeline["properties"]["activities"]
-        activity_types = [a.get("type") for a in activities]
 
         # Should have standard activities
         assert len(activities) > 0
 
+    def test_pipeline_uses_legacy_schedule_property(self, scheduled_query):
+        """Existing inventories using schedule must still produce an equivalent trigger."""
+        scheduled_query = BigQueryObject(
+            source_id=scheduled_query.source_id,
+            name=scheduled_query.name,
+            kind=scheduled_query.kind,
+            dataset=scheduled_query.dataset,
+            sql=scheduled_query.sql,
+            columns=scheduled_query.columns,
+            properties={"schedule": "@daily"},
+        )
+        decision = MappingDecision(
+            source_id=scheduled_query.source_id,
+            source_kind=scheduled_query.kind,
+            target=FabricTarget.DATA_PIPELINE,
+            compatibility=Compatibility.TRANSFORM,
+            rationale="Schedule compatibility.",
+        )
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(scheduled_query,), metadata={})
+
+        pipeline = PipelineGenerator(inventory, run_assessment(inventory)).generate_pipeline(
+            scheduled_query, decision
+        )
+
+        assert pipeline is not None
+        assert pipeline.pipeline["properties"]["triggers"][0]["properties"]["typeProperties"]["recurrence"] == {
+            "frequency": "Day",
+            "interval": 1,
+        }
+
     def test_generate_pipeline_from_composer_dag(self, composer_dag):
-        """Test pipeline generation from Composer DAG."""
+        """Composer activity dependencies must resolve within the generated pipeline."""
+        from bqtofabric.artifact_validation import PipelineValidator
+
         decision = MappingDecision(
             source_id=composer_dag.source_id,
             source_kind=composer_dag.kind,
@@ -607,6 +847,9 @@ class TestPipelineGenerator:
         assert pipeline is not None
         activities = pipeline.pipeline["properties"]["activities"]
         assert len(activities) > 0
+        assert PipelineValidator(pipeline.pipeline).validate().valid
+        error_handler = next(activity for activity in activities if activity["name"] == "Handle Error")
+        assert error_handler["policy"] == {"secureInput": True, "secureOutput": True}
 
 
 # Integration Tests
@@ -624,20 +867,66 @@ class TestArtifactGeneratorIntegration:
         assert report.notebooks > 0
         assert "artifacts" in report.manifest
 
-    def test_deterministic_output(self, basic_inventory, basic_assessment):
-        """Test that artifact generation is deterministic."""
-        from io import StringIO
-
-        # Generate twice
+    def test_deterministic_output(self, basic_inventory, basic_assessment, tmp_path):
+        """Equivalent inputs must generate byte-identical artifact directories."""
         gen1 = ArtifactGenerator(basic_inventory, basic_assessment)
-        report1 = gen1.generate_all(Path("/tmp/test_artifacts_1"))
+        output1 = tmp_path / "first"
+        report1 = gen1.generate_all(output1)
 
-        gen2 = ArtifactGenerator(basic_inventory, basic_assessment)
-        report2 = gen2.generate_all(Path("/tmp/test_artifacts_2"))
+        reordered_inventory = BigQueryInventory(
+            project_id=basic_inventory.project_id,
+            datasets=basic_inventory.datasets,
+            components=tuple(reversed(basic_inventory.components)),
+            metadata=basic_inventory.metadata,
+        )
+        report2 = ArtifactGenerator(
+            reordered_inventory, run_assessment(reordered_inventory)
+        ).generate_all(tmp_path / "second")
 
-        # Reports should be identical
         assert report1.total_generated == report2.total_generated
-        assert report1.notebooks == report2.notebooks
+        assert {
+            path.relative_to(output1).as_posix(): path.read_bytes()
+            for path in output1.rglob("*")
+            if path.is_file()
+        } == {
+            path.relative_to(tmp_path / "second").as_posix(): path.read_bytes()
+            for path in (tmp_path / "second").rglob("*")
+            if path.is_file()
+        }
+
+    def test_artifact_filenames_include_source_ids_to_avoid_collisions(self, tmp_path):
+        """Distinct sources with the same name must write distinct artifacts."""
+        first = BigQueryObject(
+            source_id="project.first.sales",
+            name="sales",
+            kind=ObjectKind.TABLE,
+            dataset="first",
+            columns=(Column(name="id", data_type="INT64", nullable=False),),
+        )
+        second = BigQueryObject(
+            source_id="project.second.sales",
+            name="sales",
+            kind=ObjectKind.TABLE,
+            dataset="second",
+            columns=(Column(name="id", data_type="INT64", nullable=False),),
+        )
+        inventory = BigQueryInventory(
+            project_id="project", datasets=(), components=(first, second), metadata={}
+        )
+
+        report = ArtifactGenerator(inventory, run_assessment(inventory)).generate_all(tmp_path)
+        warehouse_paths = [item["path"] for item in report.manifest["artifacts"]["warehouse"]]
+
+        assert len(warehouse_paths) == 2
+        assert len(set(warehouse_paths)) == 2
+        assert all((tmp_path / path).is_file() for path in warehouse_paths)
+
+    def test_artifact_filenames_disambiguate_sanitized_source_ids(self):
+        """Filesystem-safe normalization must not collapse distinct source IDs."""
+        first = ArtifactGenerator._artifact_filename("warehouse", "project/a", ".sql")
+        second = ArtifactGenerator._artifact_filename("warehouse", "project_a", ".sql")
+
+        assert first != second
 
     def test_artifact_paths_are_valid(self, basic_inventory, basic_assessment, tmp_path):
         """Test that generated artifact paths are valid."""

@@ -17,6 +17,55 @@ The source model is cloud-independent so assessments and tests run without crede
 Source identifiers are immutable. Fabric names and targets are recommendations attached to
 the plan, not destructive rewrites of source metadata.
 
+## Deterministic artifact serialization
+
+`ArtifactGenerator` processes each artifact category in sorted source-ID order. It serializes JSON
+artifacts, manifests, and notebooks with sorted keys, and aggregates warnings in source-ID order.
+For equivalent inventories, this produces identical generated paths and bytes regardless of input
+component ordering. This contract is verified by generating inventories with reversed component
+order and comparing every artifact path and byte sequence.
+
+Every generated artifact filename combines a filesystem-safe representation of its source ID with
+the first 12 hexadecimal characters of that source ID's SHA-256 digest. The suffix is stable and
+keeps distinct source IDs from overwriting one another, including IDs that normalize to the same
+safe text. Generated manifest paths use these filenames. This is a deterministic dry-run naming
+contract, not a deployment or Fabric-schema validation guarantee.
+
+## Composer schedule contract
+
+Offline Composer normalization writes `properties.schedule_interval` as the canonical DAG schedule
+field and retains `properties.schedule` for inventory compatibility. Pipeline artifact generation
+reads `schedule_interval` first and falls back to `schedule`, so legacy inventories continue to
+map `@daily`, `@hourly`, and `@weekly` to their corresponding Fabric pipeline triggers. Raw cron
+expressions are not automatically mapped and remain review-required. This preserves source
+intent without representing a raw cron schedule as a verified Fabric trigger.
+
+## Composer adapter-evidence contract
+
+Offline Composer DAG normalization writes `properties.runtime_version` from the Composer image
+version when present; otherwise it uses the sanitized environment-version label, then `unknown`.
+It also records declared task connection names in `properties.connections`, accepting
+`conn_id`, `connection_id`, `gcp_conn_id`, and `google_cloud_conn_id`. Connection configuration,
+secret material, and access bindings are never serialized. An explicit `connections: []` means no
+task declared a connection and is complete Composer evidence; an absent `connections` field remains
+incomplete evidence for assessment.
+
+This boundary records static declaration evidence only. It does not establish the effective
+connection configuration, secret bindings, or runtime access. Those require manual review.
+
+## Dataproc adapter-evidence contract
+
+Dataproc job normalization writes canonical `properties.language`: PySpark jobs map to `python`,
+Spark SQL and Hive jobs map to `sql`, and Pig jobs map to `pig`. Unsupported or ambiguous job types
+map to `unknown`. Existing `properties.runtime` job classification is preserved.
+
+`properties.runtime_version` is inherited from the referenced cluster's
+`config.softwareConfig.imageVersion` when the cluster payload provides it; otherwise it is
+`unknown`. Assessment treats `unknown` and `not specified` as missing evidence, not as complete
+runtime evidence. A job with an unknown runtime version must be supplied with that evidence or
+re-discovered from a payload containing the referenced cluster's `imageVersion` before readiness
+can be complete.
+
 Each canonical object carries `discovered_from` as acquisition evidence. Imported canonical JSON
 defaults to `inventory`; the live BigQuery provider stamps `bigquery_api`; and external GCP payloads
 normalized for offline assessment stamp `external_payload`. Assessment preserves this value in each
@@ -34,9 +83,26 @@ external source IDs and dependency cycles.
 `manual_review_reasons` to make the review actionable. The supported codes are
 `external_dependency`, `incompatible_mapping`, `streaming_downstream_review`,
 `incomplete_external_adapter`, `depends_on_incomplete_external_adapter`, `sql_incompatibility`,
-and `cycle_or_unresolved_dependency`. The report renderer exposes these values in
+`incomplete_dataform_compilation`, `depends_on_incomplete_dataform_compilation`, and
+`cycle_or_unresolved_dependency`. The report renderer exposes these values in
 `migration-plan.md`; the generated target manifest exposes them as `manualReview` and
 `manualReviewReasons`. These are dry-run planning fields and do not alter cloud behavior.
+
+For each successfully fetched Dataform compilation result, discovery aggregates `models`,
+`assertions`, and `incremental` into the canonical repository and workflow records. `models` is a
+sorted list of compiled table/view target names; `assertions` and `incremental` are booleans
+derived from compiled targets and edges. `models: []`, `assertions: false`, and
+`incremental: false` are known evidence, rather than incomplete discovery.
+
+If a Dataform compilation-result detail request fails, discovery instead emits a deterministic
+`dataform_workflow` fallback with `discovered_from: dataform_api`, `discovery_incomplete: true`,
+and `lineage_status: unavailable`, preserving incomplete discovery evidence rather than silently
+dropping lineage. Assessment emits `FAIL` `DATAFORM_COMPILATION_DETAILS_UNAVAILABLE`; planning
+marks the fallback `incomplete_dataform_compilation` and its downstream objects
+`depends_on_incomplete_dataform_compilation`. Re-run discovery after API or access recovery to
+obtain the actual compilation graph. The successful and failed-result paths were validated with
+`python -m pytest tests/test_discovery.py tests/test_assessment.py tests/test_dataform_conversion.py
+-v` (`56 passed`).
 
 The report renderer also carries assessment findings into `migration-plan.md`. The generated
 Markdown report includes a `Findings` section with each finding's severity, code, category, source,

@@ -53,6 +53,27 @@ class SemanticModelGenerator:
             "sourceKind": item.kind.value,
         }
 
+        if not item.columns:
+            warnings.append(
+                "REDESIGN: Semantic model generation requires source columns; no model definition was emitted."
+            )
+            model.update({
+                "deployable": False,
+                "validationStatus": "pending_source_schema",
+                "warnings": [
+                    "TODO: MANUAL REVIEW - Discover source columns and regenerate this dry-run artifact."
+                ],
+            })
+            return SemanticModelDefinition(
+                name=f"semantic_model_{item.name}",
+                description=f"Generated from {item.kind.value} {item.source_id}",
+                source_id=item.source_id,
+                source_kind=item.kind,
+                model=model,
+                warnings=tuple(warnings),
+                valid=False,
+            )
+
         # Define tables
         model["tables"] = self._build_tables(item, decision, warnings)
 

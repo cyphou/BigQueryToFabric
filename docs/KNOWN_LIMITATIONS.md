@@ -24,6 +24,13 @@
   `SECURITY_EFFECTIVE_ACCESS_REVIEW`; discovery does not query IAM APIs or prove those effective
   permissions.
 - Generated Fabric artifacts are skeletons and are not production deployment payloads.
+- Credential redaction is implemented and tested for persisted SQL and Spark conversion source and
+  target text, and Spark warnings avoid raw embedded credential paths. Discovery also classifies
+  `service_account` and `serviceaccount` keys as sensitive, redacting `service_account_path`
+  before canonical inventory persistence; `python -m pytest tests/test_discovery.py
+  tests/test_security.py -v` validates this behavior (42 passed). Other generated artifacts and
+  path-bearing fields do not yet have broader secret-scan coverage; they require explicit review
+  and focused tests before equivalent protection can be claimed.
 - GoogleSQL is parsed and classified with a SQL AST; generated translations remain review-only.
 - BQML, JavaScript UDFs, dynamic SQL, and complex scripts require redesign.
 - Discovery does not extract project or organization IAM bindings, connection IAM policies,

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, ClassVar
 
 from .models import SparkOperation, SparkPattern
 
@@ -23,7 +23,7 @@ class ScalaPatternMatcher:
         r'\.write\.format\(["\']([^"\']+)["\']\)',  # format() call
     )
 
-    DATAFRAME_PATTERNS = {
+    DATAFRAME_PATTERNS: ClassVar[dict[str, SparkOperation]] = {
         # Transformations
         r'\.select\(': SparkOperation.TRANSFORMATION,
         r'\.filter\(': SparkOperation.TRANSFORMATION,

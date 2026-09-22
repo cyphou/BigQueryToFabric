@@ -214,7 +214,7 @@ class NotebookGenerator:
             f"# Destination table: {item.name}\n",
             "\n",
             f"output_table_name = '{item.name}'\n",
-            "output_path = f'abfss://{lakehouse_id}@onelake.dfs.fabric.microsoft.com/Files/{output_table_name}'\n",
+            "output_path = OUTPUT_PATH\n",
             "\n",
             "df_transformed.write\\\n",
             "    .format('delta')\\\n",

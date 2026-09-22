@@ -2,8 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any, cast
 
 import sqlglot
@@ -36,6 +35,41 @@ class MultiStatementConversionResult:
     def compatibility_level(self) -> CompatibilityLevel:
         """Provide the legacy compatibility attribute for converter callers."""
         return self.compatibility
+
+    @property
+    def source_id(self) -> str:
+        """Provide a stable aggregate source identifier for legacy callers."""
+        return self.statements[0].source_id if self.statements else "multi_statement"
+
+    @property
+    def source_text(self) -> str:
+        """Return the complete source script in statement order."""
+        return ";\n".join(statement.source_text for statement in self.statements)
+
+    @property
+    def target_text(self) -> str:
+        """Return converted target statements in source order."""
+        return ";\n".join(statement.target_text for statement in self.statements)
+
+    @property
+    def target_dialect(self) -> TargetDialect:
+        """Return the common target dialect used for all statements."""
+        return self.statements[0].target_dialect if self.statements else TargetDialect.TSQL
+
+    @property
+    def detected_patterns(self) -> tuple[str, ...]:
+        """Return the distinct patterns detected across all statements."""
+        return tuple(
+            dict.fromkeys(
+                pattern
+                for statement in self.statements
+                for pattern in statement.detected_patterns
+            )
+        )
+
+    def is_production_ready(self) -> bool:
+        """Return whether every statement can proceed without redesign."""
+        return self.compatibility in {CompatibilityLevel.DIRECT, CompatibilityLevel.TRANSFORM}
 
     def to_dict(self) -> dict[str, Any]:
         """Serialize the aggregate result for artifact output."""

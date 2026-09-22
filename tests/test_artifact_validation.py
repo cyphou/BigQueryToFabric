@@ -25,3 +25,34 @@ def test_validate_artifact_rejects_invalid_notebook(tmp_path: Path) -> None:
 
     assert result["status"] == "failed"
     assert result["errors"]
+
+
+def test_kql_validator_rejects_invalid_syntax() -> None:
+    """Invalid KQL must be deployment-blocking rather than emitted as executable code."""
+    from bqtofabric.artifact_validation import KqlValidator
+
+    result = KqlValidator("SELECT FROM WHERE").validate()
+
+    assert result.valid is False
+    assert any("syntax" in error.lower() for error in result.errors)
+
+
+def test_pipeline_validator_rejects_undefined_predecessor() -> None:
+    """Activities may only depend on activities declared in the same pipeline."""
+    from bqtofabric.artifact_validation import PipelineValidator
+
+    pipeline = {
+        "properties": {
+            "activities": [
+                {
+                    "name": "Main Activity",
+                    "dependsOn": [{"activity": "Undefined", "dependencyConditions": ["Succeeded"]}],
+                }
+            ]
+        }
+    }
+
+    result = PipelineValidator(pipeline).validate()
+
+    assert result.valid is False
+    assert any("Undefined" in error for error in result.errors)

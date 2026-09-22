@@ -28,11 +28,15 @@ class DataprocInventoryProvider:
     def load(self, regions: Sequence[str]) -> tuple[BigQueryObject, ...]:
         components: list[BigQueryObject] = []
         for region in regions:
+            clusters = list(self.client.list_clusters(region))
+            cluster_runtime_versions = {
+                str(cluster.get("clusterName", "")): _cluster_runtime_version(cluster)
+                for cluster in clusters
+            }
+            components.extend(self._map_cluster(region, resource) for resource in clusters)
             components.extend(
-                self._map_cluster(region, resource) for resource in self.client.list_clusters(region)
-            )
-            components.extend(
-                self._map_job(region, resource) for resource in self.client.list_jobs(region)
+                self._map_job(region, resource, cluster_runtime_versions)
+                for resource in self.client.list_jobs(region)
             )
         return tuple(sorted(components, key=lambda item: item.source_id))
 
@@ -87,7 +91,12 @@ class DataprocInventoryProvider:
             properties=redact_mapping(properties),
         )
 
-    def _map_job(self, region: str, resource: dict[str, Any]) -> BigQueryObject:
+    def _map_job(
+        self,
+        region: str,
+        resource: dict[str, Any],
+        cluster_runtime_versions: dict[str, str],
+    ) -> BigQueryObject:
         """Map a Dataproc job to a canonical object."""
         reference = resource.get("reference", {})
         job_id = str(reference.get("jobId", ""))
@@ -136,6 +145,7 @@ class DataprocInventoryProvider:
 
         properties["job_type"] = job_type
         properties["runtime"] = runtime
+        properties["language"] = _job_language(job_type)
 
         # Classify workload type based on job type and context
         workload_type = _classify_dataproc_workload(job_type, resource)
@@ -145,6 +155,9 @@ class DataprocInventoryProvider:
         placement = resource.get("placement", {})
         if placement:
             properties["cluster_name"] = placement.get("clusterName", "")
+        properties["runtime_version"] = cluster_runtime_versions.get(
+            properties.get("cluster_name", ""), "unknown"
+        )
 
         # Extract status
         status = resource.get("status", {})
@@ -187,6 +200,25 @@ def _classify_dataproc_workload(job_type: str, resource: dict[str, Any]) -> str:
         return "data_engineering"
 
     return "unknown"
+
+
+def _cluster_runtime_version(resource: dict[str, Any]) -> str:
+    """Read Dataproc image version when the API payload includes it."""
+    config = resource.get("config", {})
+    return str(config.get("softwareConfig", {}).get("imageVersion", "unknown"))
+
+
+def _job_language(job_type: str) -> str:
+    """Map Dataproc job types to canonical source-language evidence."""
+    language_by_job_type = {
+        "pyspark": "python",
+        "spark_sql": "sql",
+        "spark": "unknown",
+        "hadoop": "unknown",
+        "hive": "sql",
+        "pig": "pig",
+    }
+    return language_by_job_type.get(job_type, "unknown")
 
 
 class RestDataprocClient:

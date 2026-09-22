@@ -37,7 +37,7 @@ class StoragePathMapper:
     @staticmethod
     def is_s3_path(path: str) -> bool:
         """Check if path is S3 (s3:// or s3a://)."""
-        return path.startswith('s3://') or path.startswith('s3a://')
+        return path.startswith(("s3://", "s3a://"))
 
     @staticmethod
     def extract_bucket_and_key(path: str) -> tuple[str, str]:

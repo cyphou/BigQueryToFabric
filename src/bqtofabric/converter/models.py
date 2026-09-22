@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+import json
+from dataclasses import asdict, dataclass, field
 from enum import StrEnum
 from typing import Any
 
@@ -66,6 +67,30 @@ class SqlConversion:
         """Check if conversion output can be deployed without manual review."""
         return self.compatibility_level in {CompatibilityLevel.DIRECT, CompatibilityLevel.TRANSFORM}
 
+    def to_json(self) -> str:
+        """Serialize to JSON with sensitive data redacted."""
+        # Import here to avoid circular imports
+        from bqtofabric.security import CredentialScanner
+
+        scanner = CredentialScanner()
+        data = asdict(self)
+
+        # Redact sensitive fields
+        if data.get("source_text"):
+            data["source_text"] = scanner.redact(data["source_text"])
+        if data.get("target_text"):
+            data["target_text"] = scanner.redact(data["target_text"])
+
+        # Convert enums to strings for JSON serialization
+        if "target_dialect" in data:
+            data["target_dialect"] = str(data["target_dialect"])
+        if "compatibility_level" in data:
+            data["compatibility_level"] = str(data["compatibility_level"])
+        if "source_dialect" in data:
+            data["source_dialect"] = str(data["source_dialect"])
+
+        return json.dumps(data, default=str)
+
 
 @dataclass(frozen=True, slots=True)
 class RoutingDecision:
@@ -127,11 +152,11 @@ class SparkConversion:
     source_dialect: str = "spark"
     warnings: tuple[ConversionWarning, ...] = ()
     manual_steps: tuple[ManualStep, ...] = ()
-    rationale: str = ""  # Why this conversion approach was chosen.
+    rationale: str = ""  # Why this Spark conversion approach was chosen.
     detected_patterns: tuple[SparkPattern, ...] = ()
     extracted_sql: tuple[str, ...] = ()  # SQL strings found in spark.sql() calls.
     storage_paths: tuple[str, ...] = ()  # GCS/HDFS/WASB paths detected.
-    storage_mapping: dict[str, str] = field(default_factory=dict)  # Original path → OneLake mapping.
+    storage_mapping: dict[str, Any] = field(default_factory=dict)  # Original path → OneLake mapping.
     edge_cases: tuple[str, ...] = ()  # Known edge cases.
     performance_notes: tuple[str, ...] = ()  # Performance considerations.
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -139,3 +164,33 @@ class SparkConversion:
     def is_production_ready(self) -> bool:
         """Check if conversion output can be deployed without manual review."""
         return self.compatibility_level in {CompatibilityLevel.DIRECT, CompatibilityLevel.TRANSFORM}
+
+
+@dataclass(frozen=True, slots=True)
+class AssessmentFinding:
+    """A single finding from a readiness or migration assessment."""
+
+    finding_id: str  # Unique identifier (e.g., "find_001").
+    title: str  # Human-readable title.
+    description: str  # Detailed description.
+    category: str  # e.g., "schema", "performance", "security", "compatibility", "cost".
+    severity: str  # "low", "medium", "high", "critical".
+    recommendation: str  # Recommended remediation or next step.
+    affected_items: tuple[str, ...] = ()  # BigQuery objects, Spark operations, etc.
+    evidence: str = ""  # Specific example or log snippet.
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class MigrationPlan:
+    """High-level migration strategy and dependency order."""
+
+    plan_id: str  # Unique plan identifier.
+    source_platform: str  # e.g., "bigquery", "hdinsight", "synapse".
+    target_platform: str  # e.g., "fabric", "azure_sql".
+    workload_type: str  # e.g., "analytics", "etl", "streaming", "ml".
+    estimated_effort: str  # "low", "medium", "high", "critical".
+    risk_level: str  # "low", "medium", "high", "critical".
+    phases: tuple[str, ...] = ()  # Migration phases (e.g., "assess", "design", "pilot", "cutover").
+    recommendations: tuple[str, ...] = ()  # Strategic recommendations.
+    metadata: dict[str, Any] = field(default_factory=dict)

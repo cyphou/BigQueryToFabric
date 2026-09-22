@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter
 from collections.abc import Iterator
 from dataclasses import dataclass
+from typing import cast
 
 from .mapping import MappingDecision, map_component
 from .models import BigQueryInventory, BigQueryObject, Column, ObjectKind
@@ -108,6 +109,15 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
                 "SECURITY_EFFECTIVE_ACCESS_REVIEW",
                 "security",
             ))
+        if item.properties.get("discovery_incomplete") is True:
+            findings.append(AssessmentFinding(
+                "FAIL",
+                item.source_id,
+                "Dataform compilation details could not be read; dependency lineage and "
+                "transformation evidence require manual review.",
+                "DATAFORM_COMPILATION_DETAILS_UNAVAILABLE",
+                "adapter",
+            ))
         required = _required_evidence(item.kind)
         missing = _missing_evidence(item)
         present = tuple(field_name for field_name in required if field_name not in missing)
@@ -186,7 +196,10 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         sql_assessments,
         tuple(findings),
         dict(sorted(evidence_summary.items())),
-        round(sum(item["coverage"] for item in evidence_summary.values()) / len(evidence_summary))
+        round(
+            sum(cast(int, item["coverage"]) for item in evidence_summary.values())
+            / len(evidence_summary)
+        )
         if evidence_summary else 100,
         dict(sorted(parity_summary.items())),
         discovery_coverage,
@@ -224,7 +237,11 @@ def _missing_evidence(item: BigQueryObject) -> tuple[str, ...]:
     return tuple(
         field_name
         for field_name in _required_evidence(item.kind)
-        if not _has_evidence(item.properties.get(field_name))
+        if not _has_evidence(
+            item.properties.get(field_name),
+            allow_empty=field_name in {"connections", "models"},
+            allow_false=field_name in {"assertions", "incremental"},
+        )
     )
 
 
@@ -245,9 +262,13 @@ def _required_evidence(kind: ObjectKind) -> tuple[str, ...]:
     return required.get(kind, ())
 
 
-def _has_evidence(value: object) -> bool:
-    if value is None or value is False:
+def _has_evidence(
+    value: object, *, allow_empty: bool = False, allow_false: bool = False
+) -> bool:
+    if value is None or (value is False and not allow_false):
+        return False
+    if isinstance(value, str) and value.strip().lower() in {"", "unknown", "not specified"}:
         return False
     if isinstance(value, (str, bytes, list, tuple, dict, set)):
-        return bool(value)
+        return allow_empty or bool(value)
     return True

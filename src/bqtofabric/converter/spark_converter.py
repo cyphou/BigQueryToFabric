@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from ..models import BigQueryObject, ObjectKind
+from ..security import CredentialScanner
 from .models import (
     CompatibilityLevel,
     ConversionWarning,
@@ -25,6 +26,11 @@ class SparkConverter:
     def __init__(self) -> None:
         """Initialize Spark converter with SQL converter."""
         self.sql_converter = SqlConverter()
+        self.credential_scanner = CredentialScanner()
+
+    def _redact(self, value: str) -> str:
+        """Remove credentials before they enter a conversion record."""
+        return self.credential_scanner.redact(value)
 
     def convert(
         self,
@@ -65,7 +71,7 @@ class SparkConverter:
             return SparkConversion(
                 source_id=source_id,
                 language=language,
-                source_text=code,
+                source_text=self._redact(code),
                 compatibility_level=CompatibilityLevel.UNSUPPORTED,
                 warnings=(
                     ConversionWarning(
@@ -127,12 +133,12 @@ class SparkConverter:
         # Check for embedded credentials
         credentials_found = []
         for path in storage_paths:
-            has_creds, reason = StoragePathMapper.check_embedded_credentials(path)
+            has_creds, _ = StoragePathMapper.check_embedded_credentials(path)
             if has_creds:
                 credentials_found.append(path)
                 warnings.append(
                     ConversionWarning(
-                        message=f"Security issue: Credentials embedded in path: {path}",
+                        message="Security issue: Credentials embedded in a storage path.",
                         category="security",
                         severity="error",
                     )
@@ -205,9 +211,9 @@ class SparkConverter:
         return SparkConversion(
             source_id=source_id,
             language=SparkCodeLanguage.PYSPARK,
-            source_text=code,
+            source_text=self._redact(code),
             target_language="pyspark_notebook",
-            target_text=code,  # No transformation for now; code is portable.
+            target_text=self._redact(code),  # No transformation for now; code is portable.
             compatibility_level=compat_level,
             warnings=tuple(warnings),
             manual_steps=tuple(manual_steps),
@@ -281,12 +287,12 @@ class SparkConverter:
         # Check for embedded credentials
         credentials_found = []
         for path in storage_paths:
-            has_creds, reason = StoragePathMapper.check_embedded_credentials(path)
+            has_creds, _ = StoragePathMapper.check_embedded_credentials(path)
             if has_creds:
                 credentials_found.append(path)
                 warnings.append(
                     ConversionWarning(
-                        message=f"Security issue: Credentials embedded in path: {path}",
+                        message="Security issue: Credentials embedded in a storage path.",
                         category="security",
                         severity="error",
                     )
@@ -331,7 +337,7 @@ class SparkConverter:
         return SparkConversion(
             source_id=source_id,
             language=SparkCodeLanguage.SCALA,
-            source_text=code,
+            source_text=self._redact(code),
             target_language="python",
             target_text="",  # No auto-conversion; manual porting required.
             compatibility_level=compat_level,

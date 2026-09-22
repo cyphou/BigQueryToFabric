@@ -34,6 +34,19 @@
 - Treat policy tags, row access policies, authorized views, and cross-project access as migration
   blockers until target permissions and RLS are validated.
 - Generated output must contain logical references, never secret values.
+- Expected behavior for persisted SQL and Spark conversion records: source and target text must not
+  retain credentials or service-account key-file paths. `CredentialScanner` redacts SQL conversion
+  source and target text during serialization and Spark conversion source and target text when the
+  record is created. Spark warnings for embedded credential paths use a fixed security message and
+  do not include the detected raw path.
+- This credential-hygiene behavior is validated by `pytest tests/test_security.py
+  tests/test_spark_converter.py -v` (66 passed).
+- Discovery classifies `service_account` and `serviceaccount` keys as sensitive and redacts a
+  corresponding `service_account_path` before canonical inventory persistence. This behavior is
+  validated by `python -m pytest tests/test_discovery.py tests/test_security.py -v` (42 passed).
+- Broader secret-scan coverage remains open: other generated artifacts and path-bearing fields
+  require explicit review and test coverage before they can be considered protected by a
+  credential-redaction behavior.
 - `manual_review_reasons` make known assessment constraints explicit in dry-run output. They do
   not prove remediation, parity, effective access, or deployment readiness.
 - Generated `Findings` are review evidence for migration planning. They do not prove remediation,

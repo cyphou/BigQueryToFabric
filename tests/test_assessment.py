@@ -129,6 +129,23 @@ def test_assessment_accepts_complete_family_evidence() -> None:
     assert report.evidence_coverage == 100
 
 
+def test_assessment_does_not_treat_unknown_runtime_as_evidence() -> None:
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "dataproc-unknown-runtime",
+        "components": [{
+            "source_id": "dataproc-unknown-runtime.job",
+            "name": "job",
+            "kind": "dataproc_job",
+            "properties": {"language": "python", "runtime_version": "unknown"},
+        }],
+    })
+
+    report = run_assessment(inventory)
+    evidence = report.evidence_summary["dataproc-unknown-runtime.job"]
+
+    assert evidence["missing"] == ["runtime_version"]
+
+
 def test_parity_evidence_is_assessed_without_cloud_execution() -> None:
     inventory = type(JsonInventoryProvider(FIXTURE).load()).from_dict({
         "project_id": "parity",
@@ -282,3 +299,76 @@ def test_incomplete_external_spark_adapter_requires_transitive_review() -> None:
         "depends_on_incomplete_external_adapter",
     )
     assert plan.unresolved_dependencies == ()
+
+
+def test_incomplete_dataform_compilation_requires_transitive_review() -> None:
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "dataform-compilation-chain",
+        "components": [
+            {
+                "source_id": "dataform-compilation-chain.compilation.result-001",
+                "name": "result-001",
+                "kind": "dataform_workflow",
+                "discovered_from": "dataform_api",
+                "properties": {"discovery_incomplete": True, "lineage_status": "unavailable"},
+            },
+            {
+                "source_id": "dataform-compilation-chain.reporting",
+                "name": "reporting",
+                "kind": "view",
+                "dependencies": ["dataform-compilation-chain.compilation.result-001"],
+            },
+        ],
+    })
+
+    report = run_assessment(inventory)
+    plan = build_plan(inventory, report)
+    plan_items = {item.source_id: item for item in plan.items}
+
+    assert any(
+        finding.code == "DATAFORM_COMPILATION_DETAILS_UNAVAILABLE"
+        and finding.source_id == "dataform-compilation-chain.compilation.result-001"
+        for finding in report.findings
+    )
+    assert plan_items["dataform-compilation-chain.compilation.result-001"].manual_review_reasons == (
+        "incomplete_dataform_compilation",
+    )
+    assert plan_items["dataform-compilation-chain.reporting"].manual_review_reasons == (
+        "depends_on_incomplete_dataform_compilation",
+    )
+
+
+def test_composer_empty_connection_inventory_is_complete_evidence() -> None:
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "composer-evidence",
+        "components": [{
+            "source_id": "composer-evidence.daily",
+            "name": "daily",
+            "kind": "composer_dag",
+            "properties": {
+                "operators": ["BigQueryOperator"],
+                "runtime_version": "2.5.0",
+                "connections": [],
+            },
+        }],
+    })
+
+    report = run_assessment(inventory)
+
+    assert report.evidence_summary["composer-evidence.daily"]["missing"] == []
+
+
+def test_dataform_false_capabilities_are_complete_evidence() -> None:
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "dataform-evidence",
+        "components": [{
+            "source_id": "dataform-evidence.workflow",
+            "name": "workflow",
+            "kind": "dataform_workflow",
+            "properties": {"models": [], "assertions": False, "incremental": False},
+        }],
+    })
+
+    report = run_assessment(inventory)
+
+    assert report.evidence_summary["dataform-evidence.workflow"]["missing"] == []

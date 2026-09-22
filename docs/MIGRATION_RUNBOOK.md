@@ -8,6 +8,8 @@ package. It does not call GCP or Fabric:
 ```powershell
 python -m pip install -e ".[dev]"
 python -m pytest
+python -m pyright
+python -m ruff check src tests
 
 $fixture = "tests/fixtures/gcp_ecosystem_project.json"
 $output = "artifacts/assessment-smoke"
@@ -31,6 +33,10 @@ Review `migration-plan.md`, including its `Assessment summary` and `Findings` se
 issue is resolved or explicitly accepted. `WARN` findings require documented design or manual
 review. Discovery exit code `3` means the required read-only ADC, API, or metadata visibility could
 not be established; it does not indicate a deployment failure or success.
+
+`python -m pyright` and `python -m ruff check src tests` are local static-quality gates. Their
+success validates Python typing and lint checks only; it does not validate generated artifacts
+against official Fabric schemas or APIs, establish runtime parity, or authorize deployment.
 
 ## Assess a live GCP project
 
@@ -86,7 +92,7 @@ redacts credential-like metadata, and does not print provider response bodies.
 | Dataflow regional jobs | Yes, only for explicitly requested `--dataflow-region` values | No | Security-administrator-validated, read-only Dataflow job visibility for each requested region; use least-privilege viewer guidance rather than broad administrative access | Live identity, state, type, labels, timestamps, and present environment/pipeline metadata; missing compatibility evidence remains a finding |
 | Composer | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Dataproc | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Dataform | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Dataform compilation results | Partial | No | Read-only Dataform compilation-result visibility; validate the least-privilege role with the security administrator | Successful details aggregate models/assertions/incremental evidence; a detail-request failure emits an incomplete fallback workflow and requires manual review |
 | Workflows | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Pub/Sub | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Cloud Storage (GCS) | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
@@ -126,6 +132,67 @@ For live Dataflow jobs, `properties.streaming` reflects the payload `type`. The 
 `portable` and `connector_compatible` only when those fields are explicitly present; absent
 evidence remains visible to assessment and is never inferred.
 
+For each successfully fetched Dataform compilation result, discovery aggregates `models`,
+`assertions`, and `incremental` evidence on the canonical repository and workflow records. `models`
+is the sorted list of compiled table/view target names; `assertions` and `incremental` are booleans
+derived from compiled targets and edges. `models: []`, `assertions: false`, and
+`incremental: false` are known evidence, so they do not block assessment.
+
+When a Dataform compilation-result detail request fails, discovery instead emits a deterministic
+`dataform_workflow` fallback rather than silently dropping the workflow's lineage. It is marked
+`discovered_from: dataform_api`, `discovery_incomplete: true`, and `lineage_status: unavailable`.
+Assessment emits `FAIL` `DATAFORM_COMPILATION_DETAILS_UNAVAILABLE`, which blocks reliance on the
+affected assessment. The planner marks the fallback with `incomplete_dataform_compilation` and each
+downstream object with `depends_on_incomplete_dataform_compilation`. Re-run discovery after Dataform
+API or access recovery to obtain the actual compilation graph; the fallback is not evidence of the
+graph's completeness. This behavior was validated with `python -m pytest tests/test_discovery.py
+tests/test_assessment.py tests/test_dataform_conversion.py -v` (`56 passed`).
+
+### Composer schedule review
+
+Composer remains an offline normalized input; its live adapter is not implemented. Normalization
+writes `properties.schedule_interval` as the canonical schedule field and retains
+`properties.schedule` for compatibility. Generated pipelines read `schedule_interval` first and
+fall back to `schedule`, preserving `@daily`, `@hourly`, and `@weekly` trigger mapping for legacy
+inventories.
+
+Raw cron expressions are not automatically mapped. They remain review-required until the source
+cron, timezone, start-date, catchup, retries, and equivalent Fabric trigger semantics are reviewed.
+This limitation does not imply trigger execution or schedule parity. The behavior was validated by
+`python -m pytest tests/test_discovery.py tests/test_artifact_generation.py -v` (`79 passed`).
+
+### Composer adapter-evidence review
+
+For each normalized Composer DAG, `properties.runtime_version` uses the Composer image version when
+present, then a sanitized environment-version label, then `unknown`. `properties.connections`
+contains only declared task connection names found in `conn_id`, `connection_id`, `gcp_conn_id`, or
+`google_cloud_conn_id`. No connection configuration, secret, or credential data is serialized.
+
+An explicit `connections: []` is complete evidence that no task declared a connection, while a
+missing `connections` field remains incomplete evidence during assessment. In either case, inspect
+connection configuration, secret bindings, and effective runtime access manually before accepting a
+migration recommendation.
+
+This behavior was validated with `python -m pytest tests/test_discovery.py tests/test_assessment.py
+-v` (`53 passed`). Composer remains offline normalization and assessment input; this contract does
+not add a live Composer adapter or establish runtime access parity.
+
+### Dataproc adapter-evidence review
+
+Dataproc job normalization writes canonical `properties.language`: PySpark maps to `python`, Spark
+SQL and Hive map to `sql`, and Pig maps to `pig`. Unsupported or ambiguous job types map to
+`unknown`; the existing `properties.runtime` job classification remains unchanged.
+
+`properties.runtime_version` is inherited from the referenced cluster's
+`config.softwareConfig.imageVersion` when present, otherwise `unknown`. Assessment treats
+`unknown` and `not specified` as missing evidence, not as complete readiness evidence. Supply the
+runtime version or re-discover from a payload whose referenced cluster contains `imageVersion`
+before accepting readiness as complete.
+
+This behavior was validated with `python -m pytest tests/test_discovery.py tests/test_assessment.py
+-v` (`54 passed`). This evidence contract does not add a live Dataproc adapter or establish runtime
+execution or parity.
+
 ### Incomplete external payloads
 
 An `external_payload` component without required offline evidence receives exactly one assessment
@@ -144,7 +211,8 @@ workflow stays offline and does not call external GCP services or add live adapt
 deterministic `manual_review_reasons` list so reviewers can identify why action is needed. Review
 the following codes before approving a migration wave: `external_dependency`,
 `incompatible_mapping`, `streaming_downstream_review`, `incomplete_external_adapter`,
-`depends_on_incomplete_external_adapter`, `sql_incompatibility`, and
+`depends_on_incomplete_external_adapter`, `incomplete_dataform_compilation`,
+`depends_on_incomplete_dataform_compilation`, `sql_incompatibility`, and
 `cycle_or_unresolved_dependency`.
 
 `migration-plan.md` renders the decision flag and codes. The generated
@@ -206,6 +274,35 @@ or distinct row access policies.
 3. Generate the migration plan, review its `Assessment summary` and `Findings` sections, verify dependency waves and
     `stageReadiness`, and resolve or explicitly accept every `manual_review_reasons` code.
 4. Generate dry-run Fabric artifacts and review SQL, notebooks, pipelines, identities, and names.
+    Generated Warehouse SQL never emits `DROP TABLE` or `DROP VIEW`: table and scheduled-query
+    targets are created only when absent and preserve existing objects; views use a guarded dynamic
+    create-only-when-absent statement and preserve existing definitions. This behavior was validated
+    by `python -m pytest tests/test_artifact_generation.py -v` with `40 passed`. An Eventhouse
+    schema with no source columns is marked invalid: its artifact contains review comments and a
+    `REDESIGN` warning only, with no KQL create, ingestion-mapping, or materialized-view statements;
+    the artifact manifest records `valid: false`. Normal Eventhouse schema generation is unchanged.
+    Generated Eventstream output is likewise a non-deployable review scaffold: it sets
+    `deployable: false` and artifact `valid: false`, and its source node uses
+    `connectionReference: review_required` rather than an invented `connectionId`. It includes
+    authoring TODOs and the artifact manifest propagates `valid: false`. This behavior was
+    validated by `python -m pytest tests/test_artifact_generation.py -v` with `40 passed`.
+    For a table, view, or materialized view with no discovered columns, semantic-model generation
+    instead returns an invalid review-only scaffold: `valid: false`, `deployable: false`, and
+    `validationStatus: pending_source_schema`, with no tables, measures, relationships, or
+    connection placeholders. It emits a `REDESIGN` warning requiring source-schema discovery and
+    regeneration; normal schema-backed output is unchanged. This behavior was validated by
+    `python -m pytest tests/test_artifact_generation.py -v` with `42 passed`.
+    These structural dry-run guards are not official Fabric validation or deployment; author the
+    Eventstream against the official Fabric API/schema and supply approved connections before
+    deployment. Regenerated semantic models still require official Fabric semantic-model
+    schema/API validation. All generated output requires validation and an explicit deployment
+    workflow before it can be treated as deployable. Artifact generation processes each category
+    in sorted source-ID order, serializes JSON artifacts, manifests, and notebooks with sorted
+    keys, and aggregates warnings in source-ID order. Equivalent inventories therefore produce
+    identical artifact paths and bytes even when input component order differs. This behavior was
+    validated by `python -m pytest tests/test_artifact_generation.py -v` with `42 passed`.
+    Distinct source IDs that produce the same generated filename remain an open collision-handling
+    case.
 5. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
 6. Use the native Fabric BigQuery connector for Dataflow Gen2, Pipeline Copy/Lookup, or Copy Job.
 7. Pilot one representative dataset before scaling by migration wave.

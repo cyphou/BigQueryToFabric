@@ -7,7 +7,7 @@ import json
 from collections import Counter
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from .airflow_compatibility import assess_airflow_compatibility
 from .artifact_validation import validate_directory
@@ -169,7 +169,8 @@ def write_reports(
         "|---|---:|---|",
     ])
     for source_id, evidence in assessment.evidence_summary.items():
-        missing = ", ".join(evidence["missing"]) or "-"
+        missing_values = cast(list[str], evidence["missing"])
+        missing = ", ".join(missing_values) or "-"
         lines.append(f"| `{source_id}` | {evidence['coverage']}% | {missing} |")
     lines.extend([
         "",
@@ -246,7 +247,7 @@ def _write_fabric_artifacts(
                         artifact_path = root / artifact["path"]
                         if artifact_path.exists():
                             written.append(artifact_path)
-    except Exception as error:
+    except (KeyError, OSError, TypeError, ValueError) as error:
         # Fall back to legacy minimal artifacts if generation fails
         print(f"Warning: Artifact generation failed: {error}")
 

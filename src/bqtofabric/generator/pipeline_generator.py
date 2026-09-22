@@ -101,6 +101,8 @@ class PipelineGenerator:
         elif item.kind is ObjectKind.DATAFORM_WORKFLOW:
             activities.append(self._build_notebook_activity(item, warnings))
 
+        main_activity_name = activities[-1]["name"]
+
         # Add error handling activity
         activities.append({
             "name": "Handle Error",
@@ -113,8 +115,8 @@ class PipelineGenerator:
                 "timeout": "00:10:00",
             },
             "onInactivityTimeout": "00:05:00",
-            "policy": {"secureInput": False, "secureOutput": False},
-            "dependsOn": [{"activity": "Main Activity", "dependencyConditions": ["Failed"]}],
+            "policy": {"secureInput": True, "secureOutput": True},
+            "dependsOn": [{"activity": main_activity_name, "dependencyConditions": ["Failed"]}],
         })
 
         # Add update watermark activity
@@ -130,7 +132,7 @@ class PipelineGenerator:
             },
             "linkedServiceName": {"referenceName": "AzureSqlLinkedService", "type": "LinkedServiceReference"},
             "dependsOn": [
-                {"activity": "Main Activity", "dependencyConditions": ["Succeeded"]},
+                {"activity": main_activity_name, "dependencyConditions": ["Succeeded"]},
             ],
         })
 
@@ -268,7 +270,7 @@ class PipelineGenerator:
         """Build triggers from schedule information."""
         triggers: list[dict[str, Any]] = []
 
-        schedule_interval = item.properties.get("schedule_interval")
+        schedule_interval = item.properties.get("schedule_interval", item.properties.get("schedule"))
         if schedule_interval:
             # Map Airflow schedule_interval to ADF trigger
             if schedule_interval == "@daily":

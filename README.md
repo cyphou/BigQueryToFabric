@@ -24,7 +24,7 @@
 | 🔍 **Discovery** | Read-only BigQuery metadata · credentials redacted by construction |
 | 🧭 **Assessment** | 25 GCP/BigQuery source types · normalized readiness score · explainable findings |
 | 🏗️ **Fabric routing** | 15 target roles · Lakehouse/Notebook preference · workload overrides |
-| 🧪 **Quality** | 81 tests passed · 93.2% coverage · Ruff and Pyright clean |
+| 🧪 **Quality** | 81 tests passed · 93.2% coverage · Ruff and Pyright clean (`python -m pyright`; `python -m ruff check src tests`) |
 | 🤖 **Agent model** | 10 specialist agents · exclusive ownership and documentation handoff validated |
 | 🔒 **Safety** | Deterministic output · no credentials · no cloud mutation |
 
@@ -84,6 +84,8 @@ This workflow is deterministic, offline, and uses the committed sanitized fixtur
 ```powershell
 python -m pip install -e ".[dev]"
 python -m pytest
+python -m pyright
+python -m ruff check src tests
 
 $fixture = "tests/fixtures/gcp_ecosystem_project.json"
 $output = "artifacts/assessment-smoke"
@@ -133,7 +135,13 @@ The live step reads BigQuery metadata and, only for explicitly supplied `--dataf
 regional Dataflow job metadata. It keeps all subsequent assessment, planning, generation, and
 readiness checks local and non-destructive. Dataflow job evidence remains conservative: `portable`
 and `connector_compatible` are absent unless supplied by the API payload, so assessment reports
-missing evidence rather than inferring compatibility. Composer, Dataproc, Dataform, Workflows,
+missing evidence rather than inferring compatibility. Dataproc payload normalization maps PySpark
+to `language: python`, Spark SQL/Hive to `language: sql`, and Pig to `language: pig`; unsupported
+or ambiguous types are `unknown`, while the existing `runtime` classification is retained.
+`runtime_version` comes from the referenced cluster's `config.softwareConfig.imageVersion` when
+present, otherwise `unknown`. Assessment treats `unknown` and `not specified` as missing evidence.
+Supply the runtime version or re-discover from a payload whose referenced cluster includes
+`imageVersion` before readiness can be complete. Composer, Dataproc, Dataform, Workflows,
 Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner remain offline payload
 normalization and assessment inputs only. Never place credentials, tokens, service-account keys,
 or tenant/workspace secrets in inventories or generated artifacts.
@@ -147,8 +155,9 @@ also contains deterministic `manual_review_reasons` so the review is actionable.
 values as `manualReview` and `manualReviewReasons`. The supported reason codes are
 `external_dependency`, `incompatible_mapping`, `streaming_downstream_review`,
 `incomplete_external_adapter`, `depends_on_incomplete_external_adapter`, `sql_incompatibility`,
-and `cycle_or_unresolved_dependency`. This is offline planning metadata only and makes no cloud
-calls or deployment changes.
+`incomplete_dataform_compilation`, `depends_on_incomplete_dataform_compilation`, and
+`cycle_or_unresolved_dependency`. This is offline planning metadata only and makes no cloud calls
+or deployment changes.
 
 ### Migration-plan findings
 
@@ -176,6 +185,46 @@ security remediation, or finding remediation.
 of component compatibility: `direct=100`, `transform=80`, `redesign=50`, and `unsupported=0`.
 It prioritizes migration review; it is not proof of execution, parity, security remediation, or
 deployment readiness.
+
+### Eventstream review scaffold
+
+Generated Eventstream output is intentionally non-deployable because it is not an official Fabric
+Eventstream definition. It sets `deployable: false` and artifact `valid: false`; its source node
+uses `connectionReference: review_required` rather than an invented `connectionId`, and it carries
+explicit authoring TODOs. The artifact manifest propagates `valid: false`.
+
+This contract was validated with `python -m pytest tests/test_artifact_generation.py -v` (`40
+passed`). Before deployment, author the Eventstream against the official Fabric API/schema and
+provide approved connections.
+
+### Semantic-model source-schema guard
+
+For a table, view, or materialized view with no discovered columns, semantic-model generation
+returns an invalid review-only scaffold instead of referencing a nonexistent first column. The
+scaffold has `valid: false`, `deployable: false`, and
+`validationStatus: pending_source_schema`; it contains no tables, measures, relationships, or
+connection placeholders. It emits a `REDESIGN` warning requiring source-schema discovery and
+regeneration. Schema-backed semantic-model generation is unchanged.
+
+This contract was validated with `python -m pytest tests/test_artifact_generation.py -v` (`42
+passed`). It remains a dry-run structural guard: validate the regenerated model against the
+official Fabric semantic-model schema/API before deployment.
+
+### Deterministic artifact packages
+
+Artifact generation writes every artifact category in sorted source-ID order. JSON artifacts,
+manifests, and notebooks use sorted object keys, and generated warnings are aggregated in
+source-ID order. Equivalent inventories therefore produce the same artifact paths and bytes even
+when their input component order differs.
+
+This behavior was validated with `python -m pytest tests/test_artifact_generation.py -v` (`42
+passed`) by generating equivalent inventories with reversed component order and comparing every
+artifact path and byte sequence across output directories. Each artifact filename now combines a
+filesystem-safe source ID with the first 12 hexadecimal characters of that source ID's SHA-256
+digest. Distinct source IDs therefore have distinct paths even when they normalize to the same
+safe text, and manifests record those generated paths. This collision protection was validated
+with `python -m pytest tests/test_artifact_generation.py -v` (`44 passed`). The generated package
+remains a dry-run review artifact, not proof of deployment readiness or Fabric-schema validity.
 ## Assess A Live GCP Project
 
 Live discovery is read-only BigQuery metadata discovery. It creates a local canonical inventory;
@@ -235,6 +284,23 @@ live BigQuery discovery records `bigquery_api`, Dataflow discovery records `data
 normalized external GCP payloads record `external_payload`. Assessment includes the per-object value
 in `evidence_summary` and deterministic counts by source in `discovery_coverage`. This distinguishes
 API results from supplied associated-service inventory; it does not establish inventory freshness.
+
+For each successfully fetched Dataform compilation result, discovery aggregates canonical
+`models`, `assertions`, and `incremental` evidence onto that repository and each of its workflow
+records. `models` is the sorted set of compiled table/view target names; `assertions` and
+`incremental` are booleans derived from compiled targets and edges. An explicit empty `models: []`
+and explicit `assertions: false` or `incremental: false` are complete evidence that the applicable
+targets or edges were absent, not incomplete discovery.
+
+Only a failed Dataform compilation-result detail request emits the deterministic
+`dataform_workflow` fallback component with `discovered_from: dataform_api`,
+`discovery_incomplete: true`, and `lineage_status: unavailable`; it does not silently omit the
+workflow's lineage. Assessment emits `FAIL` `DATAFORM_COMPILATION_DETAILS_UNAVAILABLE`. Planning
+marks the fallback `incomplete_dataform_compilation` and downstream objects
+`depends_on_incomplete_dataform_compilation` for manual review. Re-run discovery after Dataform API
+or access recovery to obtain the actual compilation graph. This contract was validated with
+`python -m pytest tests/test_discovery.py tests/test_assessment.py tests/test_dataform_conversion.py
+-v` (`56 passed`).
 
 An `external_payload` component that lacks required offline evidence emits exactly one `FAIL`
 finding, `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER`, in the `adapter` category. The finding explains

@@ -40,9 +40,15 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
         for finding in assessment.findings
         if finding.code == "EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER"
     }
+    incomplete_dataform_sources = {
+        finding.source_id
+        for finding in assessment.findings
+        if finding.code == "DATAFORM_COMPILATION_DETAILS_UNAVAILABLE"
+    }
     remaining = set(objects)
     completed: set[str] = set()
     incomplete_adapter_dependencies: set[str] = set()
+    incomplete_dataform_dependencies: set[str] = set()
     plan_items: list[PlanItem] = []
     unresolved: set[str] = set()
     wave = 1
@@ -65,9 +71,13 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
         for source_id in ready:
             external = [dep for dep in objects[source_id].dependencies if dep not in objects]
             unresolved.update(f"External dependency {dep} required by {source_id}" for dep in external)
-            depends_on_incomplete_adapter = (
+            depends_on_incomplete_external_adapter = (
                 source_id in incomplete_adapter_sources
                 or any(dep in incomplete_adapter_dependencies for dep in objects[source_id].dependencies)
+            )
+            depends_on_incomplete_dataform_compilation = (
+                source_id in incomplete_dataform_sources
+                or any(dep in incomplete_dataform_dependencies for dep in objects[source_id].dependencies)
             )
             reasons: list[str] = []
             if external:
@@ -78,8 +88,12 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
                 reasons.append("streaming_downstream_review")
             if source_id in incomplete_adapter_sources:
                 reasons.append("incomplete_external_adapter")
-            elif depends_on_incomplete_adapter:
+            elif source_id in incomplete_dataform_sources:
+                reasons.append("incomplete_dataform_compilation")
+            elif depends_on_incomplete_external_adapter:
                 reasons.append("depends_on_incomplete_external_adapter")
+            elif depends_on_incomplete_dataform_compilation:
+                reasons.append("depends_on_incomplete_dataform_compilation")
             sql_assessment = sql_assessments.get(source_id)
             if sql_assessment and sql_assessment.compatibility.value in {"redesign", "unsupported"}:
                 reasons.append("sql_incompatibility")
@@ -95,6 +109,12 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
             for source_id in ready
             if source_id in incomplete_adapter_sources
             or any(dep in incomplete_adapter_dependencies for dep in objects[source_id].dependencies)
+        )
+        incomplete_dataform_dependencies.update(
+            source_id
+            for source_id in ready
+            if source_id in incomplete_dataform_sources
+            or any(dep in incomplete_dataform_dependencies for dep in objects[source_id].dependencies)
         )
         completed.update(ready)
         remaining.difference_update(ready)

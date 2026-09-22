@@ -23,6 +23,36 @@ def converter() -> SqlConverter:
     return SqlConverter()
 
 
+def test_multi_statement_select_only(converter: SqlConverter) -> None:
+    """Two independent SELECT statements must each be converted."""
+    sql = "SELECT 1 AS id; SELECT 2 AS id"
+
+    result = converter.convert_multiple(sql)
+
+    assert len(result.statements) == 2
+    assert result.compatibility == CompatibilityLevel.DIRECT
+    assert "SELECT 1" in result.statements[0].target_text.upper()
+    assert "SELECT 2" in result.statements[1].target_text.upper()
+
+
+def test_multi_statement_with_dml_requires_redesign(converter: SqlConverter) -> None:
+    """Multi-statement DML must not be emitted as independent target SQL."""
+    sql = "INSERT INTO table1 VALUES (1); SELECT * FROM table1"
+
+    result = converter.convert_multiple(sql)
+
+    assert result.compatibility == CompatibilityLevel.REDESIGN
+    assert any("transaction" in warning.message.lower() for warning in result.warnings)
+
+
+def test_multi_statement_single_statement_is_backward_compatible(converter: SqlConverter) -> None:
+    """A single statement remains directly convertible through the new API."""
+    result = converter.convert_multiple("SELECT 1 AS id")
+
+    assert len(result.statements) == 1
+    assert result.compatibility == CompatibilityLevel.DIRECT
+
+
 @pytest.fixture
 def patterns_fixture() -> dict:
     """Load test patterns from fixture file."""

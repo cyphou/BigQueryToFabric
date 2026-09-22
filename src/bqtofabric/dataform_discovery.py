@@ -35,23 +35,29 @@ class DataformInventoryProvider:
 
         # Discover repositories
         for repo in self.client.list_repositories(self.location):
-            components.append(self._map_repository(repo))
-
             repo_name = repo.get("name", "")
             if not repo_name:
+                components.append(self._map_repository(repo, {}))
                 continue
 
-            # Discover workflows and compilation results for each repository
-            for workflow in self.client.list_workflows(repo_name):
-                components.append(self._map_workflow(workflow))
-
             # Discover compiled DAGs and their targets
+            compilation_components: list[BigQueryObject] = []
             for comp_result in self.client.list_compilation_results(repo_name):
-                components.extend(self._map_compiled_result(comp_result))
+                compilation_components.extend(self._map_compiled_result(comp_result))
+
+            evidence = _summarize_compilation_evidence(compilation_components)
+            components.append(self._map_repository(repo, evidence))
+            components.extend(
+                self._map_workflow(workflow, evidence)
+                for workflow in self.client.list_workflows(repo_name)
+            )
+            components.extend(compilation_components)
 
         return tuple(sorted(components, key=lambda item: item.source_id))
 
-    def _map_repository(self, resource: dict[str, Any]) -> BigQueryObject:
+    def _map_repository(
+        self, resource: dict[str, Any], compilation_evidence: dict[str, Any]
+    ) -> BigQueryObject:
         """Map a Dataform repository to a canonical object."""
         name = str(resource.get("name", "")).rsplit("/", 1)[-1]
         if not name:
@@ -60,6 +66,7 @@ class DataformInventoryProvider:
         properties: dict[str, Any] = {
             "display_name": resource.get("displayName", name),
             "location": self.location,
+            **compilation_evidence,
         }
 
         return BigQueryObject(
@@ -71,7 +78,9 @@ class DataformInventoryProvider:
             properties=redact_mapping(properties),
         )
 
-    def _map_workflow(self, resource: dict[str, Any]) -> BigQueryObject:
+    def _map_workflow(
+        self, resource: dict[str, Any], compilation_evidence: dict[str, Any]
+    ) -> BigQueryObject:
         """Map a Dataform workflow to a canonical object."""
         name = str(resource.get("displayName", resource.get("name", "").rsplit("/", 1)[-1]))
         if not name:
@@ -84,6 +93,7 @@ class DataformInventoryProvider:
             "state": resource.get("state", "UNKNOWN"),
             "compilation_state": state,
             "location": self.location,
+            **compilation_evidence,
         }
 
         if resource.get("releaseConfig"):
@@ -111,8 +121,7 @@ class DataformInventoryProvider:
         try:
             full_result = self.client.get_compilation_result(comp_name)
         except DiscoveryError:
-            # If we can't fetch the full result, skip processing targets
-            return components
+            return [self._map_incomplete_compilation_result(comp_name)]
 
         data_source = full_result.get("dataSourceA", {})
         targets = data_source.get("targets", [])
@@ -152,6 +161,23 @@ class DataformInventoryProvider:
 
         return components
 
+    def _map_incomplete_compilation_result(self, compilation_result_name: str) -> BigQueryObject:
+        """Retain a review-required component when compiled lineage cannot be fetched."""
+        name = compilation_result_name.rsplit("/", 1)[-1]
+        return BigQueryObject(
+            source_id=f"{self.project_id}.dataform.compilation.{name}",
+            name=name,
+            kind=ObjectKind.DATAFORM_WORKFLOW,
+            discovered_from="dataform_api",
+            properties=redact_mapping(
+                {
+                    "compilation_result": compilation_result_name,
+                    "lineage_status": "unavailable",
+                    "discovery_incomplete": True,
+                }
+            ),
+        )
+
     def _map_target(self, target: dict[str, Any], incoming_edges: list[dict[str, Any]], outgoing_edges: list[dict[str, Any]]) -> BigQueryObject:
         """Map a Dataform compiled target (table/view) to a canonical object."""
         database = target.get("database", "")
@@ -182,6 +208,7 @@ class DataformInventoryProvider:
             "disabled": target.get("disabled", False),
             "incremental": is_incremental,
             "has_assertions": len(assertion_edges) > 0,
+            "dataform_model": True,
         }
 
         return BigQueryObject(
@@ -225,6 +252,27 @@ class DataformInventoryProvider:
             dependencies=tuple(sorted(set(dependencies))),
             properties=redact_mapping(properties),
         )
+
+
+def _summarize_compilation_evidence(
+    components: list[BigQueryObject],
+) -> dict[str, Any]:
+    """Derive workflow evidence from successfully discovered compilation targets."""
+    incomplete = any(item.properties.get("discovery_incomplete") is True for item in components)
+    models = sorted(
+        item.name for item in components if item.properties.get("dataform_model") is True
+    )
+    assertions = any(".assertion." in item.source_id for item in components)
+    incremental = any(item.properties.get("incremental") is True for item in components)
+    evidence: dict[str, Any] = {
+        "models": models,
+        "assertions": assertions,
+        "incremental": incremental,
+    }
+    if incomplete:
+        evidence["discovery_incomplete"] = True
+        evidence["lineage_status"] = "unavailable"
+    return evidence
 
 
 def _make_target_key(target: dict[str, Any]) -> str:

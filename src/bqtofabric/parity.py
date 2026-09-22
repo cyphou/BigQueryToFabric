@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 PARITY_STATUSES = {"passed", "failed", "not_run", "not_applicable"}
@@ -179,7 +179,7 @@ def compare_sql_results(
 
 
 def compare_schema(
-    source: list[Mapping[str, Any]], target: list[Mapping[str, Any]]
+    source: Sequence[Mapping[str, Any]], target: Sequence[Mapping[str, Any]]
 ) -> dict[str, Any]:
     """Compare portable column metadata without querying either cloud."""
     differences: list[dict[str, Any]] = []
@@ -193,8 +193,8 @@ def compare_schema(
 
 
 def _compare_columns(
-    source: list[Mapping[str, Any]],
-    target: list[Mapping[str, Any]],
+    source: Sequence[Mapping[str, Any]],
+    target: Sequence[Mapping[str, Any]],
     differences: list[dict[str, Any]],
     prefix: str = "",
 ) -> None:
