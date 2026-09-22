@@ -74,6 +74,11 @@ The generated package contains:
 - `fabric/artifact-validation.json` — offline structural validation results.
 - `fabric/deployment-manifest.json` is checked by `deployment-check`; readiness never performs apply.
 
+## User Manual
+
+For the complete installation guide, command reference, offline and read-only discovery workflows,
+artifact interpretation, security rules, and troubleshooting, see [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
+
 ### Generated artifact validation
 
 `validate_artifact` scans persisted `.json`, `.ipynb`, `.sql`, and `.kql` text with
