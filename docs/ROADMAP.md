@@ -157,6 +157,15 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** This dry-run guard is not official Fabric semantic-model schema/API validation. Validate
   the regenerated semantic model before deployment.
 
+### Validated semantic-model count-measure fidelity
+
+- **Expected:** Generated numeric `Count of <column>` measures should count populated values, as
+  their names imply.
+- **Implemented:** Numeric count measures use DAX `COUNT` rather than `COUNTBLANK`.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py -v` passed with `44 passed`.
+- **Open:** Generated semantic models remain dry-run review artifacts and still require validation
+  against the official Fabric semantic-model schema/API before deployment.
+
 ### Validated migration-plan findings section
 
 - **Expected:** The human-readable migration plan should make assessment `WARN` and `FAIL` findings

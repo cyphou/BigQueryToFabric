@@ -210,6 +210,13 @@ This contract was validated with `python -m pytest tests/test_artifact_generatio
 passed`). It remains a dry-run structural guard: validate the regenerated model against the
 official Fabric semantic-model schema/API before deployment.
 
+### Semantic-model count-measure fidelity
+
+Generated numeric `Count of <column>` measures use DAX `COUNT`, so they count populated values as
+their names imply. This contract was validated with `python -m pytest tests/test_artifact_generation.py
+-v` (`44 passed`). Generated semantic models remain dry-run review artifacts and still require
+validation against the official Fabric semantic-model schema/API before deployment.
+
 ### Deterministic artifact packages
 
 Artifact generation writes every artifact category in sorted source-ID order. JSON artifacts,

@@ -24,6 +24,10 @@
   `SECURITY_EFFECTIVE_ACCESS_REVIEW`; discovery does not query IAM APIs or prove those effective
   permissions.
 - Generated Fabric artifacts are skeletons and are not production deployment payloads.
+- Generated numeric `Count of <column>` measures use DAX `COUNT` to count populated values, but
+  generated semantic models still require validation against the official Fabric semantic-model
+  schema/API; the artifact-generation fidelity fix does not establish deployment readiness or
+  runtime parity.
 - Credential redaction is implemented and tested for persisted SQL and Spark conversion source and
   target text, and Spark warnings avoid raw embedded credential paths. Discovery also classifies
   `service_account` and `serviceaccount` keys as sensitive, redacting `service_account_path`

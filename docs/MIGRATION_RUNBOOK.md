@@ -303,6 +303,11 @@ or distinct row access policies.
     validated by `python -m pytest tests/test_artifact_generation.py -v` with `42 passed`.
     Distinct source IDs that produce the same generated filename remain an open collision-handling
     case.
+    Numeric `Count of <column>` measures use DAX `COUNT`, so the generated measure counts populated
+    values as its name implies. This behavior was validated with
+    `python -m pytest tests/test_artifact_generation.py -v` (`44 passed`). Generated semantic
+    models remain dry-run review artifacts and still require official Fabric semantic-model
+    schema/API validation before deployment.
 5. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
 6. Use the native Fabric BigQuery connector for Dataflow Gen2, Pipeline Copy/Lookup, or Copy Job.
 7. Pilot one representative dataset before scaling by migration wave.

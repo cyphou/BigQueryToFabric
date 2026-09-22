@@ -722,6 +722,8 @@ class TestSemanticModelGenerator:
         assert len(model.model["measures"]) > 0
         measure_names = [m["name"] for m in model.model["measures"]]
         assert any("Sum" in name or "sum" in name for name in measure_names)
+        count_measure = next(measure for measure in model.model["measures"] if measure["name"] == "Count of id")
+        assert count_measure["expression"] == "COUNT('sales'[id])"
 
     def test_semantic_model_without_columns_is_review_only(self):
         """A source without columns must not crash or emit a deployable model definition."""

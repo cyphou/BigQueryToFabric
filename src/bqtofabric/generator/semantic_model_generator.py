@@ -200,7 +200,7 @@ class SemanticModelGenerator:
                 # Count measure
                 measures.append({
                     "name": f"Count of {col.name}",
-                    "expression": f"COUNTBLANK('{item.name}'[{col.name}])",
+                    "expression": f"COUNT('{item.name}'[{col.name}])",
                     "isHidden": False,
                     "displayFolder": "Summary Metrics",
                 })
