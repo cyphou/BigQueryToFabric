@@ -31,6 +31,12 @@ parity evidence.
 This contract was validated with `python -m pytest tests/test_discovery.py
 tests/test_artifact_generation.py -v` (`79 passed`).
 
+Generated schedule triggers use the Fabric expression `@utcNow()` for `startTime` rather than a
+stale fixed `2024` date. This behavior was validated with
+`python -m pytest tests/test_artifact_generation.py -v` (`44 passed`). Generated pipeline
+definitions still require validation against the official Fabric/ADF schema and deployment
+validation; this change does not establish deployability or scheduling parity.
+
 ## Composer adapter evidence
 
 Composer DAG normalization writes `properties.runtime_version` from the Composer image version when

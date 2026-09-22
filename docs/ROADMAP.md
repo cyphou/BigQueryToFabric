@@ -77,6 +77,17 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   behavior is deterministic dry-run generation only; it does not establish trigger execution,
   scheduling parity, or production readiness.
 
+### Validated schedule-trigger start time
+
+- **Expected:** Generated schedule triggers should start from the current UTC time rather than a
+  stale fixed date.
+- **Implemented:** Supported generated pipeline schedule triggers use the Fabric expression
+  `@utcNow()` for `startTime` instead of the fixed `2024` date.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py -v` passed with `44 passed`.
+- **Open:** Generated pipeline definitions still require validation against the official Fabric/ADF
+  schema and deployment validation. This fix is deterministic dry-run generation behavior and does
+  not establish trigger execution, scheduling parity, or production readiness.
+
 ### Validated Composer adapter evidence
 
 - **Expected:** Composer DAG evidence must retain a usable runtime-version signal and declared task

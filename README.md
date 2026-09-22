@@ -167,6 +167,16 @@ the review report. Each finding lists `severity`, `code`, `category`, `source`, 
 These findings are dry-run evidence only; their presence does not prove remediation, deployment
 readiness, or Fabric runtime parity.
 
+### Schedule-trigger start time
+
+Generated schedule triggers use the Fabric expression `@utcNow()` for `startTime`, so a generated
+pipeline does not retain the stale fixed `2024` start date. This applies to the supported preset
+schedule mappings and is deterministic dry-run generation behavior.
+
+This contract was validated with `python -m pytest tests/test_artifact_generation.py -v` (`44
+passed`). Generated pipeline definitions still require validation against the official Fabric/ADF
+schema and deployment validation before they can be treated as deployable.
+
 ### Assessment summary
 
 The generated `migration-plan.md` also includes an `Assessment summary` section. Its Gate/Value

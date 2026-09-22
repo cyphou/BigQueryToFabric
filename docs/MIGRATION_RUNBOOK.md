@@ -231,6 +231,16 @@ The section is not proof that a finding has been remediated, that Fabric deploym
 that runtime parity has been established. Use `assessment.json`, mapping output, generated artifacts,
 and independent parity/security checks for deeper review.
 
+### Schedule-trigger start time
+
+Generated schedule triggers use `@utcNow()` for `startTime` instead of retaining the stale fixed
+`2024` date. This keeps the generated trigger start time current for the supported preset schedule
+mappings while preserving deterministic, offline artifact generation.
+
+This behavior was validated with `python -m pytest tests/test_artifact_generation.py -v` (`44
+passed`). Generated pipeline definitions remain review artifacts: validate them against the official
+Fabric/ADF schema and complete deployment validation before deployment.
+
 ### Assessment summary
 
 The generated `migration-plan.md` starts its review detail with an `Assessment summary`. The

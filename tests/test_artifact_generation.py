@@ -828,6 +828,9 @@ class TestPipelineGenerator:
             "frequency": "Day",
             "interval": 1,
         }
+        trigger_type_properties = pipeline.pipeline["properties"]["triggers"][0]["properties"]["typeProperties"]
+        assert trigger_type_properties["startTime"] == "@utcNow()"
+        assert "2024" not in trigger_type_properties["startTime"]
 
     def test_generate_pipeline_from_composer_dag(self, composer_dag):
         """Composer activity dependencies must resolve within the generated pipeline."""
