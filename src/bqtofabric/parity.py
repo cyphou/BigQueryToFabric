@@ -12,6 +12,8 @@ def compare_row_count(source: int | None, target: int | None) -> dict[str, Any]:
     """Compare supplied row counts without querying either data platform."""
     if source is None or target is None:
         return {"status": "not_run", "source": source, "target": target}
+    if not _valid_count(source) or not _valid_count(target):
+        return {"status": "not_run", "source": source, "target": target}
     return {
         "status": "passed" if source == target else "failed",
         "source": source,
@@ -182,6 +184,13 @@ def compare_schema(
     source: Sequence[Mapping[str, Any]], target: Sequence[Mapping[str, Any]]
 ) -> dict[str, Any]:
     """Compare portable column metadata without querying either cloud."""
+    if not _valid_schema_fields(source) or not _valid_schema_fields(target):
+        return {
+            "status": "not_run",
+            "source": {"fields": len(source)},
+            "target": {"fields": len(target)},
+            "differences": [],
+        }
     differences: list[dict[str, Any]] = []
     _compare_columns(source, target, differences)
     return {
@@ -190,6 +199,26 @@ def compare_schema(
         "target": {"fields": len(target)},
         "differences": differences,
     }
+
+
+def _valid_count(value: int) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool) and value >= 0
+
+
+def _valid_schema_fields(fields: Sequence[Mapping[str, Any]]) -> bool:
+    names: set[str] = set()
+    for column in fields:
+        name = column.get("name")
+        data_type = column.get("data_type")
+        if not isinstance(name, str) or not name or name in names:
+            return False
+        if not isinstance(data_type, str) or not data_type:
+            return False
+        names.add(name)
+        nested = column.get("fields", [])
+        if not isinstance(nested, list) or not _valid_schema_fields(nested):
+            return False
+    return True
 
 
 def _compare_columns(

@@ -91,3 +91,15 @@ def test_validate_artifact_rejects_embedded_credentials(tmp_path: Path) -> None:
 
     assert result["status"] == "failed"
     assert result["errors"] == ["credential detected: api_key"]
+
+
+def test_validate_artifact_rejects_non_object_json_roots(tmp_path: Path) -> None:
+    """Malformed JSON roots must return validation errors instead of raising."""
+    for filename, value in (("array.json", []), ("scalar.json", "value")):
+        path = tmp_path / filename
+        path.write_text(json.dumps(value), encoding="utf-8")
+
+        result = validate_artifact(path)
+
+        assert result["status"] == "failed"
+        assert result["errors"] == ["JSON artifact root must be an object"]

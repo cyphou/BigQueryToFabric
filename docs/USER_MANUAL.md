@@ -218,6 +218,24 @@ Treat it as review-only. Common causes include missing source schema, unsupporte
 
 Runtime evidence was not supplied. `not_run` does not mean the source and target match.
 
+### Contract-hardening checks
+
+The offline artifact validator rejects a non-object JSON root with a deterministic validation error
+instead of raising. Offline parity comparison treats negative or boolean row counts, duplicate
+schema field names, and malformed nested fields as `not_run`, so invalid evidence cannot be
+reported as a successful comparison.
+
+Validate these contracts with:
+
+```powershell
+python -m pytest tests/test_artifact_validation.py -v
+python -m pytest tests/test_parity.py -v
+```
+
+The validated results are `7 passed` and `18 passed`, respectively. These are offline structural
+and evidence checks only; they do not validate official Fabric schemas, execute workloads, or
+establish runtime/data parity.
+
 ## 8. Development Validation
 
 Before contributing changes, run:

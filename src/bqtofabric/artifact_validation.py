@@ -94,9 +94,11 @@ def validate_artifact(path: Path) -> dict[str, Any]:
         )
         if path.suffix == ".json" or path.suffix == ".ipynb":
             value = json.loads(text)
-            if path.suffix == ".ipynb":
+            if not isinstance(value, dict):
+                result["errors"].append("JSON artifact root must be an object")
+            elif path.suffix == ".ipynb":
                 _validate_notebook(value, result["errors"])
-            elif isinstance(value, dict) and "properties" in value and "activities" in value.get("properties", {}):
+            elif "properties" in value and "activities" in value.get("properties", {}):
                 result["errors"].extend(PipelineValidator(value).validate().errors)
             elif value.get("mode") == "dry-run" and not value.get("projectId", True):
                 result["errors"].append("dry-run artifact is missing projectId")

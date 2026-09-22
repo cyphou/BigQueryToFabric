@@ -72,6 +72,20 @@ The focused test passes with `10 passed`. The validator performs offline pattern
 checks only; pattern scanning is not a substitute for official Fabric schema validation or
 deployment validation.
 
+The validator also rejects a non-object JSON root with a deterministic validation error instead of
+raising. Parity evidence is hardened separately: negative or boolean row counts, duplicate schema
+field names, and malformed nested fields are classified as `not_run`.
+
+Validate both contracts with:
+
+```powershell
+python -m pytest tests/test_artifact_validation.py -v
+python -m pytest tests/test_parity.py -v
+```
+
+The results are `7 passed` and `18 passed`, respectively. These checks are offline-only and do not
+replace official Fabric schema validation, workload execution, or runtime/data parity evidence.
+
 ## Assess a live GCP project
 
 1. Install the optional dependencies and enable the **BigQuery API**, **BigQuery Data Transfer API**,

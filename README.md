@@ -95,6 +95,20 @@ tests/test_security.py -v` (`10 passed`). These are offline pattern and structur
 pattern scanning is not a substitute for official Fabric schema validation or deployment
 validation.
 
+### Contract-hardening validation
+
+Artifact validation rejects a non-object JSON root with a deterministic validation error instead
+of raising. Parity comparison rejects negative or boolean row counts, duplicate schema field names,
+and malformed nested fields as `not_run`. These checks are offline input validation only and do not
+establish Fabric schema validity, runtime execution, or data parity.
+
+Validated with:
+
+```powershell
+python -m pytest tests/test_artifact_validation.py -v  # 7 passed
+python -m pytest tests/test_parity.py -v                # 18 passed
+```
+
 ## How to Test the Assessment
 
 ### Local fixture smoke test

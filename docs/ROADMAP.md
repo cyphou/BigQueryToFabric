@@ -42,9 +42,23 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Implemented:** `validate_directory` recursively scans generated subdirectories. It applies KQL
   syntax guards to `.kql` files and predecessor checks to pipeline JSON with `properties.activities`,
   while preserving the existing notebook, JSON, and SQL checks.
-- **Validated:** `python -m pytest tests/test_artifact_validation.py -v` passed with `5 passed`.
+- **Validated:** `python -m pytest tests/test_artifact_validation.py -v` passed with `7 passed`.
 - **Open:** These are offline structural checks only. They do not validate generated artifacts
   against official Fabric schemas or perform deployment validation.
+
+### Validated contract-hardening milestone
+
+- **Expected:** Invalid artifact and parity evidence inputs must fail deterministically without
+  raising or implying a successful comparison. A non-object JSON root should produce a validation
+  error; negative or boolean row counts, duplicate schema field names, and malformed nested fields
+  should produce parity status `not_run`.
+- **Implemented:** Artifact validation rejects non-object JSON roots with a deterministic error.
+  Parity comparison rejects negative/boolean row counts, duplicate schema field names, and malformed
+  nested fields as `not_run`.
+- **Validated:** `python -m pytest tests/test_artifact_validation.py -v` passed with `7 passed`,
+  and `python -m pytest tests/test_parity.py -v` passed with `18 passed`.
+- **Open:** These checks remain offline-only. They do not validate official Fabric schemas, execute
+  source or target workloads, establish runtime/data parity, or authorize deployment.
 
 ### Validated assessment test guide
 

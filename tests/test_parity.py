@@ -16,6 +16,11 @@ def test_compare_row_count_is_explicit_about_missing_runtime_evidence() -> None:
     assert compare_row_count(10, 9)["status"] == "failed"
 
 
+def test_compare_row_count_rejects_invalid_counts() -> None:
+    assert compare_row_count(-1, 10)["status"] == "not_run"
+    assert compare_row_count(True, 1)["status"] == "not_run"
+
+
 def test_compare_aggregates_reports_missing_and_different_metrics() -> None:
     result = compare_aggregates(
         {"sum_amount": 100, "distinct_customer_count": 3},
@@ -181,6 +186,14 @@ def test_compare_schema_walks_nested_fields() -> None:
         "source": "STRING",
         "target": "INT64",
     }]
+
+
+def test_compare_schema_rejects_duplicate_or_malformed_fields() -> None:
+    duplicate = [{"name": "id", "data_type": "INT64"}, {"name": "id", "data_type": "STRING"}]
+    malformed = [{"name": "payload", "data_type": "STRUCT", "fields": "invalid"}]
+
+    assert compare_schema(duplicate, duplicate)["status"] == "not_run"
+    assert compare_schema(malformed, malformed)["status"] == "not_run"
 
 
 def test_parity_requires_runtime_evidence_for_passed_status() -> None:
