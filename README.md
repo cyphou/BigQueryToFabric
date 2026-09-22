@@ -24,7 +24,7 @@
 | 🔍 **Discovery** | Read-only BigQuery metadata · credentials redacted by construction |
 | 🧭 **Assessment** | 25 GCP/BigQuery source types · normalized readiness score · explainable findings |
 | 🏗️ **Fabric routing** | 15 target roles · Lakehouse/Notebook preference · workload overrides |
-| 🧪 **Quality** | 81 tests passed · 93.2% coverage · Ruff and Pyright clean (`python -m pyright`; `python -m ruff check src tests`) |
+| 🧪 **Quality** | 304 tests passed · Ruff and Pyright clean (`python -m pyright`; `python -m ruff check src tests`) |
 | 🤖 **Agent model** | 10 specialist agents · exclusive ownership and documentation handoff validated |
 | 🔒 **Safety** | Deterministic output · no credentials · no cloud mutation |
 

@@ -17,7 +17,7 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 | Reference recommendation | Lakehouse primary · hybrid architecture · Airflow retained |
 | Public CLI | 7 commands |
 | Generated package | 9 deterministic dry-run artifacts |
-| Test suite | 81 passed |
+| Test suite | 304 passed |
 | Coverage | 93.25% |
 | Static quality | Ruff clean · Pyright clean |
 | Agent contracts | 10 agents · exclusive ownership · documentation handoff · 1 skill validated |
@@ -453,10 +453,15 @@ result = converter.convert(bigquery_obj, TargetDialect.SPARK_SQL)
 | Script Blocks | ✗ Unsupported | ✗ Unsupported | ✗ Unsupported |
 | JavaScript UDF | ✗ Unsupported | ✗ Unsupported | ✗ Unsupported |
 
-#### v0.3.1 — Spark/Dataproc and Dataform Conversion *(planned)*
+### v0.3.1 — Spark/Dataproc and Dataform Conversion *(implemented; offline-validated)*
 
-- Convert Spark/Dataproc code to Fabric notebooks, including GCS path and runtime substitutions.
-- Translate Dataform graphs, assertions, variables, and incremental models.
+- **Implemented:** Convert Spark/Dataproc code to Fabric notebook review records, including GCS
+  path mapping, credential redaction, language/runtime evidence, and manual compatibility steps.
+- **Implemented:** Translate Dataform graph evidence, assertions, and incremental-model requirements
+  into reviewable Fabric pipeline recipes with deterministic incomplete-lineage blockers.
+- **Validated:** Spark, Dataform, and adapter contract tests pass in the full 304-test suite.
+- **Open:** These conversions remain offline review artifacts; runtime execution and parity are not
+  established.
 
 #### v0.3.2 — Composer/Airflow Compatibility *(planned)*
 
@@ -610,14 +615,17 @@ result = converter.convert(bigquery_obj, TargetDialect.SPARK_SQL)
 
 ## Priority now
 
-**v0.2 continues with the remaining BigQuery surface**: jobs, scheduled queries, connections, and
-access policies, alongside the next external adapters. Scheduled queries and policies matter most,
-because the assessment already treats them as a Data Pipeline target and a security blocker
-respectively, so a project inventoried today looks safer than it is.
+**Next development priority: close the v0.2 live-discovery exit gate.** Build an authorized,
+read-only sandbox integration harness that verifies the BigQuery and explicitly requested regional
+Dataflow paths together, including permissions, pagination, redaction, deterministic serialization,
+and safe provider failures. Do not claim live coverage for Composer, Dataproc, Dataform, Workflows,
+Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner until their adapters and sandbox
+permissions exist.
 
-The wider GCP adapters follow the same seam: each one only has to emit `components` entries for
-kinds the mapping engine already understands. `create_rest_client` stays unverified until a
-read-only sandbox is available; that gap is recorded in the v0.2 exit gate rather than hidden.
+After the live-discovery gate, prioritize official format-specific validation for generated Fabric
+artifacts, then v0.5 runtime parity evidence. The current offline contracts and 304-test suite are
+strong foundations, but neither static checks nor dry-run generation proves cloud execution,
+semantic parity, or deployment readiness.
 
 ## Non-goals
 
