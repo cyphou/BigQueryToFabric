@@ -80,3 +80,14 @@ def test_validate_directory_checks_nested_kql_and_pipeline_json(tmp_path: Path) 
     errors = [error for artifact in result["artifacts"] for error in artifact["errors"]]
     assert any("KQL syntax" in error for error in errors)
     assert any("Missing" in error for error in errors)
+
+
+def test_validate_artifact_rejects_embedded_credentials(tmp_path: Path) -> None:
+    """Package validation must reject credentials in any persisted artifact text."""
+    path = tmp_path / "artifact.json"
+    path.write_text(json.dumps({"query": "SELECT 'sk-1234567890'"}), encoding="utf-8")
+
+    result = validate_artifact(path)
+
+    assert result["status"] == "failed"
+    assert result["errors"] == ["credential detected: api_key"]

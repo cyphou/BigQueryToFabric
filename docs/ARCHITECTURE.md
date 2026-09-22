@@ -33,13 +33,15 @@ contract, not a deployment or Fabric-schema validation guarantee.
 
 ## Generated artifact validation
 
-`validate_directory` recursively scans the generated package, including generated subdirectories.
-It preserves the existing notebook, JSON, and SQL checks, adds KQL syntax guards for `.kql` files,
-and validates predecessor references for pipeline JSON artifacts with `properties.activities`.
+`validate_artifact` first scans persisted `.json`, `.ipynb`, `.sql`, and `.kql` text with
+`CredentialScanner`, then runs the format-specific checks. A credential failure contains only the
+finding type, never the matched secret value. `validate_directory` applies the same behavior
+recursively to generated subdirectories and also validates notebook structure, JSON structure,
+SQL/KQL guards, and pipeline predecessor references.
 
 The focused validation contract was checked with `python -m pytest tests/test_artifact_validation.py
--v` (`5 passed`). These checks are offline structural checks; they are not official Fabric schema
-validation and do not validate deployment.
+tests/test_security.py -v` (`10 passed`). This is offline pattern and structural validation;
+pattern scanning is not official Fabric schema validation and does not validate deployment.
 
 ## Composer schedule contract
 

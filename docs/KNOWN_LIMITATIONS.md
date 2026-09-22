@@ -28,13 +28,14 @@
   generated semantic models still require validation against the official Fabric semantic-model
   schema/API; the artifact-generation fidelity fix does not establish deployment readiness or
   runtime parity.
-- Credential redaction is implemented and tested for persisted SQL and Spark conversion source and
-  target text, and Spark warnings avoid raw embedded credential paths. Discovery also classifies
-  `service_account` and `serviceaccount` keys as sensitive, redacting `service_account_path`
-  before canonical inventory persistence; `python -m pytest tests/test_discovery.py
-  tests/test_security.py -v` validates this behavior (42 passed). Other generated artifacts and
-  path-bearing fields do not yet have broader secret-scan coverage; they require explicit review
-  and focused tests before equivalent protection can be claimed.
+- Credential scanning is implemented for persisted `.json`, `.ipynb`, `.sql`, and `.kql` text.
+  `validate_artifact` uses `CredentialScanner` and reports only the finding type, never the
+  matched secret value; `validate_directory` applies the scan recursively. Discovery also
+  classifies `service_account` and `serviceaccount` keys as sensitive, redacting
+  `service_account_path` before canonical inventory persistence. The artifact-wide contract was
+  validated with `python -m pytest tests/test_artifact_validation.py tests/test_security.py -v`
+  (`10 passed`). Pattern scanning is heuristic and is not a substitute for official Fabric
+  schema validation, deployment validation, or a complete secret-management audit.
 - GoogleSQL is parsed and classified with a SQL AST; generated translations remain review-only.
 - BQML, JavaScript UDFs, dynamic SQL, and complex scripts require redesign.
 - Discovery does not extract project or organization IAM bindings, connection IAM policies,

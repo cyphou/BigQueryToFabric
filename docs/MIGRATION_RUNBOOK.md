@@ -40,18 +40,21 @@ against official Fabric schemas or APIs, establish runtime parity, or authorize 
 
 ### Validate generated artifact packages
 
-`validate_directory` recursively scans the generated package, including generated subdirectories.
-It applies the existing notebook, JSON, and SQL checks, KQL syntax guards to `.kql` files, and
-predecessor checks to pipeline JSON artifacts with `properties.activities`.
+`validate_artifact` scans persisted `.json`, `.ipynb`, `.sql`, and `.kql` text with
+`CredentialScanner`, and reports credential failures using only the finding type, never the
+matched secret value. `validate_directory` applies this scan recursively to the generated package,
+including generated subdirectories, alongside notebook, JSON, SQL, KQL, and pipeline predecessor
+checks.
 
 Validate this contract with:
 
 ```powershell
-python -m pytest tests/test_artifact_validation.py -v
+python -m pytest tests/test_artifact_validation.py tests/test_security.py -v
 ```
 
-The focused test passes with `5 passed`. The validator performs offline structural checks only; it
-does not validate against official Fabric schemas or perform deployment validation.
+The focused test passes with `10 passed`. The validator performs offline pattern and structural
+checks only; pattern scanning is not a substitute for official Fabric schema validation or
+deployment validation.
 
 ## Assess a live GCP project
 

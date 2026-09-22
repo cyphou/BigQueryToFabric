@@ -8,6 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from .security import CredentialScanner
+
 
 @dataclass(frozen=True, slots=True)
 class ArtifactValidationResult:
@@ -84,8 +86,14 @@ def validate_artifact(path: Path) -> dict[str, Any]:
     """Validate one generated artifact without executing or deploying it."""
     result: dict[str, Any] = {"path": path.name, "status": "passed", "errors": []}
     try:
+        text = path.read_text(encoding="utf-8")
+        findings = CredentialScanner().scan(text)
+        result["errors"].extend(
+            f"credential detected: {finding.finding_type}"
+            for finding in findings
+        )
         if path.suffix == ".json" or path.suffix == ".ipynb":
-            value = json.loads(path.read_text(encoding="utf-8"))
+            value = json.loads(text)
             if path.suffix == ".ipynb":
                 _validate_notebook(value, result["errors"])
             elif isinstance(value, dict) and "properties" in value and "activities" in value.get("properties", {}):
@@ -93,9 +101,9 @@ def validate_artifact(path: Path) -> dict[str, Any]:
             elif value.get("mode") == "dry-run" and not value.get("projectId", True):
                 result["errors"].append("dry-run artifact is missing projectId")
         elif path.suffix == ".kql":
-            result["errors"].extend(KqlValidator(path.read_text(encoding="utf-8")).validate().errors)
+            result["errors"].extend(KqlValidator(text).validate().errors)
         elif path.suffix == ".sql":
-            if not path.read_text(encoding="utf-8").strip():
+            if not text.strip():
                 result["errors"].append("SQL artifact is empty")
     except (OSError, json.JSONDecodeError) as error:
         result["errors"].append(str(error))

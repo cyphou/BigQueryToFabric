@@ -76,13 +76,16 @@ The generated package contains:
 
 ### Generated artifact validation
 
-`validate_directory` recursively scans the generated package, including generated subdirectories.
-It retains the existing notebook, JSON, and SQL checks, adds KQL syntax guards for `.kql` files,
-and checks predecessor references for pipeline JSON artifacts that contain `properties.activities`.
+`validate_artifact` scans persisted `.json`, `.ipynb`, `.sql`, and `.kql` text with
+`CredentialScanner` before applying the format-specific checks. Credential failures report only
+the finding type and never the matched secret value. `validate_directory` applies this scan
+recursively across the generated package and its subdirectories, alongside notebook, JSON, SQL,
+KQL, and pipeline dependency checks.
 
-This behavior was validated with `python -m pytest tests/test_artifact_validation.py -v`
-(`5 passed`). These are offline structural checks only; they do not validate artifacts against
-official Fabric schemas or perform deployment validation.
+This behavior was validated with `python -m pytest tests/test_artifact_validation.py
+tests/test_security.py -v` (`10 passed`). These are offline pattern and structural checks only;
+pattern scanning is not a substitute for official Fabric schema validation or deployment
+validation.
 
 ## How to Test the Assessment
 
