@@ -34,6 +34,18 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** These local static checks do not validate generated artifacts against official Fabric
   schemas or APIs, establish runtime or data parity, or authorize deployment.
 
+### Validated offline artifact-package validation
+
+- **Expected:** Validation of a generated package should cover generated subdirectories while
+  retaining notebook, JSON, and SQL checks, and should add KQL syntax and pipeline predecessor
+  guards where those artifact shapes are present.
+- **Implemented:** `validate_directory` recursively scans generated subdirectories. It applies KQL
+  syntax guards to `.kql` files and predecessor checks to pipeline JSON with `properties.activities`,
+  while preserving the existing notebook, JSON, and SQL checks.
+- **Validated:** `python -m pytest tests/test_artifact_validation.py -v` passed with `5 passed`.
+- **Open:** These are offline structural checks only. They do not validate generated artifacts
+  against official Fabric schemas or perform deployment validation.
+
 ### Validated assessment test guide
 
 - **Expected:** Reviewers can reproduce the offline fixture assessment and understand the live

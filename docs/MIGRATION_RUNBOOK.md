@@ -38,6 +38,21 @@ not be established; it does not indicate a deployment failure or success.
 success validates Python typing and lint checks only; it does not validate generated artifacts
 against official Fabric schemas or APIs, establish runtime parity, or authorize deployment.
 
+### Validate generated artifact packages
+
+`validate_directory` recursively scans the generated package, including generated subdirectories.
+It applies the existing notebook, JSON, and SQL checks, KQL syntax guards to `.kql` files, and
+predecessor checks to pipeline JSON artifacts with `properties.activities`.
+
+Validate this contract with:
+
+```powershell
+python -m pytest tests/test_artifact_validation.py -v
+```
+
+The focused test passes with `5 passed`. The validator performs offline structural checks only; it
+does not validate against official Fabric schemas or perform deployment validation.
+
 ## Assess a live GCP project
 
 1. Install the optional dependencies and enable the **BigQuery API**, **BigQuery Data Transfer API**,

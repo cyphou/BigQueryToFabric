@@ -56,3 +56,27 @@ def test_pipeline_validator_rejects_undefined_predecessor() -> None:
 
     assert result.valid is False
     assert any("Undefined" in error for error in result.errors)
+
+
+def test_validate_directory_checks_nested_kql_and_pipeline_json(tmp_path: Path) -> None:
+    """Generated subdirectories must use the same KQL and pipeline validators."""
+    realtime = tmp_path / "realtime"
+    pipelines = tmp_path / "pipelines"
+    realtime.mkdir()
+    pipelines.mkdir()
+    (realtime / "invalid.kql").write_text("SELECT FROM WHERE", encoding="utf-8")
+    (pipelines / "invalid.json").write_text(json.dumps({
+        "properties": {
+            "activities": [{
+                "name": "Load",
+                "dependsOn": [{"activity": "Missing"}],
+            }]
+        }
+    }), encoding="utf-8")
+
+    result = validate_directory(tmp_path)
+
+    assert result["status"] == "failed"
+    errors = [error for artifact in result["artifacts"] for error in artifact["errors"]]
+    assert any("KQL syntax" in error for error in errors)
+    assert any("Missing" in error for error in errors)

@@ -88,8 +88,12 @@ def validate_artifact(path: Path) -> dict[str, Any]:
             value = json.loads(path.read_text(encoding="utf-8"))
             if path.suffix == ".ipynb":
                 _validate_notebook(value, result["errors"])
+            elif isinstance(value, dict) and "properties" in value and "activities" in value.get("properties", {}):
+                result["errors"].extend(PipelineValidator(value).validate().errors)
             elif value.get("mode") == "dry-run" and not value.get("projectId", True):
                 result["errors"].append("dry-run artifact is missing projectId")
+        elif path.suffix == ".kql":
+            result["errors"].extend(KqlValidator(path.read_text(encoding="utf-8")).validate().errors)
         elif path.suffix == ".sql":
             if not path.read_text(encoding="utf-8").strip():
                 result["errors"].append("SQL artifact is empty")
@@ -102,8 +106,9 @@ def validate_artifact(path: Path) -> dict[str, Any]:
 def validate_directory(root: Path) -> dict[str, Any]:
     results = [
         validate_artifact(path)
-        for path in sorted(root.iterdir())
+        for path in sorted(root.rglob("*"))
         if path.is_file() and path.suffix in {".json", ".ipynb", ".sql"}
+        or path.is_file() and path.suffix == ".kql"
     ]
     return {
         "mode": "dry-run",

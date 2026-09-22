@@ -31,6 +31,16 @@ keeps distinct source IDs from overwriting one another, including IDs that norma
 safe text. Generated manifest paths use these filenames. This is a deterministic dry-run naming
 contract, not a deployment or Fabric-schema validation guarantee.
 
+## Generated artifact validation
+
+`validate_directory` recursively scans the generated package, including generated subdirectories.
+It preserves the existing notebook, JSON, and SQL checks, adds KQL syntax guards for `.kql` files,
+and validates predecessor references for pipeline JSON artifacts with `properties.activities`.
+
+The focused validation contract was checked with `python -m pytest tests/test_artifact_validation.py
+-v` (`5 passed`). These checks are offline structural checks; they are not official Fabric schema
+validation and do not validate deployment.
+
 ## Composer schedule contract
 
 Offline Composer normalization writes `properties.schedule_interval` as the canonical DAG schedule

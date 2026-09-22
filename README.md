@@ -74,6 +74,16 @@ The generated package contains:
 - `fabric/artifact-validation.json` — offline structural validation results.
 - `fabric/deployment-manifest.json` is checked by `deployment-check`; readiness never performs apply.
 
+### Generated artifact validation
+
+`validate_directory` recursively scans the generated package, including generated subdirectories.
+It retains the existing notebook, JSON, and SQL checks, adds KQL syntax guards for `.kql` files,
+and checks predecessor references for pipeline JSON artifacts that contain `properties.activities`.
+
+This behavior was validated with `python -m pytest tests/test_artifact_validation.py -v`
+(`5 passed`). These are offline structural checks only; they do not validate artifacts against
+official Fabric schemas or perform deployment validation.
+
 ## How to Test the Assessment
 
 ### Local fixture smoke test
