@@ -38,6 +38,22 @@ not be established; it does not indicate a deployment failure or success.
 success validates Python typing and lint checks only; it does not validate generated artifacts
 against official Fabric schemas or APIs, establish runtime parity, or authorize deployment.
 
+### Review performance-layout findings
+
+Assessment emits deterministic `WARN` findings for `TABLE`, `EXTERNAL_TABLE`, and
+`MATERIALIZED_VIEW` objects at or above `10 GiB` when recorded inventory metadata lacks a
+partition field or clustering fields. Review `PERFORMANCE_PARTITION_REVIEW` and
+`PERFORMANCE_CLUSTERING_REVIEW` in `assessment.json` and the generated `Findings` section.
+These are design-review recommendations based on inventory metadata, not measured performance
+claims or automatic tuning decisions. Validate this slice with:
+
+```powershell
+python -m pytest tests/test_assessment.py -v
+```
+
+The focused test passes with `16 passed`. Measured workload telemetry and runtime benchmarking
+remain open and are required before making performance or tuning claims.
+
 ### Validate generated artifact packages
 
 `validate_artifact` scans persisted `.json`, `.ipynb`, `.sql`, and `.kql` text with

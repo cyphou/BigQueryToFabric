@@ -93,6 +93,7 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
     for index, item in enumerate(inventory.objects()):
         parity = assess_parity(item.properties, applicable=bool(item.columns))
         parity_summary[item.source_id] = parity
+        findings.extend(_storage_layout_findings(item))
         if parity["status"] == "failed":
             findings.append(AssessmentFinding(
                 "FAIL", item.source_id, "Parity evidence failed.", "PARITY_FAILED", "parity"
@@ -210,6 +211,33 @@ def _walk_columns(columns: tuple[Column, ...]) -> Iterator[Column]:
     for column in columns:
         yield column
         yield from _walk_columns(column.fields)
+
+
+def _storage_layout_findings(item: BigQueryObject) -> tuple[AssessmentFinding, ...]:
+    """Recommend layout review from recorded size, partition, and clustering evidence."""
+    if item.kind not in {ObjectKind.TABLE, ObjectKind.EXTERNAL_TABLE, ObjectKind.MATERIALIZED_VIEW}:
+        return ()
+    if item.size_bytes is None or item.size_bytes < 10 * 1024**3:
+        return ()
+
+    findings: list[AssessmentFinding] = []
+    if not item.partition_field:
+        findings.append(AssessmentFinding(
+            "WARN",
+            item.source_id,
+            "Large table has no recorded partition field; review partitioning for scan and refresh efficiency.",
+            "PERFORMANCE_PARTITION_REVIEW",
+            "performance",
+        ))
+    if not item.clustering_fields:
+        findings.append(AssessmentFinding(
+            "WARN",
+            item.source_id,
+            "Large table has no recorded clustering fields; review workload-driven clustering or indexing.",
+            "PERFORMANCE_CLUSTERING_REVIEW",
+            "performance",
+        ))
+    return tuple(findings)
 
 
 def _streaming_consumers(inventory: BigQueryInventory) -> set[str]:

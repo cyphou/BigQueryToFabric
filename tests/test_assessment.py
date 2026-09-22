@@ -45,6 +45,26 @@ def test_assessment_reports_origin_and_deterministic_discovery_coverage() -> Non
     }
 
 
+def test_large_unpartitioned_table_gets_layout_review_findings() -> None:
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "performance-review",
+        "components": [{
+            "source_id": "performance-review.large_events",
+            "name": "large_events",
+            "kind": "table",
+            "size_bytes": 10 * 1024**3,
+            "columns": [{"name": "event_id", "data_type": "STRING"}],
+        }],
+    })
+
+    findings = run_assessment(inventory).findings
+    codes = {finding.code for finding in findings}
+
+    assert "PERFORMANCE_PARTITION_REVIEW" in codes
+    assert "PERFORMANCE_CLUSTERING_REVIEW" in codes
+    assert all(finding.category == "performance" for finding in findings if finding.code.startswith("PERFORMANCE_"))
+
+
 def test_plan_orders_view_after_its_table_dependency() -> None:
     inventory = JsonInventoryProvider(FIXTURE).load()
     report = run_assessment(inventory)

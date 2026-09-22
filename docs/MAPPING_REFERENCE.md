@@ -74,6 +74,22 @@ before accepting readiness as complete.
 This contract was validated with `python -m pytest tests/test_discovery.py
 tests/test_assessment.py -v` (`54 passed`).
 
+## Performance-layout review
+
+For `TABLE`, `EXTERNAL_TABLE`, and `MATERIALIZED_VIEW` objects at or above `10 GiB`, assessment
+uses only recorded inventory metadata to emit deterministic `WARN` findings when layout evidence
+is absent:
+
+| Missing recorded evidence | Finding code |
+|---|---|
+| Partition field | `PERFORMANCE_PARTITION_REVIEW` |
+| Clustering fields | `PERFORMANCE_CLUSTERING_REVIEW` |
+
+These findings are design-review recommendations for migration planning. They are not measured
+performance claims and do not automatically select or apply partitioning, clustering, or indexing.
+Measured workload telemetry and runtime benchmarking remain open. This behavior was validated with
+`python -m pytest tests/test_assessment.py -v` (`16 passed`).
+
 ## Discovery evidence boundary
 
 The live provider discovers BigQuery core metadata, jobs, scheduled-query transfer configurations,

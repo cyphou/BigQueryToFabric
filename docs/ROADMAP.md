@@ -60,6 +60,18 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** No authorized live-GCP sandbox run is claimed. Non-BigQuery GCP services remain
   offline payload normalization and assessment inputs without live adapters.
 
+### Validated performance-layout assessment
+
+- **Expected:** Assessment should identify large BigQuery objects whose recorded inventory
+  metadata has no partitioning or clustering evidence, while keeping the result as a design-review
+  recommendation rather than a measured performance conclusion.
+- **Implemented:** For `TABLE`, `EXTERNAL_TABLE`, and `MATERIALIZED_VIEW` objects at or above
+  `10 GiB`, assessment emits deterministic `WARN` findings for missing recorded partitioning or
+  clustering evidence: `PERFORMANCE_PARTITION_REVIEW` and `PERFORMANCE_CLUSTERING_REVIEW`.
+- **Validated:** `python -m pytest tests/test_assessment.py -v` passed with `16 passed`.
+- **Open:** Measured workload telemetry and runtime benchmarking remain open. The findings do not
+  perform automatic tuning and do not establish scan, refresh, or query-performance outcomes.
+
 ### What v0.1.0 proves
 
 - One canonical model can represent BigQuery and the surrounding GCP data platform.
@@ -555,7 +567,10 @@ result = converter.convert(bigquery_obj, TargetDialect.SPARK_SQL)
   is missing or malformed. The parity summary includes `sql_result`. Live source/Fabric SQL
   query execution remains open. *Validated by `python -m pytest tests/test_parity.py -q` (16
   passed).*
-- Add partition, clustering, file-size, and performance recommendations from measured workloads.
+- **Implemented:** Add deterministic partitioning and clustering design-review findings from
+  recorded inventory size and layout metadata for large table-like objects.
+- Add file-size and performance recommendations from measured workloads; measured workload
+  telemetry and runtime benchmarking remain open.
 - Add security matrices for IAM, policy tags, authorized views, Fabric permissions, and RLS.
 - Produce a portable evidence package for architecture review and migration sign-off.
 

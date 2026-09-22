@@ -210,6 +210,19 @@ absent; it does not mean that parity succeeded. The detailed `Parity evidence` t
 These are review summaries for prioritization, not proof of deployment readiness, runtime parity,
 security remediation, or finding remediation.
 
+### Performance-layout assessment
+
+- **Expected:** Large BigQuery objects with incomplete recorded layout metadata should be surfaced
+	for design review without implying measured performance behavior or automatic tuning.
+- **Implemented:** For `TABLE`, `EXTERNAL_TABLE`, and `MATERIALIZED_VIEW` objects at or above
+	`10 GiB`, assessment emits deterministic `WARN` findings when inventory metadata lacks a
+	partition field or clustering fields: `PERFORMANCE_PARTITION_REVIEW` and
+	`PERFORMANCE_CLUSTERING_REVIEW`. The findings are based only on recorded inventory evidence.
+- **Validated:** `python -m pytest tests/test_assessment.py -v` passed with `16 passed`.
+- **Open:** Measured workload telemetry and runtime benchmarking remain open. These findings are
+	design-review recommendations, not measured performance claims or automatic partitioning,
+	clustering, or indexing decisions.
+
 ### Stage-readiness summary
 
 `fabric/target-manifest.json` groups entries by `processingStage` in its top-level
