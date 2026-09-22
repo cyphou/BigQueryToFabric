@@ -79,6 +79,9 @@ The generated package contains:
 For the complete installation guide, command reference, offline and read-only discovery workflows,
 artifact interpretation, security rules, and troubleshooting, see [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
 
+For a one-command PowerShell fixture walkthrough, run `./scripts/smoke_test.ps1` after installing
+the development package.
+
 ### Generated artifact validation
 
 `validate_artifact` scans persisted `.json`, `.ipynb`, `.sql`, and `.kql` text with

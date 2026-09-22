@@ -53,6 +53,15 @@ bqtofabric deployment-check "$output/project/fabric"
 
 The commands are read-only with respect to cloud services. `generate` writes local review artifacts only.
 
+Run the same workflow from PowerShell with the repository smoke-test script:
+
+```powershell
+.\scripts\smoke_test.ps1
+.\scripts\smoke_test.ps1 tests/fixtures/mixed_project.json artifacts/mixed-smoke
+```
+
+The script expects the `bqtofabric` command to be installed with `python -m pip install -e ".[dev]"`.
+
 ### Command sequence
 
 1. `validate` checks that the inventory can be loaded and normalized.
@@ -63,6 +72,23 @@ The commands are read-only with respect to cloud services. `generate` writes loc
 6. `generate` writes the migration reports and, when requested, Fabric dry-run artifacts.
 7. `manifest-verify` verifies the deployment-manifest integrity hash.
 8. `deployment-check` checks whether the local package is ready for review. It never applies changes.
+
+### Command reference
+
+| Command | Input | Output | Typical use |
+|---|---|---|---|
+| `inventory` | Inventory JSON | Summary JSON | Count objects and component kinds |
+| `validate` | Inventory JSON | PASS/FAIL text | Check inventory structure |
+| `assess` | Inventory JSON | Assessment JSON | Review compatibility and evidence |
+| `map` | Inventory JSON | Mapping JSON | Inspect Fabric target decisions |
+| `plan` | Inventory JSON + `--output` | Plan package | Build dependency waves |
+| `generate` | Inventory JSON + `--output` | Reports and dry-run artifacts | Prepare review materials |
+| `discover` | GCP project + `--output` | Canonical inventory JSON | Read-only metadata discovery |
+| `manifest-verify` | Deployment manifest | PASS/FAIL text | Check manifest integrity |
+| `deployment-check` | Artifact directory | Readiness JSON | Run offline pre-deployment checks |
+
+All commands are deterministic for the same inputs and configuration. No command performs a
+Fabric apply operation.
 
 ## 3. Inspect the Outputs
 
