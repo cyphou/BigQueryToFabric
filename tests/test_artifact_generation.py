@@ -855,6 +855,11 @@ class TestPipelineGenerator:
         assert PipelineValidator(pipeline.pipeline).validate().valid
         error_handler = next(activity for activity in activities if activity["name"] == "Handle Error")
         assert error_handler["policy"] == {"secureInput": True, "secureOutput": True}
+        operational_activities = [activity for activity in activities if activity["name"] != "Handle Error"]
+        assert all(activity["policy"]["retry"] == 3 for activity in operational_activities)
+        assert all(activity["policy"]["retryIntervalInSeconds"] == 30 for activity in operational_activities)
+        assert all(activity["policy"]["secureInput"] for activity in operational_activities)
+        assert all(activity["policy"]["secureOutput"] for activity in operational_activities)
 
 
 # Integration Tests

@@ -190,6 +190,15 @@ This contract was validated with `python -m pytest tests/test_artifact_generatio
 passed`). Generated pipeline definitions still require validation against the official Fabric/ADF
 schema and deployment validation before they can be treated as deployable.
 
+### Pipeline activity resilience defaults
+
+Generated operational pipeline activities receive deterministic defaults of `retry: 3`,
+`retryIntervalInSeconds: 30`, `secureInput: true`, and `secureOutput: true`. The failure handler
+retains its specialized secure policy. This behavior was validated with
+`python -m pytest tests/test_artifact_generation.py -v` (`44 passed`). Retry behavior still requires
+validation against the official Fabric/ADF schema and runtime validation; these defaults do not
+establish retry execution or deployment readiness.
+
 ### Assessment summary
 
 The generated `migration-plan.md` also includes an `Assessment summary` section. Its Gate/Value

@@ -24,6 +24,9 @@
   `SECURITY_EFFECTIVE_ACCESS_REVIEW`; discovery does not query IAM APIs or prove those effective
   permissions.
 - Generated Fabric artifacts are skeletons and are not production deployment payloads.
+- Generated operational pipeline activities use deterministic retry and secure-policy defaults,
+  but retry behavior still requires validation against the official Fabric/ADF schema and runtime;
+  the defaults do not establish deployment readiness or execution parity.
 - Generated numeric `Count of <column>` measures use DAX `COUNT` to count populated values, but
   generated semantic models still require validation against the official Fabric semantic-model
   schema/API; the artifact-generation fidelity fix does not establish deployment readiness or

@@ -102,6 +102,8 @@ class PipelineGenerator:
             activities.append(self._build_notebook_activity(item, warnings))
 
         main_activity_name = activities[-1]["name"]
+        for activity in activities:
+            activity.setdefault("policy", self._retry_policy())
 
         # Add error handling activity
         activities.append({
@@ -134,12 +136,23 @@ class PipelineGenerator:
             "dependsOn": [
                 {"activity": main_activity_name, "dependencyConditions": ["Succeeded"]},
             ],
+            "policy": self._retry_policy(),
         })
 
         if not activities:
             warnings.append("No activities generated; manual pipeline configuration required")
 
         return activities
+
+    @staticmethod
+    def _retry_policy() -> dict[str, Any]:
+        """Return the deterministic retry policy for recoverable activities."""
+        return {
+            "retry": 3,
+            "retryIntervalInSeconds": 30,
+            "secureInput": True,
+            "secureOutput": True,
+        }
 
     def _build_sql_activity(self, item: BigQueryObject, warnings: list[str]) -> dict[str, Any]:
         """Build SQL activity for scheduled query."""

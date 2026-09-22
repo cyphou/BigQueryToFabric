@@ -100,6 +100,18 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
   schema and deployment validation. This fix is deterministic dry-run generation behavior and does
   not establish trigger execution, scheduling parity, or production readiness.
 
+### Validated pipeline activity resilience defaults
+
+- **Expected:** Generated operational pipeline activities should receive deterministic retry and
+  secure-policy defaults, while the failure handler should retain its specialized secure policy.
+- **Implemented:** Operational activities default to `retry: 3`, `retryIntervalInSeconds: 30`,
+  `secureInput: true`, and `secureOutput: true`. The failure handler keeps its specialized secure
+  policy rather than inheriting the operational-activity defaults.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py -v` passed with `44 passed`.
+- **Open:** Retry behavior still requires validation against the official Fabric/ADF schema and
+  runtime validation. These deterministic dry-run defaults do not establish retry execution,
+  failure-handler parity, deployment readiness, or production readiness.
+
 ### Validated Composer adapter evidence
 
 - **Expected:** Composer DAG evidence must retain a usable runtime-version signal and declared task

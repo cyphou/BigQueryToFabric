@@ -37,6 +37,12 @@ stale fixed `2024` date. This behavior was validated with
 definitions still require validation against the official Fabric/ADF schema and deployment
 validation; this change does not establish deployability or scheduling parity.
 
+Generated operational activities also receive deterministic resilience defaults: `retry: 3`,
+`retryIntervalInSeconds: 30`, `secureInput: true`, and `secureOutput: true`. The failure handler
+retains its specialized secure policy. This was validated with
+`python -m pytest tests/test_artifact_generation.py -v` (`44 passed`). Retry behavior remains open
+until validated against the official Fabric/ADF schema and at runtime.
+
 ## Composer adapter evidence
 
 Composer DAG normalization writes `properties.runtime_version` from the Composer image version when
