@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BQToFabric | Assessment & Migration Proposal</title>
+  <script>
+    (() => {
+      const param = new URLSearchParams(window.location.search).get("scoutTheme");
+      const theme =
+        param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      --cp-bg: #f7f4ef;
+      --cp-bg-elevated: #fcfbf8;
+      --cp-surface: #ffffff;
+      --cp-surface-soft: #f5f5f5;
+      --cp-border: #dedede;
+      --cp-border-strong: #919191;
+      --cp-text: #242424;
+      --cp-text-muted: #5c5c5c;
+      --cp-text-soft: #6f6f6f;
+      --cp-accent: #b11f4b;
+      --cp-accent-hover: #9a1a41;
+      --cp-accent-soft: rgba(177, 31, 75, 0.08);
+      --cp-accent-fg: #ffffff;
+      --cp-success: #16a34a;
+      --cp-danger: #dc2626;
+      --cp-warning: #f59e0b;
+      --cp-link: #0078d4;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+      --cp-overlay: rgba(255, 255, 255, 0.8);
+      --cp-panel: rgba(255, 255, 255, 0.86);
+      --cp-panel-strong: rgba(255, 255, 255, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.55);
+      --cp-highlight: rgba(177, 31, 75, 0.12);
+    }
+    html[data-theme="dark"] {
+      color-scheme: dark;
+      --cp-bg: #3d3b3a;
+      --cp-bg-elevated: #343231;
+      --cp-surface: #292929;
+      --cp-surface-soft: #2e2e2e;
+      --cp-border: #474747;
+      --cp-border-strong: #5f5f5f;
+      --cp-text: #dedede;
+      --cp-text-muted: #919191;
+      --cp-text-soft: #b0b0b0;
+      --cp-accent: #fd8ea1;
+      --cp-accent-hover: #fb7b91;
+      --cp-accent-soft: rgba(253, 142, 161, 0.14);
+      --cp-accent-fg: #1a1a1a;
+      --cp-success: #4ade80;
+      --cp-danger: #f87171;
+      --cp-warning: #fbbf24;
+      --cp-link: #4da6ff;
+      --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+      --cp-overlay: rgba(41, 41, 41, 0.88);
+      --cp-panel: rgba(41, 41, 41, 0.72);
+      --cp-panel-strong: rgba(41, 41, 41, 0.96);
+      --cp-sheen: rgba(255, 255, 255, 0.04);
+      --cp-highlight: rgba(253, 142, 161, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--cp-bg);
+      color: var(--cp-text);
+      font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.5;
+    }
+    button, select { font: inherit; }
+    button { cursor: pointer; }
+    .shell { max-width: 1440px; margin: 0 auto; padding: 28px 28px 60px; }
+    .hero {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 28px;
+      align-items: end;
+      padding: 34px;
+      border: 1px solid var(--cp-border);
+      border-radius: 16px;
+      background: var(--cp-panel-strong);
+      box-shadow: var(--cp-shadow);
+      overflow: hidden;
+      position: relative;
+    }
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0 0 auto auto;
+      width: 42%;
+      height: 5px;
+      background: var(--cp-accent);
+    }
+    .eyebrow { color: var(--cp-accent); font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+    h1 { font-size: clamp(2.1rem, 5vw, 4.8rem); line-height: .98; letter-spacing: -.04em; margin: 10px 0 16px; max-width: 820px; }
+    h2 { margin: 0 0 8px; font-size: 1.35rem; letter-spacing: -.02em; }
+    h3 { margin: 0 0 6px; font-size: 1rem; }
+    p { margin: 0; color: var(--cp-text-muted); }
+    .hero-copy { max-width: 820px; }
+    .hero-meta { display: grid; gap: 10px; min-width: 220px; }
+    .meta-line { display: flex; justify-content: space-between; gap: 16px; border-bottom: 1px solid var(--cp-border); padding-bottom: 8px; color: var(--cp-text-muted); font-size: .88rem; }
+    .meta-line strong { color: var(--cp-text); }
+    .grid { display: grid; gap: 16px; }
+    .metrics { grid-template-columns: repeat(5, minmax(0, 1fr)); margin: 18px 0; }
+    .metric, .panel, .phase, .finding { border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-surface); box-shadow: 0 0 2px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.14); }
+    .metric { padding: 18px; min-height: 116px; }
+    .metric .value { font-size: 2rem; font-weight: 800; letter-spacing: -.05em; }
+    .metric .label { color: var(--cp-text-soft); font-size: .82rem; margin-top: 4px; }
+    .metric.danger .value { color: var(--cp-danger); }
+    .metric.accent .value { color: var(--cp-accent); }
+    .metric.success .value { color: var(--cp-success); }
+    .two-col { grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr); }
+    .panel { padding: 22px; }
+    .panel-header { display: flex; justify-content: space-between; gap: 16px; align-items: start; margin-bottom: 16px; }
+    .subtle { color: var(--cp-text-soft); font-size: .88rem; }
+    .callout { border-left: 4px solid var(--cp-danger); background: var(--cp-accent-soft); padding: 16px 18px; border-radius: 0 10px 10px 0; }
+    .callout strong { display: block; margin-bottom: 4px; }
+    .proposal-list { display: grid; gap: 12px; margin-top: 16px; }
+    .proposal { display: grid; grid-template-columns: 34px 1fr; gap: 12px; align-items: start; }
+    .proposal-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: var(--cp-accent); color: var(--cp-accent-fg); font-weight: 800; }
+    .proposal p { font-size: .92rem; }
+    .bars { display: grid; gap: 13px; }
+    .bar-label { display: flex; justify-content: space-between; font-size: .88rem; margin-bottom: 5px; }
+    .track { height: 10px; border-radius: 99px; background: var(--cp-surface-soft); overflow: hidden; }
+    .fill { height: 100%; background: var(--cp-accent); border-radius: inherit; }
+    .fill.warning { background: var(--cp-warning); }
+    .fill.success { background: var(--cp-success); }
+    .filters { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 16px; }
+    .filter { border: 1px solid var(--cp-border); background: var(--cp-surface); color: var(--cp-text); border-radius: 10px; padding: 8px 12px; }
+    .filter.active { background: var(--cp-accent); border-color: var(--cp-accent); color: var(--cp-accent-fg); }
+    .phases { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+    .phase { padding: 18px; position: relative; }
+    .phase-number { color: var(--cp-accent); font-weight: 800; font-size: .78rem; letter-spacing: .1em; text-transform: uppercase; }
+    .phase ul { margin: 12px 0 0; padding-left: 18px; color: var(--cp-text-muted); font-size: .9rem; }
+    .phase li + li { margin-top: 7px; }
+    .wave { display: grid; grid-template-columns: 68px 1fr; gap: 14px; align-items: start; padding: 14px 0; border-bottom: 1px solid var(--cp-border); }
+    .wave:last-child { border-bottom: 0; }
+    .wave-no { color: var(--cp-accent); font-weight: 800; }
+    .wave-items { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 7px; }
+    .chip { display: inline-flex; align-items: center; padding: 4px 8px; border-radius: 8px; background: var(--cp-surface-soft); color: var(--cp-text-muted); font-size: .76rem; }
+    .chip.review { color: var(--cp-danger); background: var(--cp-accent-soft); }
+    .finding { padding: 14px 16px; display: grid; grid-template-columns: 74px 1fr; gap: 12px; align-items: start; }
+    .finding + .finding { margin-top: 10px; }
+    .severity { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--cp-danger); }
+    .finding p { font-size: .88rem; }
+    .table-wrap { overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+    th, td { text-align: left; padding: 11px 10px; border-bottom: 1px solid var(--cp-border); vertical-align: top; }
+    th { color: var(--cp-text-soft); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
+    td code, code { font-family: Consolas, "Courier New", Courier, monospace; font-size: .82em; }
+    .status { color: var(--cp-warning); font-weight: 700; }
+    .footer { margin-top: 18px; color: var(--cp-text-soft); font-size: .82rem; text-align: right; }
+    @media (max-width: 1000px) { .metrics { grid-template-columns: repeat(3, 1fr); } .two-col { grid-template-columns: 1fr; } }
+    @media (max-width: 700px) { .shell { padding: 14px 14px 40px; } .hero { grid-template-columns: 1fr; padding: 24px; } .metrics, .phases { grid-template-columns: 1fr 1fr; } h1 { font-size: 2.7rem; } }
+    @media (max-width: 460px) { .metrics, .phases { grid-template-columns: 1fr; } .finding { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-copy">
+        <div class="eyebrow">BQToFabric / decision brief</div>
+        <h1>Migration proposal for the GCP data platform</h1>
+        <p>Evidence-led assessment of <strong>gcp-data-platform</strong>, translated into a staged Microsoft Fabric migration proposal. Current posture: useful for planning, not yet production-ready.</p>
+      </div>
+      <div class="hero-meta">
+        <div class="meta-line"><span>Architecture</span><strong>Hybrid</strong></div>
+        <div class="meta-line"><span>Assessment</span><strong>22 Sep 2026</strong></div>
+        <div class="meta-line"><span>Operating mode</span><strong>Offline / dry-run</strong></div>
+      </div>
+    </section>
+
+    <section class="grid metrics" aria-label="Assessment scorecard">
+      <div class="metric accent"><div class="value">70</div><div class="label">Readiness score / 100</div></div>
+      <div class="metric warning"><div class="value">62%</div><div class="label">Evidence coverage</div></div>
+      <div class="metric danger"><div class="value">1</div><div class="label">Blocking finding</div></div>
+      <div class="metric"><div class="value">68</div><div class="label">Total findings</div></div>
+      <div class="metric success"><div class="value">38</div><div class="label">Components assessed</div></div>
+    </section>
+
+    <section class="grid two-col">
+      <article class="panel">
+        <div class="panel-header"><div><h2>Executive decision</h2><p class="subtle">Recommended posture for the next review gate</p></div><span class="status">REVIEW REQUIRED</span></div>
+        <div class="callout"><strong>Do not approve production migration yet.</strong> The portfolio has a credible hybrid target shape, but one security-policy mapping is unsupported and evidence coverage is only 62%.</div>
+        <div class="proposal-list">
+          <div class="proposal"><div class="proposal-icon">1</div><div><h3>Close security blockers</h3><p>Design target-side access controls and RLS for <code>customer_policy</code>. Treat source ACL evidence as review input, not effective-access proof.</p></div></div>
+          <div class="proposal"><div class="proposal-icon">2</div><div><h3>Fill evidence gaps</h3><p>Prioritize Composer, Looker, BQML, Vertex AI, Cloud SQL, and Spanner runtime/configuration evidence before wave approval.</p></div></div>
+          <div class="proposal"><div class="proposal-icon">3</div><div><h3>Pilot the dependency spine</h3><p>Use ingestion to storage to transformation to orchestration as the first controlled rehearsal, with parity evidence at each boundary.</p></div></div>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><div><h2>Finding mix</h2><p class="subtle">Why the score is held at 70</p></div></div>
+        <div class="bars">
+          <div><div class="bar-label"><span>Missing evidence</span><strong>30</strong></div><div class="track"><div class="fill warning" style="width:100%"></div></div></div>
+          <div><div class="bar-label"><span>Required actions</span><strong>26</strong></div><div class="track"><div class="fill" style="width:87%"></div></div></div>
+          <div><div class="bar-label"><span>Mapping redesign</span><strong>8</strong></div><div class="track"><div class="fill" style="width:27%"></div></div></div>
+          <div><div class="bar-label"><span>Schema redesign</span><strong>2</strong></div><div class="track"><div class="fill" style="width:7%"></div></div></div>
+          <div><div class="bar-label"><span>SQL redesign</span><strong>1</strong></div><div class="track"><div class="fill" style="width:4%"></div></div></div>
+        </div>
+      </article>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-header"><div><h2>Migration proposal</h2><p class="subtle">A staged path from evidence closure to controlled Fabric pilot</p></div></div>
+      <div class="phases">
+        <div class="phase"><div class="phase-number">Phase 01 / prove</div><h3>Evidence and security closure</h3><ul><li>Resolve the unsupported security policy mapping.</li><li>Complete missing adapter evidence.</li><li>Approve source-to-target ownership and RLS assumptions.</li></ul></div>
+        <div class="phase"><div class="phase-number">Phase 02 / pilot</div><h3>Dependency-spine rehearsal</h3><ul><li>Rehearse ingestion, storage, transformation, and orchestration.</li><li>Validate generated artifacts against official Fabric schemas.</li><li>Capture schema, row-count, SQL-result, and checksum evidence.</li></ul></div>
+        <div class="phase"><div class="phase-number">Phase 03 / scale</div><h3>Wave expansion and governance</h3><ul><li>Promote approved workloads by migration wave.</li><li>Introduce live adapter/sandbox validation.</li><li>Require rollback, identity, audit, and parity sign-off.</li></ul></div>
+      </div>
+    </section>
+
+    <section class="grid two-col" style="margin-top:16px">
+      <article class="panel">
+        <div class="panel-header"><div><h2>Dependency waves</h2><p class="subtle">29 planned items across six waves</p></div></div>
+        <div class="filters" role="group" aria-label="Wave filters">
+          <button class="filter active" data-wave="all">All</button><button class="filter" data-wave="1">Wave 1</button><button class="filter" data-wave="2">Wave 2</button><button class="filter" data-wave="3">Wave 3</button><button class="filter" data-wave="4">Wave 4</button><button class="filter" data-wave="5">Wave 5</button><button class="filter" data-wave="6">Wave 6</button>
+        </div>
+        <div id="waves">
+          <div class="wave" data-wave-item="1"><div class="wave-no">WAVE 1</div><div><strong>Foundation and independent domains</strong><div class="wave-items"><span class="chip">Lakehouse</span><span class="chip">Warehouse</span><span class="chip review">Security review</span><span class="chip review">Data science review</span></div></div></div>
+          <div class="wave" data-wave-item="2"><div class="wave-no">WAVE 2</div><div><strong>Ingestion redesign</strong><div class="wave-items"><span class="chip review">Batch ingestion</span><span class="chip review">Realtime ingestion</span></div></div></div>
+          <div class="wave" data-wave-item="3"><div class="wave-no">WAVE 3</div><div><strong>Core storage</strong><div class="wave-items"><span class="chip">Analytics events</span><span class="chip">Lakehouse foundation</span></div></div></div>
+          <div class="wave" data-wave-item="4"><div class="wave-no">WAVE 4</div><div><strong>Transformations and operational SQL</strong><div class="wave-items"><span class="chip">Daily metrics</span><span class="chip">Spark enrichment</span><span class="chip review">SQL redesign</span></div></div></div>
+          <div class="wave" data-wave-item="5"><div class="wave-no">WAVE 5</div><div><strong>Dataform gold layer</strong><div class="wave-items"><span class="chip">Gold models</span><span class="chip">Incremental semantics</span></div></div></div>
+          <div class="wave" data-wave-item="6"><div class="wave-no">WAVE 6</div><div><strong>Orchestration</strong><div class="wave-items"><span class="chip">Composer / Airflow</span><span class="chip">Schedule and connection review</span></div></div></div>
+        </div>
+      </article>
+      <article class="panel">
+        <div class="panel-header"><div><h2>Target portfolio</h2><p class="subtle">Primary recommendations from the assessment</p></div></div>
+        <div class="bars">
+          <div><div class="bar-label"><span>Lakehouse</span><strong>10</strong></div><div class="track"><div class="fill" style="width:100%"></div></div></div>
+          <div><div class="bar-label"><span>Data Pipeline</span><strong>4</strong></div><div class="track"><div class="fill" style="width:40%"></div></div></div>
+          <div><div class="bar-label"><span>Eventhouse</span><strong>3</strong></div><div class="track"><div class="fill" style="width:30%"></div></div></div>
+          <div><div class="bar-label"><span>Warehouse</span><strong>3</strong></div><div class="track"><div class="fill" style="width:30%"></div></div></div>
+          <div><div class="bar-label"><span>Other targets</span><strong>9</strong></div><div class="track"><div class="fill success" style="width:90%"></div></div></div>
+        </div>
+        <p class="subtle" style="margin-top:18px">The hybrid recommendation keeps orchestration and workload-specific processing explicit instead of forcing every object into one Fabric workload.</p>
+      </article>
+    </section>
+
+    <section class="grid two-col" style="margin-top:16px">
+      <article class="panel"><div class="panel-header"><div><h2>Blocking finding</h2><p class="subtle">The item that stops production approval</p></div></div><div class="finding"><div class="severity">FAIL · SECURITY</div><div><h3><code>gcp-data-platform.security.customer_policy</code></h3><p>Security policies have no safe automatic one-to-one migration. Target-side access controls, RLS, effective IAM, and policy equivalence require manual design and sign-off.</p></div></div></article>
+      <article class="panel"><div class="panel-header"><div><h2>Evidence posture</h2><p class="subtle">Runtime confidence remains intentionally conservative</p></div></div><div class="finding"><div class="severity">62% COVERAGE</div><div><h3>Evidence is the next unlock</h3><p>Parity is <code>not_run</code> or <code>not_applicable</code> across the fixture. Missing evidence should be completed before a wave is treated as ready.</p></div></div></article>
+    </section>
+
+    <section class="panel" style="margin-top:16px">
+      <div class="panel-header"><div><h2>Approval checklist</h2><p class="subtle">The proposal is ready to discuss, not yet ready to deploy</p></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Gate</th><th>Current state</th><th>Decision needed</th></tr></thead><tbody>
+        <tr><td>Security policy parity</td><td class="status">Blocked</td><td>Approve target RLS/IAM design and evidence plan</td></tr>
+        <tr><td>Adapter evidence</td><td class="status">Incomplete</td><td>Complete runtime, connection, model, and database evidence</td></tr>
+        <tr><td>Artifact validation</td><td>Offline checks available</td><td>Run official Fabric/ADF schema validation in a sandbox</td></tr>
+        <tr><td>Runtime parity</td><td class="status">Not run</td><td>Capture source/target schema, counts, checksums, and SQL-result evidence</td></tr>
+        <tr><td>Deployment</td><td class="status">Not implemented</td><td>Define approved identity, rollback, audit, and apply boundary</td></tr>
+      </tbody></table></div>
+    </section>
+
+    <div class="footer">Generated from the sanitized GCP ecosystem fixture · BQToFabric dry-run assessment</div>
+  </main>
+  <script>
+    const filterButtons = document.querySelectorAll("[data-wave]");
+    const waveItems = document.querySelectorAll("[data-wave-item]");
+    filterButtons.forEach((button) => {
+      button.addEventListener("click", () => {
+        filterButtons.forEach((item) => item.classList.remove("active"));
+        button.classList.add("active");
+        const selected = button.dataset.wave;
+        waveItems.forEach((item) => {
+          item.hidden = selected !== "all" && item.dataset.waveItem !== selected;
+        });
+      });
+    });
+  </script>
+</body>
+</html>
