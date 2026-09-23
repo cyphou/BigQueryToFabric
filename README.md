@@ -129,6 +129,12 @@ the development package.
 | [Security](docs/SECURITY.md) | Apply credential and access-evidence rules |
 | [Roadmap](docs/ROADMAP.md) | Track implemented, validated, and open work |
 
+### 📊 Assessment proposal
+
+Open the self-contained [assessment and migration proposal](docs/assessment-proposal.html) for a
+visual scorecard, blocker summary, target portfolio, six-wave migration proposal, and approval
+checklist based on the sanitized GCP ecosystem fixture.
+
 ### Generated artifact validation
 
 `validate_artifact` scans persisted `.json`, `.ipynb`, `.sql`, and `.kql` text with
