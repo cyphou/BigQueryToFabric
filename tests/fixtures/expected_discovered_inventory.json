@@ -16,7 +16,7 @@
         "database_engine": "POSTGRES",
         "description": "CRM connection",
         "friendly_name": "CRM",
-        "identity_model": "credential",
+        "identity_model": "service_account",
         "instance_id": "demo-project:eu:crm-db",
         "location": "eu"
       },

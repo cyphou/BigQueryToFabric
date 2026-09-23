@@ -23,7 +23,7 @@ validation commands.
 | Assessment finding codes | 18 stable codes (see [mapping reference](MAPPING_REFERENCE.md#assessment-finding-codes)) |
 | Manual-review reason codes | 13 stable codes |
 | Parity check types | 7: `schema`, `row_count`, `checksum`, `aggregate`, `null_distribution`, `sample`, `sql_result` |
-| Test suite | 364 passed |
+| Test suite | 390 passed |
 | Coverage | 89% |
 | Static quality | Ruff clean · Pyright clean |
 | Agent contracts | 12 agents · exclusive ownership · documentation handoff · 5 skills validated |
@@ -47,20 +47,20 @@ release:
 
 | Field | Value |
 |---|---|
-| `score` | 42 |
-| `evidenceCoverage` | 61 |
+| `score` | 39 |
+| `evidenceCoverage` | 58 |
 | `componentCount` | 28 |
-| `manualReviewCount` | 16 |
+| `manualReviewCount` | 17 |
 | `status` | `blocked` |
-| `findingCounts` | `FAIL: 1`, `WARN: 74` |
+| `findingCounts` | `FAIL: 1`, `WARN: 80` |
 | `paritySummary` | `not_applicable: 24`, `not_run: 4` |
-| `manualReviewReasons` | `incompatible_mapping: 9`, `missing_required_evidence: 12`, `sql_incompatibility: 3`, `streaming_downstream_review: 1` |
+| `manualReviewReasons` | `incompatible_mapping: 10`, `missing_required_evidence: 13`, `sql_incompatibility: 3`, `streaming_downstream_review: 1` |
 
-The reference score moved from `70` to `42` in this release. This is an intended correction, not a
+The reference score moved from `70` to `39` in this release. This is an intended correction, not a
 regression in the fixture: scoring is now computed per component, scaled by evidence coverage, and
 forced to zero for any component carrying a `FAIL` blocker. The previous score was inflated because
 type and SQL risks were aggregated separately from the components that owned them, schema width
-contributed to the score, and missing required evidence did not reduce it. Treat `42` as the honest
+contributed to the score, and missing required evidence did not reduce it. Treat `39` as the honest
 readiness of a fixture that deliberately contains incomplete evidence.
 
 ## Correctness release — behavior changes
@@ -221,7 +221,7 @@ execution, official Fabric schema validity, or deployment readiness.
   manifest records, verifies each referenced path, and fails for an invalid artifact referenced by
   a target whose `manualReview` flag is false. Invalid artifacts referenced by review-only targets
   are allowed.
-- **Validated:** `python -m pytest` passes in CI (364 passed at this release).
+- **Validated:** `python -m pytest` passes in CI (390 passed at this release).
 - **Open:** This is deterministic, offline consistency validation only. It does not validate
   official Fabric schemas or APIs, execute workloads, establish runtime/data parity, or authorize
   deployment.
@@ -950,7 +950,7 @@ Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner until their adapters and sand
 exist.
 
 After the live-discovery gate, prioritize official format-specific validation for generated Fabric
-artifacts, then v0.5 runtime parity evidence. The current offline contracts and the 364-test suite
+artifacts, then v0.5 runtime parity evidence. The current offline contracts and the 390-test suite
 are strong foundations, but neither static checks nor dry-run generation proves cloud execution,
 semantic parity, or deployment readiness.
 

@@ -52,7 +52,6 @@ def _map_connection_target(item: BigQueryObject) -> MappingDecision:
         engines = {
             "POSTGRES": "PostgreSQL",
             "MYSQL": "MySQL",
-            "SQL_SERVER": "SQL Server",
         }
         connector = engines.get(engine)
         if connector is None:
@@ -185,6 +184,7 @@ def _map_connection_target(item: BigQueryObject) -> MappingDecision:
                     "If an external metastore was configured, map its catalogs to Lakehouse "
                     "schemas or shortcuts."
                 ),
+                never_copy,
             ),
         )
 

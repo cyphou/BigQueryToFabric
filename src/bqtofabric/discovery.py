@@ -371,7 +371,11 @@ _CONNECTION_BACKENDS = {
 
 
 def _connection_details(resource: dict[str, Any]) -> dict[str, Any]:
-    """Extract the non-secret properties needed to recreate a connection in Fabric."""
+    """Extract the non-secret properties needed to recreate a connection in Fabric.
+
+    ``identity_model`` is recorded only where the API actually reports an identity.
+    Asserting one from the backend name would restate ``connection_type`` as evidence.
+    """
     for key, type_name in _CONNECTION_BACKENDS.items():
         backend = resource.get(key)
         if not isinstance(backend, dict):
@@ -381,30 +385,31 @@ def _connection_details(resource: dict[str, Any]) -> dict[str, Any]:
             details["database_engine"] = str(backend.get("type", "UNKNOWN")).upper()
             details["instance_id"] = backend.get("instanceId")
             details["database"] = backend.get("database")
-            details["identity_model"] = (
-                "service_account" if backend.get("serviceAccountId") else "credential"
-            )
+            if backend.get("serviceAccountId"):
+                details["identity_model"] = "service_account"
         elif key == "cloudSpanner":
             details["database"] = backend.get("database")
             details["database_role"] = backend.get("databaseRole")
             details["use_parallelism"] = bool(backend.get("useParallelism", False))
-            details["identity_model"] = "service_account"
         elif key == "aws":
             access_role = backend.get("accessRole")
-            details["identity_model"] = "iam_role" if access_role else "unknown"
             if isinstance(access_role, dict):
+                details["identity_model"] = "iam_role"
                 details["aws_iam_role_id"] = access_role.get("iamRoleId")
         elif key == "azure":
-            details["identity_model"] = "entra_application"
+            if backend.get("clientId"):
+                details["identity_model"] = "entra_application"
             details["azure_client_id"] = backend.get("clientId")
             details["azure_tenant_id"] = backend.get("customerTenantId")
         elif key == "cloudResource":
-            details["identity_model"] = "service_account"
+            if backend.get("serviceAccountId"):
+                details["identity_model"] = "service_account"
         elif key == "spark":
-            details["identity_model"] = "service_account"
+            if backend.get("serviceAccountId"):
+                details["identity_model"] = "service_account"
             details["metastore_configured"] = "metastoreServiceConfig" in backend
         return details
-    return {"connection_type": "UNKNOWN", "identity_model": "unknown"}
+    return {"connection_type": "UNKNOWN"}
 
 
 def _map_columns(fields: Sequence[dict[str, Any]]) -> tuple[Column, ...]:

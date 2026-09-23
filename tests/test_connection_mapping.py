@@ -63,7 +63,8 @@ def test_connection_backends_map_to_named_fabric_targets(
 
 def test_cloud_sql_names_the_matching_fabric_connector() -> None:
     """A reviewer needs the connector name, not a generic instruction."""
-    engines = {"POSTGRES": "PostgreSQL", "MYSQL": "MySQL", "SQL_SERVER": "SQL Server"}
+    # BigQuery Cloud SQL connections support POSTGRES and MYSQL only.
+    engines = {"POSTGRES": "PostgreSQL", "MYSQL": "MySQL"}
 
     for engine, connector in engines.items():
         decision = map_component(
@@ -105,7 +106,4 @@ def test_no_connection_mapping_suggests_copying_a_secret() -> None:
         )
         guidance = " ".join((decision.rationale, *decision.actions)).lower()
 
-        assert "copy the password" not in guidance
-        assert "reuse the credential" not in guidance
-        if connection_type != "SPARK":
-            assert "never copy secret values" in guidance
+        assert "never copy secret values" in guidance

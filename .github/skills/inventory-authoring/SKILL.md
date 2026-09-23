@@ -102,10 +102,11 @@ If `discovered_from` is `external_payload`, they produce
 | `cloud_sql_database` | `engine`, `version`, `replication` |
 | `spanner_database` | `dialect`, `replication`, `change_streams` |
 | `security_policy` | `policy_type` |
+| `connection` | `connection_type`, `location` |
 
 No contract is defined for `scheduled_query`, `bigquery_job`, `stream`, `workflow`,
-`pubsub_topic`, `gcs_source`, `connection`, or `dataplex_asset`. Those kinds report
-100% coverage by default — treat that as "not yet contracted", not as "verified".
+`pubsub_topic`, `gcs_source`, or `dataplex_asset`. Those kinds report 100% coverage by
+default — treat that as "not yet contracted", not as "verified".
 
 ## Evidence rules that trip people up
 

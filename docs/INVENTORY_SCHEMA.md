@@ -176,8 +176,8 @@ object fields.
 | `routine` | `language`, `sql` |
 | `procedure` | `language`, `sql` |
 | `sql_script` | `sql` |
-| `spark_job` | `language`, `runtime_version` |
-| `dataproc_job` | `language`, `runtime_version` |
+| `spark_job` | `language`, `runtime_version`, `code` |
+| `dataproc_job` | `language`, `runtime_version`, `code` |
 | `dataflow_job` | `streaming`, `portable`, `connector_compatible` |
 | `composer_dag` | `operators`, `runtime_version`, `connections` |
 | `dataform_workflow` | `models`, `assertions`, `incremental` |
@@ -185,11 +185,15 @@ object fields.
 | `bqml_model` | `model_type`, `features`, `evaluation_metrics` |
 | `vertex_ai_pipeline` | `pipeline_steps`, `models`, `endpoints` |
 | `security_policy` | `policy_type` |
+| `connection` | `connection_type`, `location` |
 | `cloud_sql_database` | `engine`, `version`, `replication` |
 | `spanner_database` | `dialect`, `replication`, `change_streams` |
 
-Kinds not listed — `bigquery_job`, `stream`, `workflow`, `pubsub_topic`, `gcs_source`,
-`dataplex_asset`, `connection` — have no required-evidence contract today. Their absence from this
+This table is enforced: `tests/test_assessment.py` fails if it does not match
+`_required_evidence`.
+
+Kinds not listed — `scheduled_query`, `bigquery_job`, `stream`, `workflow`, `pubsub_topic`,
+`gcs_source`, `dataplex_asset` — have no required-evidence contract today. Their absence from this
 table is a gap in the evidence model, not a statement that they are fully evidenced.
 
 ### How evidence presence is decided

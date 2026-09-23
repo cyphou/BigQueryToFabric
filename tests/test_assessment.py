@@ -377,6 +377,42 @@ def test_assisted_evidence_is_visible_in_the_summary_contract() -> None:
     assert summary["discoveryCoverage"] == {"assisted": 1, "inventory": 1}
 
 
+def test_documented_evidence_matrix_matches_the_code() -> None:
+    """Three copies of this matrix exist; drift between them is silent otherwise."""
+    import re
+    from pathlib import Path
+
+    from bqtofabric.assessment import _required_evidence
+    from bqtofabric.models import ObjectKind
+
+    root = Path(__file__).resolve().parents[1]
+    actual = {
+        kind.value: set(_required_evidence(kind))
+        for kind in ObjectKind
+        if _required_evidence(kind)
+    }
+
+    for document in (
+        root / "docs" / "INVENTORY_SCHEMA.md",
+        root / ".github" / "skills" / "inventory-authoring" / "SKILL.md",
+    ):
+        text = document.read_text(encoding="utf-8")
+        documented = {
+            match.group(1): {field.strip(" `") for field in match.group(2).split(",")}
+            for match in re.finditer(
+                r"^\| `([a-z_]+)` \| ((?:`[a-z_]+`(?:, )?)+) \|$", text, re.MULTILINE
+            )
+        }
+        # Only rows naming an ObjectKind are part of this contract.
+        documented = {
+            kind: fields for kind, fields in documented.items() if kind in {k.value for k in ObjectKind}
+        }
+
+        assert documented == actual, (
+            f"{document.name} evidence matrix disagrees with _required_evidence"
+        )
+
+
 def test_assessment_penalizes_missing_family_evidence() -> None:
     inventory = JsonInventoryProvider(GCP_FIXTURE).load()
     report = run_assessment(inventory)

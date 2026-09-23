@@ -111,7 +111,7 @@
         "instanceId": "demo-project:eu:crm-db",
         "database": "crm",
         "type": "POSTGRES",
-        "credential": {"username": "svc_bq", "password": "top-secret"}
+        "serviceAccountId": "bqcx-123@gcp-sa-bigquery-condel.iam.gserviceaccount.com"
       }
     }
   ]

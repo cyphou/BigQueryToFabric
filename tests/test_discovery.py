@@ -154,23 +154,27 @@ def test_connection_extraction_reads_the_documented_api_shape() -> None:
     assert connection.properties["database_engine"] == "POSTGRES"
     assert connection.properties["instance_id"] == "demo-project:eu:crm-db"
     assert connection.properties["auth_configured"] is True
-    assert "top-secret" not in json.dumps(connection.properties)
-    assert "svc_bq" not in json.dumps(connection.properties)
+    # serviceAccountId is returned on read and is a principal, so it is pseudonymized.
+    assert connection.properties["identity_model"] == "service_account"
+    assert "gserviceaccount.com" not in json.dumps(connection.properties)
 
 
 @pytest.mark.parametrize(
-    ("backend", "expected_type"),
+    ("backend", "expected_type", "expected_identity"),
     [
-        ({"cloudSpanner": {"database": "d"}}, "CLOUD_SPANNER"),
-        ({"aws": {"accessRole": {"iamRoleId": "r"}}}, "AWS"),
-        ({"azure": {"clientId": "c", "customerTenantId": "t"}}, "AZURE"),
-        ({"cloudResource": {"serviceAccountId": "sa@p.iam"}}, "CLOUD_RESOURCE"),
-        ({"spark": {"serviceAccountId": "sa@p.iam"}}, "SPARK"),
-        ({}, "UNKNOWN"),
+        ({"cloudSpanner": {"database": "d"}}, "CLOUD_SPANNER", None),
+        ({"aws": {"accessRole": {"iamRoleId": "r"}}}, "AWS", "iam_role"),
+        ({"azure": {"clientId": "c", "customerTenantId": "t"}}, "AZURE", "entra_application"),
+        ({"cloudResource": {"serviceAccountId": "sa@p.iam"}}, "CLOUD_RESOURCE", "service_account"),
+        ({"spark": {"serviceAccountId": "sa@p.iam"}}, "SPARK", "service_account"),
+        ({"cloudResource": {}}, "CLOUD_RESOURCE", None),
+        ({}, "UNKNOWN", None),
     ],
 )
-def test_every_connection_backend_is_recognized(backend: dict, expected_type: str) -> None:
-    """Each backend block maps to a distinct Fabric recreation story."""
+def test_every_connection_backend_is_recognized(
+    backend: dict, expected_type: str, expected_identity: str | None
+) -> None:
+    """identity_model is recorded only when the API actually reports an identity."""
     payload = json.loads(API_RESPONSES.read_text(encoding="utf-8"))
     payload["connections"] = [{
         "name": "projects/demo-project/locations/eu/connections/x",
@@ -184,7 +188,7 @@ def test_every_connection_backend_is_recognized(backend: dict, expected_type: st
     )
 
     assert connection.properties["connection_type"] == expected_type
-    assert "identity_model" in connection.properties
+    assert connection.properties.get("identity_model") == expected_identity
 
 
 def test_legacy_api_type_names_are_normalized_for_the_type_mapper() -> None:
