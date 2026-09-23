@@ -177,11 +177,11 @@
     </section>
 
     <section class="grid metrics" aria-label="Assessment scorecard">
-      <div class="metric accent"><div class="value">70</div><div class="label">Readiness score / 100</div></div>
-      <div class="metric warning"><div class="value">62%</div><div class="label">Evidence coverage</div></div>
-      <div class="metric danger"><div class="value">1</div><div class="label">Blocking finding</div></div>
-      <div class="metric"><div class="value">68</div><div class="label">Total findings</div></div>
-      <div class="metric success"><div class="value">38</div><div class="label">Components assessed</div></div>
+      <div class="metric accent"><div class="value" id="scoreValue">70</div><div class="label">Readiness score / 100</div></div>
+      <div class="metric warning"><div class="value" id="evidenceValue">62%</div><div class="label">Evidence coverage</div></div>
+      <div class="metric danger"><div class="value" id="blockerValue">1</div><div class="label">Blocking finding</div></div>
+      <div class="metric"><div class="value" id="findingValue">68</div><div class="label">Total findings</div></div>
+      <div class="metric success"><div class="value" id="componentValue">38</div><div class="label">Components assessed</div></div>
     </section>
 
     <section class="grid two-col">
@@ -261,7 +261,19 @@
 
     <div class="footer">Generated from the sanitized GCP ecosystem fixture · BQToFabric dry-run assessment · <a href="assessment-object-deep-dive.html" style="color:var(--cp-link)">Open object deep dive →</a></div>
   </main>
-  <script>
+    <script>
+    const ASSESSMENT_SUMMARY = {
+      score: 70,
+      evidenceCoverage: 62,
+      findingCounts: { FAIL: 1, WARN: 67 },
+      componentCount: 28,
+      status: "blocked"
+    };
+    document.querySelector("#scoreValue").textContent = ASSESSMENT_SUMMARY.score;
+    document.querySelector("#evidenceValue").textContent = `${ASSESSMENT_SUMMARY.evidenceCoverage}%`;
+    document.querySelector("#blockerValue").textContent = ASSESSMENT_SUMMARY.findingCounts.FAIL || 0;
+    document.querySelector("#findingValue").textContent = Object.values(ASSESSMENT_SUMMARY.findingCounts).reduce((sum, value) => sum + value, 0);
+    document.querySelector("#componentValue").textContent = ASSESSMENT_SUMMARY.componentCount;
     const filterButtons = document.querySelectorAll("[data-wave]");
     const waveItems = document.querySelectorAll("[data-wave-item]");
     filterButtons.forEach((button) => {
