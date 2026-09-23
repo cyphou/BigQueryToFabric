@@ -109,6 +109,22 @@ The focused suite passes with `14 passed`. These are offline, deterministic guar
 future deployment phase; they do not validate official Fabric schemas or APIs, execute workloads,
 establish runtime or data parity, or perform cloud operations.
 
+### Validate the canonical inventory contract
+
+The JSON provider validates `project_id`, dataset/object IDs and names, known object kinds,
+duplicate source IDs, column structures, dependency arrays, and non-negative `size_bytes` before
+model coercion. Explicit `null` `size_bytes` remains valid optional evidence. This validation is
+offline and non-destructive; it does not validate cloud schemas, runtime behavior, data parity, or
+deployment readiness.
+
+Validate the focused provider and CLI contract with:
+
+```powershell
+python -m pytest tests/test_models.py tests/test_cli.py -v
+```
+
+The validated result is `15 passed`.
+
 ## Assess a live GCP project
 
 1. Install the optional dependencies and enable the **BigQuery API**, **BigQuery Data Transfer API**,

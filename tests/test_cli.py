@@ -219,6 +219,19 @@ def test_validate_command_rejects_malformed_json(capsys, tmp_path: Path) -> None
     assert "Invalid inventory" in capsys.readouterr().out
 
 
+def test_validate_command_rejects_unknown_kind(capsys, tmp_path: Path) -> None:
+    path = tmp_path / "unknown-kind.json"
+    path.write_text(json.dumps({
+        "project_id": "demo",
+        "components": [{"source_id": "demo.x", "name": "x", "kind": "mystery"}],
+    }), encoding="utf-8")
+
+    result = main(["validate", str(path)])
+
+    assert result == ExitCode.VALIDATION_FAILED
+    assert "Unknown inventory object kind" in capsys.readouterr().out
+
+
 def test_manifest_verify_rejects_tampered_manifest(tmp_path: Path, capsys) -> None:
     manifest = tmp_path / "manifest.json"
     manifest.write_text(json.dumps({"sha256": "bad", "payload": {}}), encoding="utf-8")

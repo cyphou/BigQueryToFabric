@@ -22,6 +22,19 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 | Static quality | Ruff clean · Pyright clean |
 | Agent contracts | 10 agents · exclusive ownership · documentation handoff · 1 skill validated |
 
+### Validated canonical inventory contract
+
+- **Expected:** Canonical JSON inventories should reject malformed identifiers, unsupported object
+  kinds, duplicate source IDs, invalid column or dependency structures, and negative size evidence
+  before model coercion, while preserving explicit `null` as valid optional `size_bytes` evidence.
+- **Implemented:** `JsonInventoryProvider` validates `project_id`, dataset/object IDs and names,
+  known `ObjectKind` values, duplicate source IDs, column structures, dependency arrays, and
+  non-negative integer `size_bytes` before constructing the canonical model. Boolean sizes are
+  rejected; explicit `null` remains valid.
+- **Validated:** `python -m pytest tests/test_models.py tests/test_cli.py -v` passed with `15 passed`.
+- **Open:** These are deterministic offline input checks only. They do not validate official
+  BigQuery or Fabric schemas, credentials, runtime behavior, data parity, or deployment readiness.
+
 ### Validated static-quality gate closure
 
 - **Expected:** The repository's local typing and lint gates complete without errors while legacy

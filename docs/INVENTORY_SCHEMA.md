@@ -96,6 +96,22 @@ Use the exact enum spelling accepted by the CLI. Unknown kinds are validation er
 - `size_bytes`, partitioning, and clustering metadata support review recommendations only. They do not prove performance.
 - `discovered_from: external_payload` requires the adapter evidence expected by assessment or the component is blocked for review.
 
+## Provider Validation Contract
+
+`JsonInventoryProvider` validates the canonical document before model coercion. The provider
+requires a non-empty `project_id`; non-empty string identifiers and names for datasets, objects,
+and columns; known `ObjectKind` values; and unique `source_id` values across nested datasets and
+top-level components. It also validates that `columns`, nested column `fields`,
+`dependencies`, and `clustering_fields` are arrays; dependency entries are non-empty strings;
+and column entries contain non-empty `name` and `data_type` strings.
+
+When present, `size_bytes` must be a non-negative integer. Explicit `null` is valid because size is
+optional evidence. Boolean values are not accepted as integers. Invalid documents fail before
+model coercion, so malformed input cannot be silently normalized into a canonical model.
+
+This is deterministic local contract validation only. It does not validate BigQuery or Fabric
+schemas, credentials, runtime behavior, data parity, or deployment readiness.
+
 ## Validate and Inspect
 
 ```powershell

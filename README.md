@@ -63,6 +63,12 @@ flowchart TD
 
 See the complete field reference and example in [docs/INVENTORY_SCHEMA.md](docs/INVENTORY_SCHEMA.md).
 
+`JsonInventoryProvider` validates this contract before model coercion: project IDs, dataset/object
+IDs and names, known object kinds, duplicate source IDs, column structures, dependency arrays,
+and non-negative `size_bytes`. An explicit `null` `size_bytes` remains valid optional evidence.
+These are deterministic offline checks; they do not validate cloud schemas, runtime behavior, data
+parity, or deployment readiness.
+
 > [!IMPORTANT]
 > BQToFabric `0.1.0` is an **assessment and dry-run generation toolkit**. Discovery is read-only and
 > has not yet been verified against a live GCP estate, and nothing is deployed to Fabric. Generated

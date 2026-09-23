@@ -17,6 +17,19 @@ The source model is cloud-independent so assessments and tests run without crede
 Source identifiers are immutable. Fabric names and targets are recommendations attached to
 the plan, not destructive rewrites of source metadata.
 
+## Canonical inventory validation boundary
+
+`JsonInventoryProvider` validates JSON inventories before constructing `BigQueryInventory`. The
+pre-coercion boundary requires a non-empty `project_id`, valid non-empty dataset/object/column
+identifiers and names, recognized `ObjectKind` values, globally unique source IDs, correctly
+shaped column/dependency/clustering arrays, non-empty dependency strings, and column
+`name`/`data_type` structures. `size_bytes` is optional evidence: an explicit `null` is valid,
+while supplied values must be non-negative integers and cannot be booleans.
+
+This keeps malformed source documents from being hidden by model coercion. The check is local and
+deterministic; it does not establish source-schema validity, Fabric compatibility, runtime/data
+parity, or deployment authorization.
+
 ## Deterministic artifact serialization
 
 `ArtifactGenerator` processes each artifact category in sorted source-ID order. It serializes JSON

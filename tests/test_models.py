@@ -1,3 +1,4 @@
+from bqtofabric.inventory import JsonInventoryProvider
 from bqtofabric.models import BigQueryInventory, ObjectKind
 
 
@@ -37,3 +38,24 @@ def test_inventory_round_trip_preserves_nested_schema() -> None:
     assert inventory.objects()[0].discovered_from == "inventory"
     assert inventory.objects()[0].columns[1].fields[0].name == "sku"
     assert BigQueryInventory.from_dict(inventory.to_dict()) == inventory
+
+
+def test_inventory_contract_rejects_duplicate_ids_and_invalid_columns(tmp_path) -> None:
+    duplicate = {
+        "project_id": "demo",
+        "datasets": [{
+            "source_id": "demo.data",
+            "name": "data",
+            "objects": [{"source_id": "demo.data.x", "name": "x", "kind": "table"}],
+        }],
+        "components": [{"source_id": "demo.data.x", "name": "x", "kind": "table"}],
+    }
+    path = tmp_path / "invalid.json"
+    path.write_text(__import__("json").dumps(duplicate), encoding="utf-8")
+
+    try:
+        JsonInventoryProvider(path).load()
+    except ValueError as error:
+        assert "Duplicate inventory source_id" in str(error)
+    else:
+        raise AssertionError("Expected duplicate source IDs to be rejected")

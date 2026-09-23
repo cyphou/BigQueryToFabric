@@ -65,7 +65,8 @@ The script expects the `bqtofabric` command to be installed with `python -m pip 
 
 ### Command sequence
 
-1. `validate` checks that the inventory can be loaded and normalized.
+1. `validate` checks the canonical inventory contract before model coercion, including identifiers,
+   known object kinds, duplicate source IDs, column/dependency structures, and `size_bytes` rules.
 2. `inventory` prints a compact object and component summary.
 3. `assess` produces compatibility, evidence, parity, findings, and target summaries.
 4. `map` prints the target decision for each source object.
@@ -90,6 +91,11 @@ The script expects the `bqtofabric` command to be installed with `python -m pip 
 
 All commands are deterministic for the same inputs and configuration. No command performs a
 Fabric apply operation.
+
+The JSON provider accepts explicit `null` for optional `size_bytes`; supplied sizes must be
+non-negative integers. Invalid inventory documents fail locally before they are coerced into the
+canonical model. These checks do not validate cloud schemas, runtime behavior, data parity, or
+deployment readiness.
 
 ## 3. Inspect the Outputs
 
