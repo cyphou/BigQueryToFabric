@@ -7,15 +7,15 @@ BQToFabric consumes a canonical JSON inventory. The inventory is cloud-independe
 ```mermaid
 flowchart TD
     ROOT[Inventory JSON] --> META[project_id + schema_version]
-    ROOT --> DATASETS[datasets[]]
-    ROOT --> COMPONENTS[components[]]
+    ROOT --> DATASETS["datasets[]"]
+    ROOT --> COMPONENTS["components[]"]
     DATASETS --> DATASET[Dataset]
-    DATASET --> OBJECTS[objects[]]
+    DATASET --> OBJECTS["objects[]"]
     OBJECTS --> OBJECT[BigQueryObject]
     COMPONENTS --> OBJECT
-    OBJECT --> COLUMNS[columns[]]
+    OBJECT --> COLUMNS["columns[]"]
     OBJECT --> PROPS[properties]
-    OBJECT --> DEPS[dependencies[]]
+    OBJECT --> DEPS["dependencies[]"]
 ```
 
 ## Minimal Inventory

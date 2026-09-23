@@ -72,12 +72,12 @@ kinds, columns, dependencies, workload evidence, and provenance without cloud cr
 ```mermaid
 flowchart TD
 	ROOT[Inventory JSON] --> META[project_id + schema_version]
-	ROOT --> DS[datasets[]]
-	ROOT --> CP[components[]]
+	ROOT --> DS["datasets[]"]
+	ROOT --> CP["components[]"]
 	DS --> OBJ[BigQueryObject]
 	CP --> OBJ
-	OBJ --> COL[columns[]]
-	OBJ --> DEP[dependencies[]]
+	OBJ --> COL["columns[]"]
+	OBJ --> DEP["dependencies[]"]
 	OBJ --> EVD[properties + discovered_from]
 ```
 
