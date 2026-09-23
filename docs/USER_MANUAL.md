@@ -124,6 +124,12 @@ Prioritize these fields during review:
 
 A `ready_for_review` result from `deployment-check` is not a deployment approval. It means the local dry-run package passed the available offline gates.
 
+The package validator also checks cross-artifact consistency: every target-manifest entry with a
+known generated artifact kind must match a generated manifest record, its generated path must
+exist, and a non-review target must not reference an artifact with `valid: false`. Invalid
+review-only scaffolds are intentionally permitted so they can be inspected and completed later.
+This is a local offline consistency check, not official Fabric schema or deployment validation.
+
 ## 4. Live Read-Only Discovery
 
 Authenticate with Google Application Default Credentials (ADC):
@@ -216,6 +222,10 @@ Open the returned `errors` list and inspect:
 - `assessment.json`
 
 Typical blockers are invalid or incomplete artifacts, unresolved dependencies, unsupported components, credential findings, or manifest tampering.
+
+Cross-artifact consistency errors identify a missing generated manifest match, a missing generated
+path, or an invalid artifact referenced by a non-review target. A target explicitly marked for
+manual review may continue to reference an invalid scaffold.
 
 ### An artifact has `valid: false`
 

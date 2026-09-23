@@ -103,3 +103,23 @@ def test_validate_artifact_rejects_non_object_json_roots(tmp_path: Path) -> None
 
         assert result["status"] == "failed"
         assert result["errors"] == ["JSON artifact root must be an object"]
+
+
+def test_validate_directory_checks_target_artifact_consistency(tmp_path: Path) -> None:
+    """Non-review target entries cannot point to missing or invalid generated artifacts."""
+    generated = tmp_path / "generated"
+    generated.mkdir()
+    (generated / "manifest.json").write_text(json.dumps({
+        "artifacts": {
+            "warehouse": [{"sourceId": "demo.orders", "path": "warehouse/orders.sql", "valid": False}]
+        }
+    }), encoding="utf-8")
+    (tmp_path / "target-manifest.json").write_text(json.dumps({
+        "entries": [{"sourceId": "demo.orders", "artifactKind": "warehouse_ddl", "manualReview": False}]
+    }), encoding="utf-8")
+
+    result = validate_directory(tmp_path)
+
+    assert result["status"] == "failed"
+    errors = [error for artifact in result["artifacts"] for error in artifact["errors"]]
+    assert any("generated artifact path is missing" in error for error in errors)

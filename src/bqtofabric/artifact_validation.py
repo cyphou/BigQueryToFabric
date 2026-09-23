@@ -120,11 +120,75 @@ def validate_directory(root: Path) -> dict[str, Any]:
         if path.is_file() and path.suffix in {".json", ".ipynb", ".sql"}
         or path.is_file() and path.suffix == ".kql"
     ]
+    consistency_errors = _validate_manifest_consistency(root)
+    if consistency_errors:
+        results.append({
+            "path": "manifest-consistency",
+            "status": "failed",
+            "errors": consistency_errors,
+        })
     return {
         "mode": "dry-run",
         "status": "failed" if any(item["status"] == "failed" for item in results) else "passed",
         "artifacts": results,
     }
+
+
+def _validate_manifest_consistency(root: Path) -> list[str]:
+    """Check target entries against generated artifact paths and validity flags."""
+    target_path = root / "target-manifest.json"
+    generated_path = root / "generated" / "manifest.json"
+    if not target_path.exists() or not generated_path.exists():
+        return []
+    try:
+        target = json.loads(target_path.read_text(encoding="utf-8"))
+        generated = json.loads(generated_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        return [f"manifest consistency could not be read: {error}"]
+
+    artifacts: dict[str, list[dict[str, Any]]] = {}
+    for entries in generated.get("artifacts", {}).values():
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if isinstance(entry, dict) and isinstance(entry.get("sourceId"), str):
+                artifacts.setdefault(entry["sourceId"], []).append(entry)
+
+    errors: list[str] = []
+    expected_categories = {
+        "lakehouse_notebook": "notebooks",
+        "warehouse_ddl": "warehouse",
+        "eventhouse_kql": "eventhouse",
+        "eventstream_definition": "eventstreams",
+        "semantic_model_definition": "semantic_models",
+        "fabric_pipeline": "pipelines",
+    }
+    for entry in target.get("entries", []):
+        if not isinstance(entry, dict):
+            continue
+        artifact_kind = entry.get("artifactKind")
+        category = (
+            expected_categories.get(artifact_kind)
+            if isinstance(artifact_kind, str)
+            else None
+        )
+        source_id = entry.get("sourceId")
+        if not category or not isinstance(source_id, str):
+            continue
+        matches = [
+            item for item in artifacts.get(source_id, [])
+            if item in generated.get("artifacts", {}).get(category, [])
+        ]
+        if not matches:
+            errors.append(f"target entry has no generated artifact: {source_id}")
+            continue
+        for artifact in matches:
+            artifact_path = root / "generated" / artifact.get("path", "")
+            if not artifact_path.is_file():
+                errors.append(f"generated artifact path is missing: {artifact.get('path', '')}")
+            if entry.get("manualReview") is False and artifact.get("valid") is False:
+                errors.append(f"non-review target references invalid artifact: {source_id}")
+    return errors
 
 
 def _validate_notebook(value: Any, errors: list[str]) -> None:

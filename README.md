@@ -147,12 +147,16 @@ checklist based on the sanitized GCP ecosystem fixture.
 `CredentialScanner` before applying the format-specific checks. Credential failures report only
 the finding type and never the matched secret value. `validate_directory` applies this scan
 recursively across the generated package and its subdirectories, alongside notebook, JSON, SQL,
-KQL, and pipeline dependency checks.
+KQL, and pipeline dependency checks. It also checks each target-manifest entry against the
+generated artifact manifest, verifies that referenced generated paths exist, and fails when a
+non-review target references an invalid artifact. Invalid artifacts intentionally marked for
+manual review remain allowed as review-only scaffolds.
 
 This behavior was validated with `python -m pytest tests/test_artifact_validation.py
 tests/test_security.py -v` (`10 passed`). These are offline pattern and structural checks only;
 pattern scanning is not a substitute for official Fabric schema validation or deployment
-validation.
+validation. The complete suite was also validated with `python -m pytest -q` (`306 passed`).
+These checks remain offline-only and do not perform cloud operations.
 
 ### Contract-hardening validation
 

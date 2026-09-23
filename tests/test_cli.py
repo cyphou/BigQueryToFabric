@@ -49,7 +49,11 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert code_cell["outputs"] == []
     assert json.loads((tmp_path / "fabric" / "pipeline.json").read_text())["mode"] == "dry-run"
     validation = json.loads((tmp_path / "fabric" / "artifact-validation.json").read_text())
-    assert validation["status"] == "passed"
+    assert validation["status"] == "failed"
+    consistency = next(
+        artifact for artifact in validation["artifacts"] if artifact["path"] == "manifest-consistency"
+    )
+    assert any("retail-analytics.sales.orders" in error for error in consistency["errors"])
     parity = json.loads((tmp_path / "fabric" / "parity-evidence.json").read_text())
     assert parity["mode"] == "offline-evidence"
     manifest = json.loads((tmp_path / "fabric" / "deployment-manifest.json").read_text())
@@ -199,7 +203,7 @@ def test_deployment_check_blocks_unresolved_plan(tmp_path: Path) -> None:
 
     result = main(["deployment-check", str(generated / "fabric")])
 
-    assert result == ExitCode.SUCCESS
+    assert result == ExitCode.VALIDATION_FAILED
 
 
 def test_inventory_command_reports_missing_file(capsys, tmp_path: Path) -> None:

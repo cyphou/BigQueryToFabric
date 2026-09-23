@@ -59,6 +59,20 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** These are offline structural checks only. They do not validate generated artifacts
   against official Fabric schemas or perform deployment validation.
 
+### Validated cross-artifact consistency
+
+- **Expected:** Package validation should ensure target-manifest entries resolve to generated
+  artifact manifest records, referenced generated files exist, and invalid artifacts cannot be
+  treated as ready by non-review targets while intentional review-only scaffolds remain available.
+- **Implemented:** `validate_directory` compares target entries with category-matched generated
+  manifest records, verifies each referenced path, and fails for an invalid artifact referenced by
+  a target whose `manualReview` flag is false. Invalid artifacts referenced by review-only targets
+  are allowed.
+- **Validated:** `python -m pytest -q` passed with `306 passed`.
+- **Open:** This is deterministic, offline consistency validation only. It does not validate
+  official Fabric schemas or APIs, execute workloads, establish runtime/data parity, or authorize
+  deployment.
+
 ### Validated contract-hardening milestone
 
 - **Expected:** Invalid artifact and parity evidence inputs must fail deterministically without

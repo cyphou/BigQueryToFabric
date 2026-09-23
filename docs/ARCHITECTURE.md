@@ -50,11 +50,15 @@ contract, not a deployment or Fabric-schema validation guarantee.
 `CredentialScanner`, then runs the format-specific checks. A credential failure contains only the
 finding type, never the matched secret value. `validate_directory` applies the same behavior
 recursively to generated subdirectories and also validates notebook structure, JSON structure,
-SQL/KQL guards, and pipeline predecessor references.
+SQL/KQL guards, and pipeline predecessor references. It then compares target-manifest entries with
+the generated artifact manifest, checks that each referenced generated path exists, and rejects a
+non-review target that references an artifact marked `valid: false`. Invalid artifacts referenced
+by an intentional review-only target remain allowed.
 
 The focused validation contract was checked with `python -m pytest tests/test_artifact_validation.py
 tests/test_security.py -v` (`10 passed`). This is offline pattern and structural validation;
-pattern scanning is not official Fabric schema validation and does not validate deployment.
+pattern scanning is not official Fabric schema validation and does not validate deployment. The
+full suite was validated with `python -m pytest -q` (`306 passed`); all checks remain offline-only.
 
 ## CLI and deployment-readiness failure contract
 

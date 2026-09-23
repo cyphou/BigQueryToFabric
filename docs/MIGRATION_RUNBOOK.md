@@ -60,7 +60,9 @@ remain open and are required before making performance or tuning claims.
 `CredentialScanner`, and reports credential failures using only the finding type, never the
 matched secret value. `validate_directory` applies this scan recursively to the generated package,
 including generated subdirectories, alongside notebook, JSON, SQL, KQL, and pipeline predecessor
-checks.
+checks. It also compares target-manifest entries with generated artifact manifest records, verifies
+referenced generated paths exist, and blocks non-review targets that reference invalid artifacts.
+Invalid artifacts intentionally retained for manual review remain allowed.
 
 Validate this contract with:
 
@@ -70,7 +72,8 @@ python -m pytest tests/test_artifact_validation.py tests/test_security.py -v
 
 The focused test passes with `10 passed`. The validator performs offline pattern and structural
 checks only; pattern scanning is not a substitute for official Fabric schema validation or
-deployment validation.
+deployment validation. The complete suite was validated with `python -m pytest -q` (`306 passed`).
+All of these checks are offline-only and non-destructive.
 
 The validator also rejects a non-object JSON root with a deterministic validation error instead of
 raising. Parity evidence is hardened separately: negative or boolean row counts, duplicate schema
