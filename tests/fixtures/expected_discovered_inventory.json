@@ -92,7 +92,7 @@
             "evidence_scope": "dataset_access_entry",
             "policy_type": "role",
             "role": "READER",
-            "userByEmail": "analyst@example.com"
+            "userByEmail": "principal:506729b248c4"
           },
           "size_bytes": null,
           "source_id": "demo-project.analytics.access.0000",

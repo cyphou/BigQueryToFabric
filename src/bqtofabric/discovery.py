@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable, Sequence
 from typing import Any, Protocol
 
@@ -35,6 +36,21 @@ _SECRET_KEY_MARKERS = (
     "signature",
 )
 _SECRET_VALUE_MARKERS = ("-----begin", "bearer ")
+
+# Bounds a paging loop driven by a remote service.
+_MAX_PAGES = 1000
+
+# Principal identities are personal data. They are pseudonymized rather than dropped so
+# distinct grantees stay distinguishable across runs without leaving the estate.
+_PRINCIPAL_KEY_MARKERS = (
+    "userbyemail",
+    "groupbyemail",
+    "iammember",
+    "domain",
+    "useremail",
+    "owneremail",
+    "principalemail",
+)
 
 # The REST API still reports legacy type names that the type mapper does not know.
 _LEGACY_TYPES = {
@@ -81,9 +97,17 @@ def redact(key: str, value: Any) -> Any:
         return {name: redact(name, item) for name, item in sorted(value.items())}
     if isinstance(value, list):
         return [redact(key, item) for item in value]
+    if isinstance(value, str) and _is_principal_key(key):
+        return pseudonymize(value)
     if isinstance(value, str) and _is_secret_value(value):
         return REDACTED
     return value
+
+
+def pseudonymize(value: str) -> str:
+    """Return a stable, non-reversible stand-in for a principal identity."""
+    digest = hashlib.sha256(value.strip().lower().encode("utf-8")).hexdigest()[:12]
+    return f"principal:{digest}"
 
 
 def redact_mapping(value: dict[str, Any] | None) -> dict[str, Any]:
@@ -95,6 +119,11 @@ def redact_mapping(value: dict[str, Any] | None) -> dict[str, Any]:
 def _is_secret_key(key: str) -> bool:
     lowered = key.lower()
     return any(marker in lowered for marker in _SECRET_KEY_MARKERS)
+
+
+def _is_principal_key(key: str) -> bool:
+    lowered = key.lower()
+    return any(marker in lowered for marker in _PRINCIPAL_KEY_MARKERS)
 
 
 def _is_secret_value(value: str) -> bool:
@@ -429,13 +458,22 @@ class RestBigQueryClient:
     def _paged(self, url: str, key: str) -> list[dict[str, Any]]:
         items: list[dict[str, Any]] = []
         page_token: str | None = None
-        while True:
+        seen_tokens: set[str] = set()
+        for _ in range(_MAX_PAGES):
             params = {"pageToken": page_token} if page_token else None
             payload = self._get(url, params)
             items.extend(payload.get(key, []))
             page_token = payload.get("nextPageToken")
             if not page_token:
                 return items
+            if page_token in seen_tokens:
+                raise DiscoveryError(
+                    f"BigQuery metadata paging for {key} repeated a page token"
+                )
+            seen_tokens.add(page_token)
+        raise DiscoveryError(
+            f"BigQuery metadata paging for {key} exceeded {_MAX_PAGES} pages"
+        )
 
     def _get(self, url: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
         response = self.session.get(url, params=params, timeout=60)

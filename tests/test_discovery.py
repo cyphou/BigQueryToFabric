@@ -116,6 +116,32 @@ def test_discovery_redacts_service_account_paths() -> None:
     assert "gcp-sa.json" not in json.dumps(redacted)
 
 
+def test_access_policy_principals_are_pseudonymized() -> None:
+    """Grantee identities are personal data and must not persist verbatim."""
+    payload = json.loads(API_RESPONSES.read_text(encoding="utf-8"))
+    payload["datasets"][0]["access"][0]["userByEmail"] = "analyst@contoso.com"
+    payload["datasets"][0]["access"][0]["groupByEmail"] = "finance@contoso.com"
+    payload["datasets"][0]["access"][0]["domain"] = "contoso.com"
+
+    inventory = GoogleCloudInventoryProvider("demo-project", FakeBigQueryClient(payload)).load()
+    policy = next(item for item in inventory.objects() if item.source_id.endswith(".access.0000"))
+    serialized = json.dumps(policy.properties)
+
+    assert "analyst@contoso.com" not in serialized
+    assert "finance@contoso.com" not in serialized
+    assert "contoso.com" not in serialized
+    assert policy.properties["userByEmail"].startswith("principal:")
+    assert policy.properties["userByEmail"] != policy.properties["groupByEmail"]
+
+
+def test_principal_pseudonyms_are_deterministic() -> None:
+    """Pseudonyms must be stable so repeated runs stay byte-identical."""
+    from bqtofabric.discovery import pseudonymize
+
+    assert pseudonymize("Analyst@Contoso.com ") == pseudonymize("analyst@contoso.com")
+    assert pseudonymize("a@b.com") != pseudonymize("c@d.com")
+
+
 def test_legacy_api_type_names_are_normalized_for_the_type_mapper() -> None:
     inventory = build_provider().load()
     events = next(item for item in inventory.objects() if item.name == "events")
