@@ -17,6 +17,34 @@ The source model is cloud-independent so assessments and tests run without crede
 Source identifiers are immutable. Fabric names and targets are recommendations attached to
 the plan, not destructive rewrites of source metadata.
 
+## Model-free core boundary
+
+The assessment core is deterministic and has no language-model dependency. Its only runtime
+dependency is `sqlglot`; `google-auth` and `requests` are confined to the optional `gcp`
+extra and imported lazily, so the package installs and runs without them.
+
+This is enforced, not merely intended. `tests/test_core_boundaries.py` fails if any module
+imports an LLM or inference library, if a third-party import appears outside the declared
+surface, if `pyproject.toml` declares a model client, or if an optional dependency leaks to
+module level.
+
+A language model may sit **on top of** the tool — driving the CLI, reading reports, or
+supplying inferred evidence marked `discovered_from: assisted` — but never inside it. The
+canonical inventory is the seam:
+
+```mermaid
+flowchart LR
+    AG["Agent: judgement, code reading, inference"] --> INV["inventory.json"]
+    DISC["Adapters: read-only API discovery"] --> INV
+    INV --> CORE["Deterministic core: map, assess, score, plan, generate"]
+    CORE --> OUT["Reproducible reports and dry-run artifacts"]
+```
+
+Everything upstream of the inventory may be non-deterministic. Everything downstream is
+pure and testable, which is what allows a finding to be reproduced and a sign-off to mean
+something. Inference supplies evidence; the engine still derives the verdict, and
+`assisted` provenance keeps that distinction visible in `discoveryCoverage`.
+
 ## Canonical inventory validation boundary
 
 `JsonInventoryProvider` validates JSON inventories before constructing `BigQueryInventory`. The
