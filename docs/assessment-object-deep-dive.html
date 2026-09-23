@@ -88,7 +88,8 @@ input, select { min-width: 0; border: 1px solid var(--cp-border); border-radius:
 .source-code { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; padding: 12px; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-surface-soft); color: var(--cp-text); font: .78rem/1.5 Consolas, "Courier New", Courier, monospace; }
 .empty { padding: 42px; text-align: center; color: var(--cp-text-soft); }
 .finding-panel { margin-top: 16px; }
-.finding-row { display: grid; grid-template-columns: 100px 1.2fr 1fr; gap: 14px; padding: 13px 20px; border-bottom: 1px solid var(--cp-border); }
+.finding-row { display: grid; grid-template-columns: 100px 1.2fr 1fr; gap: 14px; padding: 13px 20px; border-bottom: 1px solid var(--cp-border); cursor: pointer; }
+.finding-row:hover { background: var(--cp-accent-soft); }
 .finding-row:last-child { border-bottom: 0; }
 .finding-code { color: var(--cp-accent); font: .76rem Consolas, "Courier New", Courier, monospace; font-weight: 700; }
 .finding-source { color: var(--cp-text-muted); font: .78rem Consolas, "Courier New", Courier, monospace; word-break: break-word; }
@@ -202,7 +203,19 @@ const FINDINGS = [
   {severity:"WARN", code:"ACTION_REQUIRED", source:"gcp-data-platform.security.customer_policy", message:"Recreate policy tags, permissions, authorized views, and RLS; validate effective access."},
   {severity:"WARN", code:"TYPE_REDESIGN", source:"STRUCT / GEOGRAPHY", message:"Keep nested or geospatial data in Lakehouse or flatten with explicit lineage."}
 ];
-findings.innerHTML = FINDINGS.map((item) => `<div class="finding-row"><div class="finding-code">${esc(item.severity)}<br>${esc(item.code)}</div><div class="finding-source">${esc(item.source)}</div><div class="finding-message">${esc(item.message)}</div></div>`).join("");
+findings.innerHTML = FINDINGS.map((item, index) => `<div class="finding-row" data-finding-index="${index}"><div class="finding-code">${esc(item.severity)}<br>${esc(item.code)}</div><div class="finding-source">${esc(item.source)}</div><div class="finding-message">${esc(item.message)}</div></div>`).join("");
+findings.querySelectorAll(".finding-row").forEach((row) => row.addEventListener("click", () => {
+  const source = FINDINGS[Number(row.dataset.findingIndex)].source;
+  const object = OBJECTS.find((item) => item.source_id === source);
+  if (!object) return;
+  search.value = source;
+  target.value = "all";
+  review.value = "all";
+  render();
+  const objectRow = [...rows.querySelectorAll("tr")].find((item) => item.dataset.index === String(OBJECTS.indexOf(object)));
+  if (objectRow) { objectRow.classList.add("selected"); objectRow.scrollIntoView({ block: "nearest" }); }
+  renderDetail(object);
+}));
 [...new Set(OBJECTS.map((item) => item.target))].sort().forEach((value) => target.insertAdjacentHTML("beforeend", `<option value="${esc(value)}">${esc(value)}</option>`));
 [search, target, review].forEach((control) => control.addEventListener("input", render));
 render();
