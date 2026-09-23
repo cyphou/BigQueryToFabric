@@ -75,8 +75,9 @@ class ArtifactGenerator:
             manifest["artifacts"].setdefault("notebooks", []).append({
                 "sourceId": source_id,
                 "name": notebook.title,
-                "path": str(output_path.relative_to(output_dir)),
+                "path": output_path.relative_to(output_dir).as_posix(),
                 "valid": notebook.valid,
+                "warnings": list(notebook.warnings),
             })
 
         # Generate warehouse scripts
@@ -87,7 +88,7 @@ class ArtifactGenerator:
             manifest["artifacts"].setdefault("warehouse", []).append({
                 "sourceId": source_id,
                 "name": script.name,
-                "path": str(output_path.relative_to(output_dir)),
+                "path": output_path.relative_to(output_dir).as_posix(),
                 "warnings": list(script.warnings),
                 "valid": script.valid,
             })
@@ -105,7 +106,7 @@ class ArtifactGenerator:
             manifest["artifacts"].setdefault("eventstreams", []).append({
                 "sourceId": source_id,
                 "name": eventstream.name,
-                "path": str(output_path.relative_to(output_dir)),
+                "path": output_path.relative_to(output_dir).as_posix(),
                 "warnings": list(eventstream.warnings),
                 "valid": eventstream.valid,
             })
@@ -120,7 +121,7 @@ class ArtifactGenerator:
             manifest["artifacts"].setdefault("eventhouse", []).append({
                 "sourceId": source_id,
                 "name": schema.name,
-                "path": str(output_path.relative_to(output_dir)),
+                "path": output_path.relative_to(output_dir).as_posix(),
                 "warnings": list(schema.warnings),
                 "valid": schema.valid,
             })
@@ -138,7 +139,7 @@ class ArtifactGenerator:
             manifest["artifacts"].setdefault("semantic_models", []).append({
                 "sourceId": source_id,
                 "name": model.name,
-                "path": str(output_path.relative_to(output_dir)),
+                "path": output_path.relative_to(output_dir).as_posix(),
                 "warnings": list(model.warnings),
                 "valid": model.valid,
             })
@@ -156,7 +157,7 @@ class ArtifactGenerator:
             manifest["artifacts"].setdefault("pipelines", []).append({
                 "sourceId": source_id,
                 "name": pipeline.name,
-                "path": str(output_path.relative_to(output_dir)),
+                "path": output_path.relative_to(output_dir).as_posix(),
                 "warnings": list(pipeline.warnings),
                 "valid": pipeline.valid,
             })

@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
+from ..artifact_validation import PipelineValidator
 from ..assessment import AssessmentReport
 from ..mapping import FabricTarget, MappingDecision
 from ..models import BigQueryInventory, BigQueryObject, ObjectKind
@@ -53,11 +54,15 @@ class PipelineGenerator:
                 "activities": self._build_activities(item, decision, warnings),
                 "parameters": self._build_parameters(item),
                 "variables": self._build_variables(item),
-                "triggers": self._build_triggers(item, warnings),
             },
+            # Triggers are separate Fabric resources, not pipeline properties.
+            "triggers": self._build_triggers(item, warnings),
             "sourceId": item.source_id,
             "sourceKind": item.kind.value,
         }
+
+        validation = PipelineValidator(pipeline).validate()
+        warnings.extend(validation.errors)
 
         return PipelineDefinition(
             name=f"pipeline_{item.name}",
@@ -66,6 +71,7 @@ class PipelineGenerator:
             source_kind=item.kind,
             pipeline=pipeline,
             warnings=tuple(warnings),
+            valid=validation.valid,
         )
 
     def _build_activities(
@@ -156,6 +162,10 @@ class PipelineGenerator:
 
     def _build_sql_activity(self, item: BigQueryObject, warnings: list[str]) -> dict[str, Any]:
         """Build SQL activity for scheduled query."""
+        warnings.append(
+            "Connections are referenced by name; bind them to a managed identity in Fabric "
+            "rather than passing connection strings."
+        )
         return {
             "name": "Main Activity",
             "type": "ExecutePipeline",
@@ -165,8 +175,8 @@ class PipelineGenerator:
                     "type": "PipelineReference",
                 },
                 "parameters": {
-                    "SourceConnectionString": "@linkedService().properties.typeProperties.connectionString",
-                    "TargetConnectionString": "@linkedService('AzureSqlLinkedService').properties.typeProperties.connectionString",
+                    "SourceConnectionName": "BigQueryConnection",
+                    "TargetConnectionName": "FabricWarehouseConnection",
                     "JobId": "@{pipeline().parameters.JobId}",
                 },
                 "waitOnCompletion": True,
@@ -216,7 +226,7 @@ class PipelineGenerator:
                 "name": task_id,
                 "type": "WebHook",
                 "typeProperties": {
-                    "url": "${linkedService().properties.typeProperties.webhookUrl}",
+                    "url": "@{linkedService().properties.typeProperties.webhookUrl}",
                     "method": "POST",
                     "headers": {"x-airflow-task": task_id},
                     "body": task.get("bash_command", ""),
@@ -261,23 +271,23 @@ class PipelineGenerator:
             },
         }
 
-    def _build_parameters(self, item: BigQueryObject) -> list[dict[str, Any]]:
-        """Build pipeline parameters."""
-        return [
-            {"name": "TableName", "type": "string", "defaultValue": item.name},
-            {"name": "JobId", "type": "string", "defaultValue": item.source_id},
-            {"name": "InputPath", "type": "string", "defaultValue": "/input"},
-            {"name": "OutputPath", "type": "string", "defaultValue": "/output"},
-            {"name": "PartitionDate", "type": "string", "defaultValue": "@utcNow('yyyy-MM-dd')"},
-        ]
+    def _build_parameters(self, item: BigQueryObject) -> dict[str, Any]:
+        """Build pipeline parameters as the name-keyed object Fabric expects."""
+        return {
+            "TableName": {"type": "string", "defaultValue": item.name},
+            "JobId": {"type": "string", "defaultValue": item.source_id},
+            "InputPath": {"type": "string", "defaultValue": "/input"},
+            "OutputPath": {"type": "string", "defaultValue": "/output"},
+            "PartitionDate": {"type": "string", "defaultValue": "@utcNow('yyyy-MM-dd')"},
+        }
 
-    def _build_variables(self, item: BigQueryObject) -> list[dict[str, Any]]:
-        """Build pipeline variables."""
-        return [
-            {"name": "ExecutionId", "type": "String"},
-            {"name": "RowCount", "type": "Integer"},
-            {"name": "LastWatermark", "type": "String"},
-        ]
+    def _build_variables(self, item: BigQueryObject) -> dict[str, Any]:
+        """Build pipeline variables as the name-keyed object Fabric expects."""
+        return {
+            "ExecutionId": {"type": "String"},
+            "RowCount": {"type": "Integer"},
+            "LastWatermark": {"type": "String"},
+        }
 
     def _build_triggers(self, item: BigQueryObject, warnings: list[str]) -> list[dict[str, Any]]:
         """Build triggers from schedule information."""

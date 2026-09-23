@@ -8,6 +8,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import sqlglot
+from sqlglot.errors import SqlglotError
+
 from .security import CredentialScanner
 
 
@@ -19,6 +22,27 @@ class ArtifactValidationResult:
     errors: tuple[str, ...] = ()
 
 
+def find_undefined_dataframes(code: str) -> tuple[str, ...]:
+    """Return ``df_*`` names referenced by notebook code but never assigned."""
+    defined = set(re.findall(r"^\s*(df_[A-Za-z0-9_]+)\s*=", code, re.MULTILINE))
+    referenced = set(re.findall(r"\b(df_[A-Za-z0-9_]+)\b", code))
+    return tuple(sorted(referenced - defined))
+
+
+def _notebook_code(notebook: Any) -> str:
+    """Join code-cell sources from either a FabricNotebook or a parsed ``.ipynb``."""
+    if isinstance(notebook, dict):
+        cells = [cell for cell in notebook.get("cells", []) if isinstance(cell, dict)]
+        return "\n".join(
+            "".join(cell.get("source", []))
+            for cell in cells
+            if cell.get("cell_type") == "code"
+        )
+    return "\n".join(
+        "".join(cell.source) for cell in notebook.cells if cell.cell_type == "code"
+    )
+
+
 class NotebookValidator:
     """Check generated notebooks for undefined DataFrame references."""
 
@@ -26,18 +50,100 @@ class NotebookValidator:
         self.notebook = notebook
 
     def validate(self) -> ArtifactValidationResult:
-        code = "\n".join(
-            "".join(cell.source)
-            for cell in self.notebook.cells
-            if cell.cell_type == "code"
-        )
-        defined = set(re.findall(r"^\s*(df_[A-Za-z0-9_]+)\s*=", code, re.MULTILINE))
-        referenced = set(re.findall(r"\b(df_[A-Za-z0-9_]+)\b", code))
         errors = tuple(
             f"Undefined DataFrame reference: {name}"
-            for name in sorted(referenced - defined)
+            for name in find_undefined_dataframes(_notebook_code(self.notebook))
         )
         return ArtifactValidationResult(valid=not errors, errors=errors)
+
+
+class TsqlValidator:
+    """Re-parse the parseable portions of a generated T-SQL script.
+
+    sqlglot cannot parse T-SQL ``IF ... BEGIN ... END`` control flow, so whole-script
+    parsing would report false failures. This checks the constructs it can parse plus
+    batch rules that sqlglot does not model.
+    """
+
+    def __init__(self, script: str) -> None:
+        self.script = script
+
+    def validate(self) -> ArtifactValidationResult:
+        errors: list[str] = []
+        if not self.script.strip():
+            errors.append("SQL artifact is empty")
+            return ArtifactValidationResult(valid=False, errors=tuple(errors))
+
+        for number, line in enumerate(self.script.splitlines(), start=1):
+            if line.lstrip().startswith("#"):
+                errors.append(f"line {number}: '#' is not a T-SQL comment marker")
+
+        code = _strip_sql_comments(self.script)
+
+        for statement in _extract_create_tables(code):
+            try:
+                sqlglot.parse(statement, read="tsql")
+            except SqlglotError as error:
+                detail = str(error).splitlines()[0]
+                errors.append(f"CREATE TABLE does not parse as T-SQL: {detail}")
+
+        for match in re.finditer(r"(?im)^[ \t]*CREATE\s+SCHEMA\b", code):
+            errors.append(
+                "CREATE SCHEMA must be the only statement in its batch; "
+                "wrap it in EXEC(N'...')"
+            )
+        return ArtifactValidationResult(valid=not errors, errors=tuple(errors))
+
+
+def _strip_sql_comments(script: str) -> str:
+    """Remove ``--`` and ``/* */`` comments, preserving string literals and line count."""
+    out: list[str] = []
+    index = 0
+    length = len(script)
+    while index < length:
+        char = script[index]
+        if char == "'":
+            out.append(char)
+            index += 1
+            while index < length:
+                out.append(script[index])
+                if script[index] == "'":
+                    index += 1
+                    break
+                index += 1
+            continue
+        if script.startswith("--", index):
+            while index < length and script[index] != "\n":
+                index += 1
+            continue
+        if script.startswith("/*", index):
+            end = script.find("*/", index + 2)
+            segment = script[index:] if end == -1 else script[index : end + 2]
+            out.append("\n" * segment.count("\n"))
+            index = length if end == -1 else end + 2
+            continue
+        out.append(char)
+        index += 1
+    return "".join(out)
+
+
+def _extract_create_tables(script: str) -> list[str]:
+    """Return each ``CREATE TABLE`` statement up to its balanced closing paren."""
+    statements: list[str] = []
+    for match in re.finditer(r"(?i)CREATE\s+TABLE\b", script):
+        opening = script.find("(", match.end())
+        if opening == -1:
+            continue
+        depth = 0
+        for index in range(opening, len(script)):
+            if script[index] == "(":
+                depth += 1
+            elif script[index] == ")":
+                depth -= 1
+                if depth == 0:
+                    statements.append(script[match.start() : index + 1])
+                    break
+    return statements
 
 
 class KqlValidator:
@@ -62,13 +168,21 @@ class PipelineValidator:
         self.pipeline = pipeline
 
     def validate(self) -> ArtifactValidationResult:
-        activities = self.pipeline.get("properties", {}).get("activities", [])
+        properties = self.pipeline.get("properties", {})
+        activities = properties.get("activities", [])
         names = {
             activity.get("name")
             for activity in activities
             if isinstance(activity, dict) and activity.get("name")
         }
         errors: list[str] = []
+        for section in ("parameters", "variables"):
+            value = properties.get(section)
+            if value is not None and not isinstance(value, dict):
+                errors.append(f"pipeline {section} must be a name-keyed object")
+        if "triggers" in properties:
+            errors.append("triggers are separate resources and cannot be pipeline properties")
+        errors.extend(_secret_bearing_expressions(properties))
         for activity in activities:
             if not isinstance(activity, dict):
                 errors.append("Pipeline activity must be an object")
@@ -80,6 +194,22 @@ class PipelineValidator:
                         f"Activity {activity.get('name', '<unnamed>')} depends on undefined activity {predecessor}"
                     )
         return ArtifactValidationResult(valid=not errors, errors=tuple(errors))
+
+
+def _secret_bearing_expressions(value: Any, path: str = "properties") -> list[str]:
+    """Flag pipeline expressions that would resolve a secret into run history."""
+    errors: list[str] = []
+    if isinstance(value, dict):
+        for key, child in value.items():
+            errors.extend(_secret_bearing_expressions(child, f"{path}.{key}"))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            errors.extend(_secret_bearing_expressions(child, f"{path}[{index}]"))
+    elif isinstance(value, str) and re.search(
+        r"(?i)typeProperties\.(connectionString|password|accountKey|sasToken)", value
+    ):
+        errors.append(f"{path}: expression resolves a secret into pipeline run output")
+    return errors
 
 
 def validate_artifact(path: Path) -> dict[str, Any]:
@@ -98,6 +228,7 @@ def validate_artifact(path: Path) -> dict[str, Any]:
                 result["errors"].append("JSON artifact root must be an object")
             elif path.suffix == ".ipynb":
                 _validate_notebook(value, result["errors"])
+                result["errors"].extend(NotebookValidator(value).validate().errors)
             elif "properties" in value and "activities" in value.get("properties", {}):
                 result["errors"].extend(PipelineValidator(value).validate().errors)
             elif value.get("mode") == "dry-run" and not value.get("projectId", True):
@@ -105,8 +236,7 @@ def validate_artifact(path: Path) -> dict[str, Any]:
         elif path.suffix == ".kql":
             result["errors"].extend(KqlValidator(text).validate().errors)
         elif path.suffix == ".sql":
-            if not text.strip():
-                result["errors"].append("SQL artifact is empty")
+            result["errors"].extend(TsqlValidator(text).validate().errors)
     except (OSError, json.JSONDecodeError) as error:
         result["errors"].append(str(error))
     result["status"] = "failed" if result["errors"] else "passed"
@@ -117,8 +247,7 @@ def validate_directory(root: Path) -> dict[str, Any]:
     results = [
         validate_artifact(path)
         for path in sorted(root.rglob("*"))
-        if path.is_file() and path.suffix in {".json", ".ipynb", ".sql"}
-        or path.is_file() and path.suffix == ".kql"
+        if path.is_file() and path.suffix in {".json", ".ipynb", ".sql", ".kql"}
     ]
     consistency_errors = _validate_manifest_consistency(root)
     if consistency_errors:

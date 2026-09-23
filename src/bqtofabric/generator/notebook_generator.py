@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
+from ..artifact_validation import NotebookValidator
 from ..assessment import AssessmentReport
 from ..mapping import FabricTarget, MappingDecision
 from ..models import BigQueryInventory, BigQueryObject, ObjectKind
@@ -30,6 +31,7 @@ class FabricNotebook:
     cells: tuple[NotebookCell, ...]
     metadata: dict[str, Any] | None = None
     valid: bool = True
+    warnings: tuple[str, ...] = ()
 
     def to_ipynb_dict(self) -> dict[str, Any]:
         """Convert to Jupyter .ipynb format (nbformat 4)."""
@@ -76,17 +78,18 @@ class NotebookGenerator:
             return None
 
         cells: list[NotebookCell] = []
+        warnings: list[str] = []
 
         # Cell 1: Markdown header with metadata
         title_md = self._build_title_cell(item, decision)
         cells.append(title_md)
 
-        # Cell 2: Spark configuration
-        config_cell = self._build_config_cell(item)
-        cells.append(config_cell)
+        # Cell 2: Spark configuration (%configure must be alone and first in its cell)
+        cells.append(self._build_configure_cell())
+        cells.append(self._build_parameter_cell(item))
 
         # Cell 3+: Converted code
-        code_cells = self._build_code_cells(item, decision)
+        code_cells = self._build_code_cells(item, decision, warnings)
         cells.extend(code_cells)
 
         # Cell N: Sink to Lakehouse
@@ -97,7 +100,7 @@ class NotebookGenerator:
         warnings_cell = self._build_warnings_cell(item, decision)
         cells.append(warnings_cell)
 
-        return FabricNotebook(
+        notebook = FabricNotebook(
             title=f"Notebook: {item.name}",
             description=f"Generated from {item.kind.value} {item.source_id}",
             source_id=item.source_id,
@@ -105,6 +108,9 @@ class NotebookGenerator:
             cells=tuple(cells),
             metadata={"tags": ["auto-generated", item.kind.value]},
         )
+        validation = NotebookValidator(notebook).validate()
+        warnings.extend(validation.errors)
+        return replace(notebook, valid=validation.valid, warnings=tuple(warnings))
 
     def _build_title_cell(self, item: BigQueryObject, decision: MappingDecision) -> NotebookCell:
         """Build the markdown header cell."""
@@ -134,36 +140,42 @@ class NotebookGenerator:
 
         return NotebookCell(cell_type="markdown", source=lines)
 
-    def _build_config_cell(self, item: BigQueryObject) -> NotebookCell:
-        """Build the Spark configuration cell."""
-        lines = [
-            "%configure -f\n",
-            "{\n",
-            '    "conf": {\n',
-            '        "spark.sql.shuffle.partitions": "200",\n',
-            '        "spark.sql.adaptive.enabled": "true",\n',
-            '        "spark.sql.files.ignoreCorruptFiles": "false"\n',
-            '    }\n',
-            '}\n',
-        ]
+    def _build_configure_cell(self) -> NotebookCell:
+        """Build the %configure cell, which Fabric requires to stand alone."""
+        return NotebookCell(
+            cell_type="code",
+            source=[
+                "%configure -f\n",
+                "{\n",
+                '    "conf": {\n',
+                '        "spark.sql.shuffle.partitions": "200",\n',
+                '        "spark.sql.adaptive.enabled": "true",\n',
+                '        "spark.sql.files.ignoreCorruptFiles": "false"\n',
+                "    }\n",
+                "}\n",
+            ],
+        )
 
+    def _build_parameter_cell(self, item: BigQueryObject) -> NotebookCell:
+        """Build the configuration parameter cell."""
         runtime = item.properties.get("runtime_version", "3.11")
         py_version = "3.11" if "3.1" in str(runtime) else "3.9"
+        return NotebookCell(
+            cell_type="code",
+            source=[
+                "# Configuration parameters\n",
+                "# Modify these values before executing the notebook\n",
+                "\n",
+                'INPUT_PATH = "/Shortcuts/onelake_gcs_bucket/input"\n',
+                'OUTPUT_PATH = "/Lakehouse/Tables/output_table"\n',
+                "PARTITION_DATE = None  # Set to override default date partition\n",
+                f"# Runtime: Python {py_version}\n",
+            ],
+        )
 
-        lines.extend([
-            "\n",
-            "# Configuration parameters\n",
-            "# Modify these values before executing the notebook\n",
-            "\n",
-            "INPUT_PATH = \"/Shortcuts/onelake_gcs_bucket/input\"\n",
-            "OUTPUT_PATH = \"/Lakehouse/Tables/output_table\"\n",
-            "PARTITION_DATE = None  # Set to override default date partition\n",
-            f"# Runtime: Python {py_version}\n",
-        ])
-
-        return NotebookCell(cell_type="code", source=lines)
-
-    def _build_code_cells(self, item: BigQueryObject, decision: MappingDecision) -> list[NotebookCell]:
+    def _build_code_cells(
+        self, item: BigQueryObject, decision: MappingDecision, warnings: list[str]
+    ) -> list[NotebookCell]:
         """Build code cells from converted Spark/SQL code."""
         cells: list[NotebookCell] = []
 
@@ -193,6 +205,17 @@ class NotebookGenerator:
                 "print(f\"Loaded {df_source.count()} rows\")\n",
             ]
             cells.append(NotebookCell(cell_type="code", source=sql_lines))
+        else:
+            warnings.append(
+                "Source logic was not carried over; the notebook loads from INPUT_PATH "
+                "and requires the original transformation to be reimplemented."
+            )
+            cells.append(NotebookCell(cell_type="code", source=[
+                f"# TODO: MANUAL REVIEW - Source logic from {item.source_id} was not converted.\n",
+                "# Point INPUT_PATH at the migrated source and reimplement the original job.\n",
+                "\n",
+                "df_source = spark.read.format('delta').load(INPUT_PATH)\n",
+            ]))
 
         # Transformation placeholder
         transform_lines = [

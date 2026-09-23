@@ -445,10 +445,6 @@ def _write_fabric_artifacts(
     _write_json(target_manifest_path, target_manifest)
     written.append(target_manifest_path)
 
-    validation_path = root / "artifact-validation.json"
-    _write_json(validation_path, validate_directory(root))
-    written.append(validation_path)
-
     parity_path = root / "parity-evidence.json"
     _write_json(parity_path, {
         "mode": "offline-evidence",
@@ -463,6 +459,11 @@ def _write_fabric_artifacts(
     manifest_path = root / "deployment-manifest.json"
     _write_json(manifest_path, build_manifest(inventory, assessment, plan))
     written.append(manifest_path)
+
+    # Validate last so every generated artifact is covered by the scan.
+    validation_path = root / "artifact-validation.json"
+    _write_json(validation_path, validate_directory(root))
+    written.append(validation_path)
     return tuple(written)
 
 

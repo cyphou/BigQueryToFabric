@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections import Counter
 from dataclasses import asdict
 from typing import Any
 
@@ -16,17 +17,39 @@ def build_manifest(
     inventory: BigQueryInventory, assessment: AssessmentReport, plan: MigrationPlan
 ) -> dict[str, Any]:
     """Build an offline manifest suitable for a future plan/apply boundary."""
+    manual_review = {item.source_id: item.manual_review for item in plan.items}
     payload = {
         "projectId": inventory.project_id,
         "architecture": plan.architecture,
         "items": [asdict(item) for item in plan.items],
         "unresolvedDependencies": list(plan.unresolved_dependencies),
+        "findingCounts": dict(
+            sorted(Counter(finding.severity for finding in assessment.findings).items())
+        ),
+        "paritySummary": dict(
+            sorted(
+                Counter(
+                    str(parity["status"]) for parity in assessment.parity_summary.values()
+                ).items()
+            )
+        ),
+        "blockers": [
+            {
+                "code": finding.code,
+                "category": finding.category,
+                "sourceId": finding.source_id,
+                "message": finding.message,
+            }
+            for finding in assessment.findings
+            if finding.severity == "FAIL"
+        ],
         "targetManifest": [
             {
                 "sourceId": decision.source_id,
                 "target": decision.target.value,
                 "compatibility": decision.compatibility.value,
                 "actions": list(decision.actions),
+                "manualReview": manual_review.get(decision.source_id, False),
             }
             for decision in sorted(assessment.decisions, key=lambda item: item.source_id)
         ],

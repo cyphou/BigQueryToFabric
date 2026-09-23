@@ -25,8 +25,10 @@ def check_deployment_readiness(root: Path) -> dict[str, Any]:
         payload = manifest.get("payload", {})
         if payload.get("unresolvedDependencies"):
             errors.append("plan contains unresolved dependencies")
-        if any(item.get("compatibility") == "unsupported" for item in payload.get("targetManifest", [])):
+        target_manifest = payload.get("targetManifest", [])
+        if any(item.get("compatibility") == "unsupported" for item in target_manifest):
             errors.append("plan contains unsupported components")
+        errors.extend(_assessment_gate_errors(payload, target_manifest))
 
     return {
         "mode": "offline",
@@ -34,6 +36,41 @@ def check_deployment_readiness(root: Path) -> dict[str, Any]:
         "errors": errors,
         "apply": "not_implemented",
     }
+
+
+def _assessment_gate_errors(
+    payload: dict[str, Any], target_manifest: list[Any]
+) -> list[str]:
+    """Block on assessment evidence that contradicts a ready-for-review verdict."""
+    errors: list[str] = []
+    blockers = payload.get("blockers")
+    if isinstance(blockers, list) and blockers:
+        errors.append(f"assessment reports {len(blockers)} blocking finding(s)")
+
+    finding_counts = payload.get("findingCounts")
+    if isinstance(finding_counts, dict) and finding_counts.get("FAIL"):
+        errors.append(f"assessment reports {finding_counts['FAIL']} FAIL finding(s)")
+
+    parity = payload.get("paritySummary")
+    if isinstance(parity, dict) and parity.get("failed"):
+        errors.append(f"{parity['failed']} parity check(s) failed")
+
+    redesign = sum(
+        1
+        for item in target_manifest
+        if isinstance(item, dict) and item.get("compatibility") == "redesign"
+    )
+    if redesign:
+        errors.append(f"plan contains {redesign} component(s) requiring redesign")
+
+    manual = sum(
+        1
+        for item in target_manifest
+        if isinstance(item, dict) and item.get("manualReview") is True
+    )
+    if manual:
+        errors.append(f"plan contains {manual} component(s) awaiting manual review")
+    return errors
 
 
 def _read_json(path: Path, errors: list[str]) -> dict[str, Any] | None:

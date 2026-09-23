@@ -164,8 +164,8 @@ def basic_assessment(basic_inventory) -> AssessmentReport:
 class TestNotebookGenerator:
     """Tests for Lakehouse notebook generation."""
 
-    def test_notebook_validation_rejects_undefined_source(self, spark_job) -> None:
-        """A notebook that uses df_source before defining it is not executable."""
+    def test_notebook_without_source_defines_its_own_input(self, spark_job) -> None:
+        """A job with no SQL must still produce a notebook with no undefined references."""
         from bqtofabric.artifact_validation import NotebookValidator
 
         job_without_source = BigQueryObject(
@@ -190,7 +190,25 @@ class TestNotebookGenerator:
         )
 
         assert notebook is not None
+        assert NotebookValidator(notebook).validate().valid is True
+        assert notebook.valid is True
+        assert any("not carried over" in warning for warning in notebook.warnings)
+
+    def test_notebook_validator_rejects_undefined_dataframe(self) -> None:
+        """The validator must still reject code that uses a DataFrame it never defines."""
+        from bqtofabric.artifact_validation import NotebookValidator
+        from bqtofabric.generator.notebook_generator import FabricNotebook, NotebookCell
+
+        notebook = FabricNotebook(
+            title="t",
+            description="d",
+            source_id="project.dataset.job",
+            source_kind=ObjectKind.SPARK_JOB,
+            cells=(NotebookCell(cell_type="code", source=["df_transformed = df_source\n"]),),
+        )
+
         result = NotebookValidator(notebook).validate()
+
         assert result.valid is False
         assert any("df_source" in error for error in result.errors)
 
@@ -363,8 +381,8 @@ class TestWarehouseGenerator:
 
         assert result.valid is True
 
-    def test_generate_view_preserves_sql_pending_validation(self, simple_view) -> None:
-        """Unsupported source SQL must be preserved and visibly blocked for review."""
+    def test_generate_view_omits_body_when_sql_is_unsupported(self, simple_view) -> None:
+        """Unsupported source SQL must not be emitted as a deployable view body."""
         view = BigQueryObject(
             source_id="project.dataset.v_sales",
             name="v_sales",
@@ -383,10 +401,35 @@ class TestWarehouseGenerator:
         script = WarehouseGenerator(inventory, run_assessment(inventory)).generate_warehouse_script(view, decision)
 
         assert script is not None
-        assert "# VALIDATION PENDING" in script.script
+        assert "#" not in script.script
+        assert "CREATE VIEW" not in script.script
         assert "EXCEPT ALL" in script.script
         assert script.valid is False
         assert any("REDESIGN" in warning for warning in script.warnings)
+
+    def test_generate_view_converts_googlesql_to_tsql(self) -> None:
+        """A convertible view body must be emitted as T-SQL, not raw GoogleSQL."""
+        view = BigQueryObject(
+            source_id="project.dataset.v_users",
+            name="v_users",
+            kind=ObjectKind.VIEW,
+            dataset="dataset",
+            sql="SELECT id FROM `project.dataset.users` LIMIT 10",
+        )
+        decision = MappingDecision(
+            source_id=view.source_id,
+            source_kind=view.kind,
+            target=FabricTarget.WAREHOUSE,
+            compatibility=Compatibility.TRANSFORM,
+            rationale="Direct view translation.",
+        )
+        inventory = BigQueryInventory(project_id="test", datasets=(), components=(view,), metadata={})
+        script = WarehouseGenerator(inventory, run_assessment(inventory)).generate_warehouse_script(view, decision)
+
+        assert script is not None
+        assert "CREATE VIEW" in script.script
+        assert "`" not in script.script
+        assert "TOP" in script.script.upper()
 
     def test_generate_table_does_not_infer_primary_key(self, simple_table) -> None:
         """Clustering metadata is an index hint, not a primary-key declaration."""
@@ -824,11 +867,12 @@ class TestPipelineGenerator:
         )
 
         assert pipeline is not None
-        assert pipeline.pipeline["properties"]["triggers"][0]["properties"]["typeProperties"]["recurrence"] == {
+        assert "triggers" not in pipeline.pipeline["properties"]
+        assert pipeline.pipeline["triggers"][0]["properties"]["typeProperties"]["recurrence"] == {
             "frequency": "Day",
             "interval": 1,
         }
-        trigger_type_properties = pipeline.pipeline["properties"]["triggers"][0]["properties"]["typeProperties"]
+        trigger_type_properties = pipeline.pipeline["triggers"][0]["properties"]["typeProperties"]
         assert trigger_type_properties["startTime"] == "@utcNow()"
         assert "2024" not in trigger_type_properties["startTime"]
 
@@ -903,6 +947,22 @@ class TestArtifactGeneratorIntegration:
             for path in (tmp_path / "second").rglob("*")
             if path.is_file()
         }
+
+    def test_manifest_paths_are_platform_independent(
+        self, basic_inventory, basic_assessment, tmp_path
+    ):
+        """Manifest paths must use POSIX separators so output matches across platforms."""
+        report = ArtifactGenerator(basic_inventory, basic_assessment).generate_all(tmp_path)
+
+        paths = [
+            artifact["path"]
+            for entries in report.manifest["artifacts"].values()
+            for artifact in entries
+        ]
+
+        assert paths
+        assert all("\\" not in path for path in paths)
+        assert any("/" in path for path in paths)
 
     def test_artifact_filenames_include_source_ids_to_avoid_collisions(self, tmp_path):
         """Distinct sources with the same name must write distinct artifacts."""

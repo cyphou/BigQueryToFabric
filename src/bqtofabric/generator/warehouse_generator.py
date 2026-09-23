@@ -2,16 +2,38 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 
 import sqlglot
 from sqlglot import exp
-from sqlglot.errors import ParseError
+from sqlglot.errors import SqlglotError
 
 from ..assessment import AssessmentReport
 from ..mapping import FabricTarget, MappingDecision
 from ..models import BigQueryInventory, BigQueryObject, Column, ObjectKind
 from ..type_mapping import map_type
+
+
+def _escape_identifier(name: str) -> str:
+    """Escape a bracket-quoted T-SQL identifier."""
+    return str(name).replace("]", "]]")
+
+
+def _escape_literal(value: str) -> str:
+    """Escape a single-quoted T-SQL string literal."""
+    return str(value).replace("'", "''")
+
+
+def _escape_comment(value: str) -> str:
+    """Collapse a value onto one line so it cannot break a ``--`` comment."""
+    return " ".join(str(value).split())
+
+
+def _clean_error(error: Exception) -> str:
+    """Return the first error line without terminal escape sequences."""
+    text = str(error).splitlines()[0] if str(error).splitlines() else str(error)
+    return re.sub(r"\x1b\[[0-9;]*m", "", text)
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,7 +101,7 @@ class WarehouseGenerator:
         elif item.kind is ObjectKind.SCHEDULED_QUERY:
             lines.extend(self._build_scheduled_query_artifacts(item, schema_name, warnings))
 
-        script = "\n".join(lines)
+        script = "".join(lines)
         return WarehouseScript(
             name=f"warehouse_{item.name}",
             description=f"Generated from {item.kind.value} {item.source_id}",
@@ -105,11 +127,15 @@ class WarehouseGenerator:
         ]
 
     def _build_schema_creation(self, schema_name: str) -> list[str]:
-        """Build schema creation SQL."""
+        """Build schema creation SQL.
+
+        ``CREATE SCHEMA`` must be the only statement in its batch, so it is wrapped in
+        ``EXEC`` rather than placed directly inside the ``BEGIN`` block.
+        """
         return [
-            f"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{schema_name}')\n",
+            f"IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = '{_escape_literal(schema_name)}')\n",
             "BEGIN\n",
-            f"  CREATE SCHEMA [{schema_name}]\n",
+            f"  EXEC(N'CREATE SCHEMA [{_escape_literal(_escape_identifier(schema_name))}]')\n",
             "END\n",
             "GO\n",
             "\n",
@@ -129,24 +155,25 @@ class WarehouseGenerator:
 
         lines.extend([
             "\n",
-            f"IF OBJECT_ID(N'[{schema}].[{item.name}]', N'U') IS NOT NULL\n",
-            f"  PRINT 'Existing table [{schema}].[{item.name}] preserved.'\n",
+            f"IF OBJECT_ID(N'[{_escape_literal(schema)}].[{_escape_literal(item.name)}]', N'U') IS NOT NULL\n",
+            f"  PRINT 'Existing table [{_escape_literal(schema)}].[{_escape_literal(item.name)}] preserved.'\n",
             "ELSE\n",
             "BEGIN\n",
-            f"  CREATE TABLE [{schema}].[{item.name}] (\n",
+            f"  CREATE TABLE [{_escape_identifier(schema)}].[{_escape_identifier(item.name)}] (\n",
         ])
 
-        # Build column definitions
+        # Descriptions precede the column so the separating comma is never commented out.
         col_defs: list[str] = []
         for col in item.columns:
             col_type = self._map_column_type(col, warnings)
             nullable = "NOT NULL" if not col.nullable else "NULL"
-            col_def = f"  [{col.name}] {col_type} {nullable}"
+            col_def = ""
             if col.description:
-                col_def += f" -- {col.description}"
+                col_def += f"    -- {_escape_comment(col.description)}\n"
+            col_def += f"    [{_escape_identifier(col.name)}] {col_type} {nullable}"
             col_defs.append(col_def)
 
-        lines.append(",\n".join(f"  {column.strip()}" for column in col_defs))
+        lines.append(",\n".join(col_defs))
 
         lines.append("\n")
 
@@ -169,45 +196,80 @@ class WarehouseGenerator:
     def _build_view_creation(
         self, item: BigQueryObject, schema: str, warnings: list[str]
     ) -> tuple[list[str], bool]:
-        """Build CREATE VIEW statement."""
+        """Build CREATE VIEW statement from converted T-SQL."""
         lines = [
             f"-- Create view: {item.name}\n",
             "-- Existing views are preserved; review and explicitly replace them if required.\n",
             "\n",
         ]
-        valid = True
 
-        if item.sql:
-            validation = self._validate_t_sql_semantics(item.sql)
-            if not validation.valid:
-                valid = False
-                lines.append("# VALIDATION PENDING\n")
-                warnings.append(
-                    "REDESIGN: View SQL syntax requires manual review for Fabric Warehouse "
-                    "compatibility."
-                )
-                if validation.reason:
-                    warnings.append(f"Validation: {validation.reason}")
-            escaped_sql = item.sql.replace("'", "''")
-            lines.extend([
-                f"IF OBJECT_ID(N'[{schema}].[{item.name}]', N'V') IS NULL\n",
-                "BEGIN\n",
-                f"  EXEC(N'CREATE VIEW [{schema}].[{item.name}] AS {escaped_sql}')\n",
-                "END\n",
-                "ELSE\n",
-                f"  PRINT 'Existing view [{schema}].[{item.name}] preserved.'\n",
-            ])
-        else:
+        if not item.sql:
             lines.append("-- TODO: MANUAL REVIEW - Add view definition from source\n")
             warnings.append("View SQL not provided; manual SQL definition required")
-            valid = False
+            lines.extend(["GO\n", "\n"])
+            return lines, False
 
+        converted, conversion_warnings = self._convert_view_sql(item.sql)
+        warnings.extend(conversion_warnings)
+
+        validation = (
+            self._validate_t_sql_semantics(converted) if converted is not None else None
+        )
+        if validation is not None and not validation.valid:
+            warnings.append(
+                "REDESIGN: Converted view SQL uses constructs Fabric Warehouse does not "
+                "support; the view body is not emitted."
+            )
+            if validation.reason:
+                warnings.append(f"Validation: {validation.reason}")
+
+        if converted is None or (validation is not None and not validation.valid):
+            lines.append(
+                "-- TODO: MANUAL REVIEW - The source GoogleSQL was not safely convertible "
+                "to Fabric Warehouse T-SQL.\n"
+            )
+            lines.append("-- The view body is intentionally omitted so it cannot be deployed as-is.\n")
+            if converted:
+                lines.append("-- Candidate conversion for review only:\n")
+                lines.extend(
+                    f"--   {_escape_comment(line)}\n" for line in converted.splitlines() if line.strip()
+                )
+            lines.extend(["GO\n", "\n"])
+            return lines, False
+
+        escaped_sql = _escape_literal(converted)
         lines.extend([
+            f"IF OBJECT_ID(N'[{_escape_literal(schema)}].[{_escape_literal(item.name)}]', N'V') IS NULL\n",
+            "BEGIN\n",
+            f"  EXEC(N'CREATE VIEW [{_escape_identifier(schema)}].[{_escape_identifier(item.name)}] AS {escaped_sql}')\n",
+            "END\n",
+            "ELSE\n",
+            f"  PRINT 'Existing view [{_escape_literal(schema)}].[{_escape_literal(item.name)}] preserved.'\n",
             "GO\n",
             "\n",
         ])
+        return lines, True
 
-        return lines, valid
+    def _convert_view_sql(self, sql: str) -> tuple[str | None, list[str]]:
+        """Translate GoogleSQL to T-SQL, returning ``None`` when translation is unsafe."""
+        try:
+            converted = sqlglot.transpile(sql, read="bigquery", write="tsql")
+        except SqlglotError as error:
+            return None, [
+                (
+                    "View SQL could not be converted from GoogleSQL to T-SQL: "
+                    f"{_clean_error(error)}"
+                ),
+            ]
+        statements = [statement for statement in converted if statement.strip()]
+        if not statements:
+            return None, ["View SQL produced no T-SQL statements."]
+        warnings: list[str] = []
+        if len(statements) > 1:
+            warnings.append(
+                "View SQL contains multiple statements; only the first is emitted."
+            )
+        return statements[0], warnings
 
     def _build_scheduled_query_artifacts(self, item: BigQueryObject, schema: str, warnings: list[str]) -> list[str]:
         """Build artifacts for scheduled queries."""
@@ -220,11 +282,11 @@ class WarehouseGenerator:
 
         table_name = f"{item.name}_result"
         lines.extend([
-            f"IF OBJECT_ID(N'[{schema}].[{table_name}]', N'U') IS NOT NULL\n",
-            f"  PRINT 'Existing table [{schema}].[{table_name}] preserved.'\n",
+            f"IF OBJECT_ID(N'[{_escape_literal(schema)}].[{_escape_literal(table_name)}]', N'U') IS NOT NULL\n",
+            f"  PRINT 'Existing table [{_escape_literal(schema)}].[{_escape_literal(table_name)}] preserved.'\n",
             "ELSE\n",
             "BEGIN\n",
-            f"  CREATE TABLE [{schema}].[{table_name}] (\n",
+            f"  CREATE TABLE [{_escape_identifier(schema)}].[{_escape_identifier(table_name)}] (\n",
         ])
 
         col_defs: list[str] = []
@@ -232,9 +294,9 @@ class WarehouseGenerator:
             for col in item.columns:
                 col_type = self._map_column_type(col, warnings)
                 nullable = "NOT NULL" if not col.nullable else "NULL"
-                col_defs.append(f"  [{col.name}] {col_type} {nullable}")
+                col_defs.append(f"    [{_escape_identifier(col.name)}] {col_type} {nullable}")
 
-        col_defs.append("  [_load_timestamp] DATETIME2 DEFAULT GETUTCDATE()")
+        col_defs.append("    [_load_timestamp] DATETIME2 DEFAULT GETUTCDATE()")
         lines.append(",\n".join(col_defs))
 
         lines.extend([
@@ -256,8 +318,11 @@ class WarehouseGenerator:
         type_mapping = map_type(col.data_type)
 
         if type_mapping.warehouse_type is None:
-            warnings.append(f"Column {col.name}: {col.data_type} maps to {type_mapping.compatibility.value}")
-            return "varchar(max) -- REVIEW TYPE MAPPING"
+            warnings.append(
+                f"Column {col.name}: {col.data_type} maps to "
+                f"{type_mapping.compatibility.value}; review the chosen varchar(max) fallback"
+            )
+            return "varchar(max)"
 
         return type_mapping.warehouse_type
 
@@ -265,10 +330,10 @@ class WarehouseGenerator:
         """Validate SQL features that Fabric Warehouse does not support."""
         try:
             statements = sqlglot.parse(sql, read="tsql")
-        except ParseError as error:
+        except SqlglotError as error:
             return TsqlValidationResult(
                 valid=False,
-                reason=str(error),
+                reason=_clean_error(error),
                 recommendation="Rewrite the SQL using Fabric Warehouse T-SQL syntax.",
                 unsupported_features=["parse error"],
             )
