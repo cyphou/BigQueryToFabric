@@ -177,17 +177,17 @@
     </section>
 
     <section class="grid metrics" aria-label="Assessment scorecard">
-      <div class="metric accent"><div class="value" id="scoreValue">70</div><div class="label">Readiness score / 100</div></div>
-      <div class="metric warning"><div class="value" id="evidenceValue">62%</div><div class="label">Evidence coverage</div></div>
+      <div class="metric accent"><div class="value" id="scoreValue">42</div><div class="label">Readiness score / 100</div></div>
+      <div class="metric warning"><div class="value" id="evidenceValue">61%</div><div class="label">Evidence coverage</div></div>
       <div class="metric danger"><div class="value" id="blockerValue">1</div><div class="label">Blocking finding</div></div>
-      <div class="metric"><div class="value" id="findingValue">68</div><div class="label">Total findings</div></div>
+      <div class="metric"><div class="value" id="findingValue">75</div><div class="label">Total findings</div></div>
       <div class="metric success"><div class="value" id="componentValue">38</div><div class="label">Components assessed</div></div>
     </section>
 
     <section class="grid two-col">
       <article class="panel">
         <div class="panel-header"><div><h2>Executive decision</h2><p class="subtle">Recommended posture for the next review gate</p></div><span class="status">REVIEW REQUIRED</span></div>
-        <div class="callout"><strong>Do not approve production migration yet.</strong> The portfolio has a credible hybrid target shape, but one security-policy mapping is unsupported and evidence coverage is only 62%.</div>
+        <div class="callout"><strong>Do not approve production migration yet.</strong> The portfolio has a credible hybrid target shape, but one security-policy mapping is unsupported, evidence coverage is only 61%, and no parity evidence has been supplied.</div>
         <div class="proposal-list">
           <div class="proposal"><div class="proposal-icon">1</div><div><h3>Close security blockers</h3><p>Design target-side access controls and RLS for <code>customer_policy</code>. Treat source ACL evidence as review input, not effective-access proof.</p></div></div>
           <div class="proposal"><div class="proposal-icon">2</div><div><h3>Fill evidence gaps</h3><p>Prioritize Composer, Looker, BQML, Vertex AI, Cloud SQL, and Spanner runtime/configuration evidence before wave approval.</p></div></div>
@@ -195,13 +195,16 @@
         </div>
       </article>
       <article class="panel">
-        <div class="panel-header"><div><h2>Finding mix</h2><p class="subtle">Why the score is held at 70</p></div></div>
+        <div class="panel-header"><div><h2>Finding mix</h2><p class="subtle">Why the score is held at 42</p></div></div>
         <div class="bars">
           <div><div class="bar-label"><span>Missing evidence</span><strong>30</strong></div><div class="track"><div class="fill warning" style="width:100%"></div></div></div>
           <div><div class="bar-label"><span>Required actions</span><strong>26</strong></div><div class="track"><div class="fill" style="width:87%"></div></div></div>
           <div><div class="bar-label"><span>Mapping redesign</span><strong>8</strong></div><div class="track"><div class="fill" style="width:27%"></div></div></div>
+          <div><div class="bar-label"><span>Parity not run</span><strong>4</strong></div><div class="track"><div class="fill warning" style="width:13%"></div></div></div>
+          <div><div class="bar-label"><span>SQL redesign</span><strong>3</strong></div><div class="track"><div class="fill" style="width:10%"></div></div></div>
           <div><div class="bar-label"><span>Schema redesign</span><strong>2</strong></div><div class="track"><div class="fill" style="width:7%"></div></div></div>
-          <div><div class="bar-label"><span>SQL redesign</span><strong>1</strong></div><div class="track"><div class="fill" style="width:4%"></div></div></div>
+          <div><div class="bar-label"><span>Streaming review</span><strong>1</strong></div><div class="track"><div class="fill" style="width:4%"></div></div></div>
+          <div><div class="bar-label"><span>Mapping unsupported</span><strong>1</strong></div><div class="track"><div class="fill" style="width:4%"></div></div></div>
         </div>
       </article>
     </section>
@@ -245,7 +248,7 @@
 
     <section class="grid two-col" style="margin-top:16px">
       <article class="panel"><div class="panel-header"><div><h2>Blocking finding</h2><p class="subtle">The item that stops production approval</p></div></div><div class="finding"><div class="severity">FAIL · SECURITY</div><div><h3><code>gcp-data-platform.security.customer_policy</code></h3><p>Security policies have no safe automatic one-to-one migration. Target-side access controls, RLS, effective IAM, and policy equivalence require manual design and sign-off.</p></div></div></article>
-      <article class="panel"><div class="panel-header"><div><h2>Evidence posture</h2><p class="subtle">Runtime confidence remains intentionally conservative</p></div></div><div class="finding"><div class="severity">62% COVERAGE</div><div><h3>Evidence is the next unlock</h3><p>Parity is <code>not_run</code> or <code>not_applicable</code> across the fixture. Missing evidence should be completed before a wave is treated as ready.</p></div></div></article>
+      <article class="panel"><div class="panel-header"><div><h2>Evidence posture</h2><p class="subtle">Runtime confidence remains intentionally conservative</p></div></div><div class="finding"><div class="severity">61% COVERAGE</div><div><h3>Evidence is the next unlock</h3><p>Parity is <code>not_run</code> or <code>not_applicable</code> across the fixture, and components carrying a blocking finding score zero. Missing evidence should be completed before a wave is treated as ready.</p></div></div></article>
     </section>
 
     <section class="panel" style="margin-top:16px">
@@ -263,10 +266,11 @@
   </main>
     <script>
     const ASSESSMENT_SUMMARY = {
-      score: 70,
-      evidenceCoverage: 62,
-      findingCounts: { FAIL: 1, WARN: 67 },
+      score: 42,
+      evidenceCoverage: 61,
+      findingCounts: { FAIL: 1, WARN: 74 },
       componentCount: 28,
+      manualReviewCount: 16,
       status: "blocked"
     };
     document.querySelector("#scoreValue").textContent = ASSESSMENT_SUMMARY.score;
