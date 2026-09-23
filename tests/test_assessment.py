@@ -22,9 +22,13 @@ def test_assessment_routes_mixed_workloads_and_explains_strategy() -> None:
     assert targets["retail-analytics.sales.clickstream"] is FabricTarget.EVENTHOUSE
     assert report.strategy.architecture == "hybrid"
     assert report.strategy.primary_target is FabricTarget.WAREHOUSE
-    assert any(finding.source_id == "STRUCT" for finding in report.findings)
-    assert any(finding.code == "TYPE_REDESIGN" and finding.category == "schema"
-               for finding in report.findings)
+    type_findings = [finding for finding in report.findings if finding.code == "TYPE_REDESIGN"]
+    assert type_findings
+    assert all(finding.category == "schema" for finding in type_findings)
+    # The finding must identify the owning object and column, not the bare type name.
+    struct_finding = next(finding for finding in type_findings if "STRUCT" in finding.message)
+    assert struct_finding.source_id in targets
+    assert struct_finding.source_id != "STRUCT"
 
 
 def test_assessment_reports_origin_and_deterministic_discovery_coverage() -> None:
@@ -158,6 +162,113 @@ def test_sql_compatibility_is_never_better_than_the_mapping_decision() -> None:
     for result in report.sql_assessments:
         decision = decisions[result.source_id]
         assert order.index(result.compatibility) >= order.index(decision.compatibility)
+
+
+def test_score_is_not_diluted_by_schema_width() -> None:
+    """A wide table of trivial columns must not raise the portfolio readiness score."""
+    base = {
+        "project_id": "score-width",
+        "components": [
+            {
+                "source_id": "score-width.wide",
+                "name": "wide",
+                "kind": "table",
+                "columns": [{"name": "id", "data_type": "INT64"}],
+            },
+            {
+                "source_id": "score-width.risky",
+                "name": "risky",
+                "kind": "composer_dag",
+                "properties": {"unsupported_operators": ["KubernetesPodOperator"]},
+            },
+        ],
+    }
+    narrow = run_assessment(BigQueryInventory.from_dict(base)).score
+
+    widened = json.loads(json.dumps(base))
+    widened["components"][0]["columns"] = [
+        {"name": f"c{index}", "data_type": "INT64"} for index in range(100)
+    ]
+    wide = run_assessment(BigQueryInventory.from_dict(widened)).score
+
+    assert wide == narrow
+
+
+def test_component_with_fail_blocker_scores_zero() -> None:
+    """A blocking finding must not leave the component contributing readiness points."""
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "score-block",
+        "components": [{
+            "source_id": "score-block.policy",
+            "name": "policy",
+            "kind": "security_policy",
+            "discovered_from": "bigquery_api",
+            "properties": {"evidence_scope": "dataset_access_entry"},
+        }],
+    })
+
+    report = run_assessment(inventory)
+
+    assert any(finding.severity == "FAIL" for finding in report.findings)
+    assert report.score == 0
+
+
+def test_missing_parity_evidence_is_reported_as_a_finding() -> None:
+    """Silence about parity is an evidence gap, not an implicit pass."""
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "parity-gap",
+        "components": [{
+            "source_id": "parity-gap.orders",
+            "name": "orders",
+            "kind": "table",
+            "columns": [{"name": "id", "data_type": "INT64"}],
+        }],
+    })
+
+    report = run_assessment(inventory)
+
+    assert report.parity_summary["parity-gap.orders"]["status"] == "not_run"
+    assert any(finding.code == "PARITY_NOT_RUN" for finding in report.findings)
+
+
+def test_recorded_false_is_evidence_not_absence() -> None:
+    """A batch Dataflow job records streaming=false; mapping trusts it, so must evidence."""
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "bool-evidence",
+        "components": [{
+            "source_id": "bool-evidence.batch",
+            "name": "batch",
+            "kind": "dataflow_job",
+            "properties": {
+                "streaming": False,
+                "portable": True,
+                "connector_compatible": True,
+            },
+        }],
+    })
+
+    report = run_assessment(inventory)
+
+    assert report.evidence_summary["bool-evidence.batch"]["missing"] == []
+    assert report.evidence_summary["bool-evidence.batch"]["coverage"] == 100
+
+
+def test_core_bigquery_objects_require_evidence() -> None:
+    """A listed-but-unexamined table must not report full evidence coverage."""
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "core-evidence",
+        "components": [
+            {"source_id": "core-evidence.bare", "name": "bare", "kind": "table"},
+            {"source_id": "core-evidence.view", "name": "view", "kind": "view"},
+        ],
+    })
+
+    report = run_assessment(inventory)
+
+    assert report.evidence_coverage < 100
+    assert "columns" in report.evidence_summary["core-evidence.bare"]["missing"]
+    assert "size_bytes" in report.evidence_summary["core-evidence.bare"]["missing"]
+    assert "sql" in report.evidence_summary["core-evidence.view"]["missing"]
 
 
 def test_assessment_penalizes_missing_family_evidence() -> None:
@@ -367,12 +478,15 @@ def test_incomplete_external_spark_adapter_requires_transitive_review() -> None:
     assert plan_items["external-adapter-chain.reporting"].manual_review is True
     assert plan_items["external-adapter-chain.transform"].manual_review_reasons == (
         "incomplete_external_adapter",
+        "missing_required_evidence",
     )
     assert plan_items["external-adapter-chain.curated"].manual_review_reasons == (
         "depends_on_incomplete_external_adapter",
+        "missing_required_evidence",
     )
     assert plan_items["external-adapter-chain.reporting"].manual_review_reasons == (
         "depends_on_incomplete_external_adapter",
+        "missing_required_evidence",
     )
     assert plan.unresolved_dependencies == ()
 
@@ -408,9 +522,11 @@ def test_incomplete_dataform_compilation_requires_transitive_review() -> None:
     )
     assert plan_items["dataform-compilation-chain.compilation.result-001"].manual_review_reasons == (
         "incomplete_dataform_compilation",
+        "missing_required_evidence",
     )
     assert plan_items["dataform-compilation-chain.reporting"].manual_review_reasons == (
         "depends_on_incomplete_dataform_compilation",
+        "missing_required_evidence",
     )
 
 

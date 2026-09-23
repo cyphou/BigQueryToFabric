@@ -216,3 +216,58 @@ def test_parity_failed_check_wins_over_not_run_checks() -> None:
 
 def test_parity_can_be_not_applicable() -> None:
     assert assess_parity({}, applicable=False)["status"] == "not_applicable"
+
+
+def test_declared_passed_without_evidence_is_not_run() -> None:
+    """A caller-asserted status with no payload must never be reported as passed."""
+    result = assess_parity({"parity": {
+        "schema": {"status": "passed"},
+        "row_count": {"status": "passed"},
+        "checksum": {"status": "passed"},
+        "aggregate": {"status": "passed"},
+        "null_distribution": {"status": "passed"},
+        "sample": {"status": "passed"},
+        "sql_result": {"status": "passed"},
+    }})
+
+    assert result["status"] == "not_run"
+    assert all(check["status"] == "not_run" for check in result["checks"].values())
+
+
+def test_declared_status_contradicted_by_evidence_is_recorded() -> None:
+    """Evidence wins over the declared status, and the contradiction is surfaced."""
+    result = assess_parity({"parity": {
+        "row_count": {"status": "passed", "source": 10, "target": 9},
+    }})
+
+    assert result["checks"]["row_count"]["status"] == "failed"
+    assert result["checks"]["row_count"]["declaredStatus"] == "passed"
+    assert result["status"] == "failed"
+
+
+def test_parity_passes_only_when_every_check_has_matching_evidence() -> None:
+    """Complete, matching evidence is the only route to an overall passed status."""
+    columns = [{"name": "id", "data_type": "INT64", "nullable": False, "mode": "REQUIRED"}]
+    result = assess_parity({"parity": {
+        "schema": {"source": columns, "target": columns},
+        "row_count": {"source": 10, "target": 10},
+        "checksum": {
+            "source": {"algorithm": "sha256", "ordering": "id", "value": "abc"},
+            "target": {"algorithm": "sha256", "ordering": "id", "value": "abc"},
+        },
+        "aggregate": {"source": {"total": 1}, "target": {"total": 1}},
+        "null_distribution": {
+            "source": {"id": {"null_count": 0, "row_count": 10}},
+            "target": {"id": {"null_count": 0, "row_count": 10}},
+        },
+        "sample": {
+            "source": {"method": "top", "ordering": "id", "rows": [[1]]},
+            "target": {"method": "top", "ordering": "id", "rows": [[1]]},
+        },
+        "sql_result": {
+            "source": {"query_id": "q1", "ordering": "id", "rows": [[1]]},
+            "target": {"query_id": "q1", "ordering": "id", "rows": [[1]]},
+        },
+    }})
+
+    assert result["status"] == "passed"

@@ -34,13 +34,22 @@ _TYPE_MAPPINGS = {
         Compatibility.TRANSFORM,
         "BigQuery precision can exceed Fabric decimal precision; profile values before casting.",
     ),
-    "STRING": TypeMapping("STRING", "varchar(max)", "string", Compatibility.DIRECT),
+    "STRING": TypeMapping("STRING", "varchar(max)", "string", Compatibility.TRANSFORM,
+        "Profile actual string lengths before accepting varchar(max) in Warehouse."),
     "BYTES": TypeMapping("BYTES", "varbinary(max)", "binary", Compatibility.DIRECT),
     "DATE": TypeMapping("DATE", "date", "date", Compatibility.DIRECT),
-    "DATETIME": TypeMapping("DATETIME", "datetime2", "timestamp", Compatibility.DIRECT),
+    # BigQuery DATETIME is civil time with no zone; Spark timestamp is instant-based and
+    # session-timezone dependent, so an unconsidered mapping silently shifts values.
+    "DATETIME": TypeMapping("DATETIME", "datetime2", "timestamp", Compatibility.TRANSFORM,
+        "DATETIME has no time zone; Spark timestamp applies session-timezone semantics. "
+        "Choose timestamp_ntz or an explicit civil representation deliberately."),
     "TIME": TypeMapping("TIME", "time", "string", Compatibility.TRANSFORM),
     "TIMESTAMP": TypeMapping("TIMESTAMP", "datetime2", "timestamp", Compatibility.TRANSFORM,
         "Normalize BigQuery UTC semantics explicitly."),
+    "INTERVAL": TypeMapping("INTERVAL", None, "string", Compatibility.REDESIGN,
+        "INTERVAL has no portable target equivalent; model the component parts explicitly."),
+    "RANGE": TypeMapping("RANGE", None, "struct", Compatibility.REDESIGN,
+        "RANGE must be modelled as explicit start and end columns."),
     "JSON": TypeMapping("JSON", "varchar(max)", "string", Compatibility.TRANSFORM,
         "Preserve raw JSON in Bronze and project typed fields in Silver."),
     "GEOGRAPHY": TypeMapping("GEOGRAPHY", None, "string", Compatibility.REDESIGN,
@@ -52,9 +61,38 @@ _TYPE_MAPPINGS = {
 }
 
 
+# The REST API and hand-authored inventories still use legacy type names.
+_LEGACY_TYPE_NAMES = {
+    "INTEGER": "INT64",
+    "FLOAT": "FLOAT64",
+    "BOOLEAN": "BOOL",
+    "RECORD": "STRUCT",
+    "DECIMAL": "NUMERIC",
+    "BIGDECIMAL": "BIGNUMERIC",
+}
+
+
 def map_type(source_type: str) -> TypeMapping:
-    normalized = source_type.upper().split("<", 1)[0]
-    return _TYPE_MAPPINGS.get(
-        normalized,
-        TypeMapping(source_type, None, None, Compatibility.UNSUPPORTED, "Unknown BigQuery type."),
-    )
+    """Map a BigQuery type name, tolerating legacy and parameterized spellings."""
+    normalized = source_type.upper().strip().split("<", 1)[0].split("(", 1)[0].strip()
+    normalized = _LEGACY_TYPE_NAMES.get(normalized, normalized)
+    mapping = _TYPE_MAPPINGS.get(normalized)
+    if mapping is None:
+        return TypeMapping(
+            source_type,
+            None,
+            None,
+            Compatibility.UNSUPPORTED,
+            "Unrecognized BigQuery type; confirm whether this is a discovery gap or a "
+            "genuinely unsupported type.",
+        )
+    if normalized != source_type.upper().strip():
+        # Preserve the caller's spelling so findings cite what the inventory recorded.
+        return TypeMapping(
+            source_type,
+            mapping.warehouse_type,
+            mapping.lakehouse_type,
+            mapping.compatibility,
+            mapping.note,
+        )
+    return mapping

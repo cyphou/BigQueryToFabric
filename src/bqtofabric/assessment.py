@@ -47,10 +47,15 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
     typed_preferences = preferences if isinstance(preferences, dict) else {}
     streaming_consumers = _streaming_consumers(inventory)
     decisions = tuple(map_component(item, typed_preferences) for item in inventory.objects())
-    mapped_types = tuple(
-        map_type(column.data_type)
+    column_types = {
+        item.source_id: tuple(
+            (path, map_type(column.data_type))
+            for path, column in _walk_columns_with_path(item.columns)
+        )
         for item in inventory.objects()
-        for column in _walk_columns(item.columns)
+    }
+    mapped_types = tuple(
+        mapping for entries in column_types.values() for _, mapping in entries
     )
     sql_assessments = tuple(
         result
@@ -58,7 +63,6 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         if (result := assess_sql(item, decision)) is not None
     )
     findings: list[AssessmentFinding] = []
-    evidence_scores: list[int] = []
     evidence_summary: dict[str, dict[str, object]] = {}
     parity_summary: dict[str, dict[str, object]] = {}
     readiness = {
@@ -68,7 +72,6 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         Compatibility.UNSUPPORTED: 0,
     }
     for decision in decisions:
-        evidence_scores.append(readiness[decision.compatibility])
         if decision.compatibility is Compatibility.REDESIGN:
             findings.append(AssessmentFinding(
                 "WARN", decision.source_id, decision.rationale, "MAPPING_REDESIGN", "mapping"
@@ -90,13 +93,21 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
                 "STREAMING_DOWNSTREAM_REVIEW",
                 "processing",
             ))
-    for index, item in enumerate(inventory.objects()):
-        parity = assess_parity(item.properties, applicable=bool(item.columns))
+    for item in inventory.objects():
+        parity = assess_parity(item.properties, applicable=_parity_applicable(item))
         parity_summary[item.source_id] = parity
         findings.extend(_storage_layout_findings(item))
         if parity["status"] == "failed":
             findings.append(AssessmentFinding(
                 "FAIL", item.source_id, "Parity evidence failed.", "PARITY_FAILED", "parity"
+            ))
+        elif parity["status"] == "not_run":
+            findings.append(AssessmentFinding(
+                "WARN",
+                item.source_id,
+                "No parity evidence was supplied; migration correctness is unverified.",
+                "PARITY_NOT_RUN",
+                "parity",
             ))
         if (
             item.kind is ObjectKind.SECURITY_POLICY
@@ -131,10 +142,6 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
             "missing": list(missing),
             "coverage": coverage,
         }
-        evidence_scores[index] = max(
-            0,
-            readiness[decisions[index].compatibility] - round((100 - coverage) / 4),
-        )
         if item.discovered_from == "external_payload" and missing:
             findings.append(AssessmentFinding(
                 "FAIL",
@@ -155,19 +162,24 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
             )
             for field_name in missing
         )
-    for mapping in mapped_types:
-        evidence_scores.append(readiness[mapping.compatibility])
-        if mapping.compatibility in {Compatibility.REDESIGN, Compatibility.UNSUPPORTED}:
+    # One finding per (object, type), listing the affected columns, so that finding
+    # counts reflect distinct risks rather than schema width.
+    for source_id, entries in column_types.items():
+        grouped: dict[str, tuple[TypeMapping, list[str]]] = {}
+        for path, mapping in entries:
+            if mapping.compatibility not in {Compatibility.REDESIGN, Compatibility.UNSUPPORTED}:
+                continue
+            grouped.setdefault(mapping.source_type, (mapping, []))[1].append(path)
+        for source_type, (mapping, paths) in sorted(grouped.items()):
             findings.append(AssessmentFinding(
                 "WARN" if mapping.compatibility is Compatibility.REDESIGN else "FAIL",
-                mapping.source_type,
-                mapping.note,
+                source_id,
+                f"{source_type} at {', '.join(sorted(paths))}: {mapping.note}",
                 "TYPE_REDESIGN" if mapping.compatibility is Compatibility.REDESIGN
                 else "TYPE_UNSUPPORTED",
                 "schema",
             ))
     for sql_result in sql_assessments:
-        evidence_scores.append(readiness[sql_result.compatibility])
         if sql_result.compatibility is Compatibility.REDESIGN:
             findings.append(AssessmentFinding(
                 "WARN",
@@ -176,6 +188,25 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
                 "SQL_REDESIGN",
                 "sql",
             ))
+
+    # Score once per component. Type and SQL risk fold into the owning component so a
+    # wide table cannot outvote a genuinely blocked one.
+    blocked = {finding.source_id for finding in findings if finding.severity == "FAIL"}
+    sql_by_id = {result.source_id: result for result in sql_assessments}
+    component_scores: dict[str, int] = {}
+    for decision in decisions:
+        source_id = decision.source_id
+        levels = [decision.compatibility]
+        levels.extend(mapping.compatibility for _, mapping in column_types.get(source_id, ()))
+        if source_id in sql_by_id:
+            levels.append(sql_by_id[source_id].compatibility)
+        coverage = cast(int, evidence_summary[source_id]["coverage"])
+        base = readiness[_worst_compatibility(levels)]
+        component_scores[source_id] = (
+            0 if source_id in blocked else round(base * coverage / 100)
+        )
+    evidence_scores = list(component_scores.values())
+
     strategy = recommend_strategy(inventory, decisions)
     component_summary = dict(sorted(Counter(item.kind.value for item in inventory.objects()).items()))
     target_summary = dict(sorted(Counter(item.target.value for item in decisions).items()))
@@ -213,6 +244,46 @@ def _walk_columns(columns: tuple[Column, ...]) -> Iterator[Column]:
         yield from _walk_columns(column.fields)
 
 
+def _walk_columns_with_path(
+    columns: tuple[Column, ...], prefix: str = ""
+) -> Iterator[tuple[str, Column]]:
+    """Yield each column with its dotted path so findings identify the source column."""
+    for column in columns:
+        path = f"{prefix}.{column.name}" if prefix else column.name
+        yield path, column
+        yield from _walk_columns_with_path(column.fields, path)
+
+
+_COMPATIBILITY_ORDER = (
+    Compatibility.DIRECT,
+    Compatibility.TRANSFORM,
+    Compatibility.REDESIGN,
+    Compatibility.UNSUPPORTED,
+)
+
+# Kinds that hold data and can therefore be compared row-for-row after migration.
+_DATA_BEARING_KINDS = {
+    ObjectKind.TABLE,
+    ObjectKind.EXTERNAL_TABLE,
+    ObjectKind.MATERIALIZED_VIEW,
+    ObjectKind.VIEW,
+}
+
+
+def _worst_compatibility(levels: list[Compatibility]) -> Compatibility:
+    """Return the least favourable compatibility level in the list."""
+    return max(levels, key=_COMPATIBILITY_ORDER.index) if levels else Compatibility.DIRECT
+
+
+def _parity_applicable(item: BigQueryObject) -> bool:
+    """Parity applies to data-bearing objects whether or not a schema was captured.
+
+    Keying this on recorded columns would turn a discovery gap into ``not_applicable``,
+    which reads as "nothing to check" rather than "nothing was checked".
+    """
+    return item.kind in _DATA_BEARING_KINDS
+
+
 def _storage_layout_findings(item: BigQueryObject) -> tuple[AssessmentFinding, ...]:
     """Recommend layout review from recorded size, partition, and clustering evidence."""
     if item.kind not in {ObjectKind.TABLE, ObjectKind.EXTERNAL_TABLE, ObjectKind.MATERIALIZED_VIEW}:
@@ -245,7 +316,8 @@ def _streaming_consumers(inventory: BigQueryInventory) -> set[str]:
     streaming_sources = {
         item.source_id
         for item in objects.values()
-        if item.kind is ObjectKind.DATAFLOW_JOB and item.properties.get("streaming") is True
+        if item.kind in {ObjectKind.STREAM, ObjectKind.PUBSUB_TOPIC}
+        or item.properties.get("streaming") is True
     }
     consumers: set[str] = set()
     remaining = set(streaming_sources)
@@ -261,20 +333,32 @@ def _streaming_consumers(inventory: BigQueryInventory) -> set[str]:
     return consumers
 
 
+# Evidence carried on the model itself rather than in the free-form properties bag.
+_MODEL_EVIDENCE = {"columns", "sql", "size_bytes", "partition_field", "clustering_fields"}
+
+
 def _missing_evidence(item: BigQueryObject) -> tuple[str, ...]:
     return tuple(
         field_name
         for field_name in _required_evidence(item.kind)
         if not _has_evidence(
-            item.properties.get(field_name),
+            getattr(item, field_name) if field_name in _MODEL_EVIDENCE
+            else item.properties.get(field_name),
             allow_empty=field_name in {"connections", "models"},
-            allow_false=field_name in {"assertions", "incremental"},
         )
     )
 
 
 def _required_evidence(kind: ObjectKind) -> tuple[str, ...]:
     required: dict[ObjectKind, tuple[str, ...]] = {
+        # Core BigQuery kinds. Without these the object was listed, not assessed.
+        ObjectKind.TABLE: ("columns", "size_bytes"),
+        ObjectKind.EXTERNAL_TABLE: ("columns",),
+        ObjectKind.VIEW: ("sql",),
+        ObjectKind.MATERIALIZED_VIEW: ("sql", "columns"),
+        ObjectKind.ROUTINE: ("language", "sql"),
+        ObjectKind.PROCEDURE: ("language", "sql"),
+        ObjectKind.SQL_SCRIPT: ("sql",),
         ObjectKind.SPARK_JOB: ("language", "runtime_version"),
         ObjectKind.DATAPROC_JOB: ("language", "runtime_version"),
         ObjectKind.DATAFLOW_JOB: ("streaming", "portable", "connector_compatible"),
@@ -290,11 +374,12 @@ def _required_evidence(kind: ObjectKind) -> tuple[str, ...]:
     return required.get(kind, ())
 
 
-def _has_evidence(
-    value: object, *, allow_empty: bool = False, allow_false: bool = False
-) -> bool:
-    if value is None or (value is False and not allow_false):
+def _has_evidence(value: object, *, allow_empty: bool = False) -> bool:
+    if value is None:
         return False
+    # A recorded boolean is evidence in either state; mapping already acts on False.
+    if isinstance(value, bool):
+        return True
     if isinstance(value, str) and value.strip().lower() in {"", "unknown", "not specified"}:
         return False
     if isinstance(value, (str, bytes, list, tuple, dict, set)):

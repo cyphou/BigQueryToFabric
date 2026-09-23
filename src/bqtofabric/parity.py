@@ -7,6 +7,18 @@ from typing import Any
 
 PARITY_STATUSES = {"passed", "failed", "not_run", "not_applicable"}
 
+# Every check here is recomputed from evidence. A check with no comparator would only
+# ever be caller-asserted, so none is listed.
+PARITY_CHECKS = (
+    "schema",
+    "row_count",
+    "checksum",
+    "aggregate",
+    "null_distribution",
+    "sample",
+    "sql_result",
+)
+
 
 def compare_row_count(source: int | None, target: int | None) -> dict[str, Any]:
     """Compare supplied row counts without querying either data platform."""
@@ -250,8 +262,42 @@ def _compare_columns(
             _compare_columns(source_fields, target_fields, differences, path)
 
 
+def _evaluate_check(name: str, value: Mapping[str, Any]) -> dict[str, Any]:
+    """Recompute a single parity check from its supplied evidence payload."""
+    source = value.get("source")
+    target = value.get("target")
+    if name == "schema":
+        if not isinstance(source, Sequence) or not isinstance(target, Sequence):
+            return {"status": "not_run"}
+        return compare_schema(source, target)
+    if name == "row_count":
+        source_count = source if isinstance(source, int) else None
+        target_count = target if isinstance(target, int) else None
+        return compare_row_count(source_count, target_count)
+    if name == "checksum":
+        return compare_checksums(_as_mapping(source), _as_mapping(target))
+    if name == "aggregate":
+        return compare_aggregates(_as_mapping(source), _as_mapping(target))
+    if name == "null_distribution":
+        return compare_null_distributions(_as_mapping(source), _as_mapping(target))
+    if name == "sample":
+        return compare_samples(_as_mapping(source), _as_mapping(target))
+    if name == "sql_result":
+        return compare_sql_results(_as_mapping(source), _as_mapping(target))
+    return {"status": "not_run"}
+
+
+def _as_mapping(value: Any) -> Mapping[str, Any] | None:
+    return value if isinstance(value, Mapping) else None
+
+
 def assess_parity(properties: Mapping[str, Any], *, applicable: bool = True) -> dict[str, Any]:
-    """Summarize supplied parity checks without claiming checks that were not run."""
+    """Recompute parity from supplied evidence.
+
+    A caller-declared ``status`` is never trusted: each check is derived from its own
+    ``source``/``target`` payload, so an assertion without evidence resolves to
+    ``not_run`` rather than ``passed``.
+    """
     if not applicable:
         return {"status": "not_applicable", "checks": {}}
 
@@ -260,23 +306,21 @@ def assess_parity(properties: Mapping[str, Any], *, applicable: bool = True) -> 
         return {"status": "not_run", "checks": {}}
 
     checks: dict[str, dict[str, Any]] = {}
-    for name in (
-        "schema",
-        "type",
-        "row_count",
-        "checksum",
-        "aggregate",
-        "sample",
-        "sql_result",
-    ):
+    for name in PARITY_CHECKS:
         value = supplied.get(name)
         if not isinstance(value, Mapping):
             checks[name] = {"status": "not_run"}
             continue
-        status = str(value.get("status", "not_run"))
-        if status not in PARITY_STATUSES:
-            status = "not_run"
-        checks[name] = {"status": status, **dict(value)}
+        declared = str(value.get("status", "not_run"))
+        if declared == "not_applicable":
+            checks[name] = {"status": "not_applicable", **dict(value)}
+            continue
+        computed = _evaluate_check(name, value)
+        merged = {**dict(value), **computed}
+        merged["status"] = computed["status"]
+        if declared in PARITY_STATUSES and declared != computed["status"]:
+            merged["declaredStatus"] = declared
+        checks[name] = merged
 
     statuses = [str(value["status"]) for value in checks.values()]
     if "failed" in statuses:

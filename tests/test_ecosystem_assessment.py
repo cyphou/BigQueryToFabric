@@ -36,7 +36,9 @@ def test_lakehouse_notebook_preference_and_airflow_are_preserved() -> None:
     assert report.component_summary["composer_dag"] == 1
     assert report.target_summary["lakehouse"] >= 3
     assert report.compatibility_summary["unsupported"] == 1
-    assert 50 <= report.score <= 90
+    # Components with a FAIL blocker score zero, so a portfolio with an unsupported
+    # component and no parity evidence cannot present as broadly ready.
+    assert 0 <= report.score <= 60
 
 
 def test_streaming_bi_ml_and_security_receive_specific_targets() -> None:

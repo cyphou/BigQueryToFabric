@@ -1077,12 +1077,31 @@ class TestTypeMapping:
         assert mapping.compatibility.value == "direct"
 
     def test_map_string_to_warehouse(self):
-        """Test STRING mapping to Warehouse."""
+        """STRING maps to varchar(max) but requires a length-profiling decision."""
         from bqtofabric.type_mapping import map_type
 
         mapping = map_type("STRING")
         assert mapping.warehouse_type == "varchar(max)"
-        assert mapping.compatibility.value == "direct"
+        assert mapping.compatibility.value == "transform"
+        assert "profile" in mapping.note.lower()
+
+    def test_map_normalizes_legacy_and_parameterized_type_names(self):
+        """Legacy REST names and precision suffixes must not read as unsupported types."""
+        from bqtofabric.type_mapping import map_type
+
+        assert map_type("INTEGER").warehouse_type == "bigint"
+        assert map_type("RECORD").compatibility.value == "redesign"
+        assert map_type("NUMERIC(10,2)").warehouse_type == "decimal(38,9)"
+        assert map_type("DECIMAL(38,9)").compatibility.value == "direct"
+        assert map_type("NUMERIC(10,2)").source_type == "NUMERIC(10,2)"
+
+    def test_map_datetime_flags_timezone_semantics(self):
+        """DATETIME is civil time; a silent mapping to Spark timestamp shifts values."""
+        from bqtofabric.type_mapping import map_type
+
+        mapping = map_type("DATETIME")
+        assert mapping.compatibility.value == "transform"
+        assert "time zone" in mapping.note.lower()
 
     def test_map_array_to_warehouse(self):
         """Test ARRAY mapping to Warehouse (redesign)."""

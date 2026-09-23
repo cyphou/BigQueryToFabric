@@ -45,6 +45,21 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
         for finding in assessment.findings
         if finding.code == "DATAFORM_COMPILATION_DETAILS_UNAVAILABLE"
     }
+    parity_failed_sources = {
+        finding.source_id
+        for finding in assessment.findings
+        if finding.code == "PARITY_FAILED"
+    }
+    security_review_sources = {
+        finding.source_id
+        for finding in assessment.findings
+        if finding.code in {"SECURITY_EFFECTIVE_ACCESS_REVIEW", "SECURITY_EVIDENCE_MISSING"}
+    }
+    missing_evidence_sources = {
+        finding.source_id
+        for finding in assessment.findings
+        if finding.code == "EVIDENCE_MISSING"
+    }
     remaining = set(objects)
     completed: set[str] = set()
     incomplete_adapter_dependencies: set[str] = set()
@@ -86,14 +101,28 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
                 reasons.append("incompatible_mapping")
             if source_id in streaming_review_sources:
                 reasons.append("streaming_downstream_review")
+            # Independent checks: a component can require review for several reasons at
+            # once, and suppressing the others would understate the cause counts.
             if source_id in incomplete_adapter_sources:
                 reasons.append("incomplete_external_adapter")
-            elif source_id in incomplete_dataform_sources:
+            if source_id in incomplete_dataform_sources:
                 reasons.append("incomplete_dataform_compilation")
-            elif depends_on_incomplete_external_adapter:
+            if (
+                depends_on_incomplete_external_adapter
+                and source_id not in incomplete_adapter_sources
+            ):
                 reasons.append("depends_on_incomplete_external_adapter")
-            elif depends_on_incomplete_dataform_compilation:
+            if (
+                depends_on_incomplete_dataform_compilation
+                and source_id not in incomplete_dataform_sources
+            ):
                 reasons.append("depends_on_incomplete_dataform_compilation")
+            if source_id in parity_failed_sources:
+                reasons.append("parity_failed")
+            if source_id in security_review_sources:
+                reasons.append("security_review")
+            if source_id in missing_evidence_sources:
+                reasons.append("missing_required_evidence")
             sql_assessment = sql_assessments.get(source_id)
             if sql_assessment and sql_assessment.compatibility.value in {"redesign", "unsupported"}:
                 reasons.append("sql_incompatibility")
