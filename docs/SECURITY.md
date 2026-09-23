@@ -14,17 +14,26 @@
   the BigQuery read-only scope. It extracts dataset GET `access` entries as redacted canonical
   `security_policy` records, each labeled `evidence_scope: dataset_access_entry`; these records
   describe dataset ACL declarations, not effective-access proof. Assessment treats this evidence
-- Component discovery records provenance explicitly as `inventory`, `bigquery_api`, or
-  `external_payload`. Provenance identifies the input origin only; it must not be interpreted as
+- Component discovery records provenance explicitly as `inventory`, `bigquery_api`, `dataflow_api`,
+  `composer_api`, `dataproc_api`, `dataform_api`, or `external_payload`. Provenance identifies the
+  input origin only; it must not be interpreted as
   freshness, trusted execution, or proof of effective access.
 - When an associated GCP component originates in `external_payload` without its required adapter
   evidence, assessment emits FAIL `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` and marks downstream
   components for manual review. This identifies incomplete scope or evidence; it does not mean a
   dependency is missing. The check is offline: it does not call cloud APIs, prove freshness or
   access, or implement a live adapter.
-- Associated GCP services are limited to offline payload normalization and assessment unless a
-  live adapter is explicitly implemented. Their payloads do not establish live service state,
-  trusted execution, or effective access.
+- Opt-in read-only live adapters exist for Dataflow, Dataproc, Dataform, and Composer. They make
+  real credentialed Google API calls when their CLI flag is supplied, and all four request
+  `https://www.googleapis.com/auth/cloud-platform.read-only`, which is broader than the BigQuery
+  path's `bigquery.readonly`. A security administrator must review and approve that scope before
+  first use. None of the adapters has been validated against an authorized GCP sandbox.
+- Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have no live
+  adapter and are limited to offline payload normalization and assessment. Their payloads do not
+  establish live service state, trusted execution, or effective access.
+- Dataset access evidence pseudonymizes principal identities as stable, non-reversible
+  `principal:<12 hex>` values. Pseudonymization protects the generated artifact; it does not make
+  the evidence an effective-access calculation.
   as incomplete and emits FAIL `SECURITY_EFFECTIVE_ACCESS_REVIEW`. It does not query IAM APIs or
   prove effective project, organization, group, or inherited permissions. Project/org IAM bindings
   and connection IAM policies are not extracted.

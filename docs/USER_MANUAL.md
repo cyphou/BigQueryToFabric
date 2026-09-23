@@ -28,10 +28,14 @@ Check the installation:
 
 ```powershell
 bqtofabric --help
-python -m pytest -q
+python -m pytest
 python -m pyright
 python -m ruff check src tests
 ```
+
+For the authoritative baseline counts — suite size, coverage, supported kinds, target roles, CLI
+commands, and the reference-fixture assessment output — see
+[ROADMAP.md](ROADMAP.md#authoritative-baseline--v010).
 
 ## 2. Recommended Offline Workflow
 
@@ -132,8 +136,8 @@ deterministic fields are `projectId`, `score`, `evidenceCoverage`, `architecture
 Use `assessment.json` for the detailed assessment; the summary is a presentation-oriented sibling,
 not a replacement.
 
-The report milestone was validated with `python -m pytest tests/test_cli.py
-tests/test_deployment_readiness.py -v` (`15 passed`). This is offline-only report generation from
+The report milestone is validated by `python -m pytest tests/test_cli.py
+tests/test_deployment_readiness.py`, which passes in CI. This is offline-only report generation from
 local assessment inputs. It does not validate official Fabric schemas, execute workloads, establish
 runtime or data parity, or authorize deployment.
 
@@ -169,7 +173,15 @@ bqtofabric discover $project `
   --output artifacts/$project/inventory.json
 ```
 
-Opt into the currently supported offline-normalization adapter paths when payload access is available through the configured client:
+> [!WARNING]
+> The Dataflow, Dataproc, Dataform, and Composer adapters below are **live, credentialed, read-only
+> Google API calls**, not offline payload normalization. They are opt-in: nothing contacts those
+> services unless you pass the corresponding flag. All four request the
+> `https://www.googleapis.com/auth/cloud-platform.read-only` scope, which is **broader** than the
+> BigQuery path's `https://www.googleapis.com/auth/bigquery.readonly`. Have a security
+> administrator review and approve that scope before first use.
+
+Opt into the additional read-only live adapters:
 
 ```powershell
 bqtofabric discover $project `
@@ -180,13 +192,21 @@ bqtofabric discover $project `
   --output artifacts/$project/inventory.json
 ```
 
-Discovery is read-only and never writes credentials into the inventory. A discovery failure returns exit code `3`; it is not a deployment result.
+Discovery is read-only and never writes credentials into the inventory. Principal identities in
+access evidence are pseudonymized as stable, non-reversible `principal:<12 hex>` values. Paging is
+bounded and rejects repeated page tokens. A discovery failure returns exit code `3`; it is not a
+deployment result.
 
 Current boundaries:
 
-- BigQuery discovery is live and read-only.
-- Dataflow is opt-in by explicit region.
-- Dataproc, Dataform, and Composer normalization preserve evidence and review blockers, but broader live-adapter coverage and authorized sandbox validation remain open.
+- BigQuery discovery is live and read-only, and uses the narrower `bigquery.readonly` scope.
+- Dataflow and Dataproc are opt-in by explicit region and never scan all regions. Dataform and
+  Composer are opt-in by explicit flag.
+- **No adapter has been validated against an authorized GCP sandbox.** The adapter code exists and
+  is covered by offline fixture tests; the live verification does not exist. Treat a first live run
+  as an unverified operation and review its output before relying on it.
+- Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have **no** live
+  adapter. They remain offline payload normalization and assessment inputs only.
 - IAM effectiveness, secret bindings, policy-tag parity, and runtime execution are not inferred.
 
 ## 5. Understanding Compatibility
@@ -202,21 +222,53 @@ BQToFabric uses four compatibility levels:
 
 Treat `WARN` and `FAIL` findings as review work. In particular, do not promote an object because its mapping is `transform` if required evidence, credentials, schema, or runtime parity is missing.
 
+For the complete list of the 16 assessment finding codes with their severity, trigger, and the
+reviewer action each one expects, see the
+[finding-code reference](MAPPING_REFERENCE.md#assessment-finding-codes).
+
 ### SQL fidelity review
 
-SQL conversion preserves direct compatibility for existing supported GoogleSQL cases. It detects
-`SAFE_CAST` and `NOT IN` as semantic-risk patterns, marks the conversion `transform`, and records
-semantic warnings and manual parity steps in the conversion result. Review those warnings and
-execute source-versus-target parity checks before accepting the generated SQL.
+Assessment and generation share one SQL conversion stack: `sql_assessment` delegates to the
+`converter/` package (`SqlConverter`). SQL compatibility is the worst of the converter verdict, the
+detected semantic risks, and the mapping decision, and it **never defaults to `direct`**.
 
-The focused converter contract was validated with:
+Semantic-risk patterns such as `SAFE_CAST` and `NOT IN` are marked `transform`, with semantic
+warnings and manual parity steps recorded in the conversion result. A non-SQL routine body, such as
+a JavaScript UDF, is `redesign` and emits **no** converted SQL, so there is nothing to mistake for
+a translation.
 
-```powershell
-python -m pytest tests/test_sql_converter.py -v
-```
+Review those warnings and execute source-versus-target parity checks before accepting generated
+SQL. The converter contract is validated by `python -m pytest tests/test_sql_converter.py`, which
+passes in CI. That validation is offline: it does not execute source or target SQL, validate
+official Fabric schemas, or establish runtime/data parity.
 
-The result was `85 passed`. This validation is offline: it does not execute source or target SQL,
-validate official Fabric schemas, or establish runtime/data parity.
+### Generated artifact validity
+
+An artifact's `valid` flag is derived from a real check of its content rather than asserted by the
+generator. `NotebookValidator` rejects undefined DataFrame references. `TsqlValidator` strips
+comments and re-parses `CREATE TABLE`, rejects `#` comments, and enforces the `CREATE SCHEMA` batch
+rule. `PipelineValidator` requires name-keyed parameters and variables, rejects `triggers` as a
+pipeline property, and rejects secret-bearing expressions.
+
+A generated Warehouse view body is converted GoogleSQL → T-SQL. If conversion fails or produces
+constructs Fabric Warehouse does not support, the body is omitted, the artifact is marked invalid,
+and the candidate conversion appears as `--` comments for review.
+
+Generated pipelines carry named connection references bound to managed identity rather than
+connection strings. `valid: true` still means "passed the local structural checks", not
+"deployable".
+
+### Parity results
+
+Parity status is recomputed from evidence on every run; a `status` you supply is never trusted.
+Each check is derived from its own `source`/`target` payload, a declared `passed` with no payload
+resolves to `not_run`, and a declared status that contradicts the evidence is preserved as
+`declaredStatus`. The check set is `schema`, `row_count`, `checksum`, `aggregate`,
+`null_distribution`, `sample`, and `sql_result`; the former `type` check was removed because no
+comparator backed it.
+
+No source or Fabric query is executed, so `passed` means the supplied evidence agrees — not that
+the data matches at runtime.
 
 ## 6. Security Rules
 
@@ -252,7 +304,19 @@ Open the returned `errors` list and inspect:
 - `migration-plan.md`
 - `assessment.json`
 
-Typical blockers are invalid or incomplete artifacts, unresolved dependencies, unsupported components, credential findings, or manifest tampering.
+`deployment-check` blocks on any of the following:
+
+| Blocking condition | Where to look |
+|---|---|
+| Invalid or incomplete artifact validation | `fabric/artifact-validation.json` |
+| Manifest tampering or integrity failure | `fabric/deployment-manifest.json` |
+| `FAIL` findings or recorded blockers | `assessment.json` → `findings`, `blockers` |
+| Failed parity | `assessment.json` → `parity_summary` |
+| A component mapped `redesign` | `component-mapping.csv` |
+| A component mapped `unsupported` | `component-mapping.csv` |
+| Pending manual review | `migration-plan.md` → `manual_review_reasons` |
+| Unresolved dependencies | `migration-plan.json` → `unresolved_dependencies` |
+| A detected credential | `fabric/artifact-validation.json` (type only, never the value) |
 
 Cross-artifact consistency errors identify a missing generated manifest match, a missing generated
 path, or an invalid artifact referenced by a non-review target. A target explicitly marked for
@@ -280,9 +344,10 @@ python -m pytest tests/test_artifact_validation.py -v
 python -m pytest tests/test_parity.py -v
 ```
 
-The validated results are `7 passed` and `18 passed`, respectively. These are offline structural
-and evidence checks only; they do not validate official Fabric schemas, execute workloads, or
-establish runtime/data parity.
+The validated contracts are offline structural and evidence checks only; they do not validate
+official Fabric schemas, execute workloads, or establish runtime/data parity. Artifact validation
+now runs after every artifact is written, so `parity-evidence.json` and `deployment-manifest.json`
+are also covered by the credential scan and the structural checks.
 
 ## 8. Development Validation
 

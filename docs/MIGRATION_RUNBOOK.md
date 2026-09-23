@@ -57,8 +57,8 @@ claims or automatic tuning decisions. Validate this slice with:
 python -m pytest tests/test_assessment.py -v
 ```
 
-The focused test passes with `16 passed`. Measured workload telemetry and runtime benchmarking
-remain open and are required before making performance or tuning claims.
+The focused test passes in CI. Measured workload telemetry and runtime benchmarking remain open and
+are required before making performance or tuning claims.
 
 ### Validate generated artifact packages
 
@@ -76,10 +76,25 @@ Validate this contract with:
 python -m pytest tests/test_artifact_validation.py tests/test_security.py -v
 ```
 
-The focused test passes with `10 passed`. The validator performs offline pattern and structural
-checks only; pattern scanning is not a substitute for official Fabric schema validation or
-deployment validation. The complete suite was validated with `python -m pytest -q` (`306 passed`).
-All of these checks are offline-only and non-destructive.
+The focused test passes in CI. The validator performs offline pattern and structural checks only;
+pattern scanning is not a substitute for official Fabric schema validation or deployment
+validation. Validation now runs after every artifact is written, so `parity-evidence.json` and
+`deployment-manifest.json` are covered by the credential scan and the structural checks too.
+
+An artifact's `valid` flag is derived from a real content check rather than asserted by the
+generator:
+
+| Validator | Rejects |
+|---|---|
+| `NotebookValidator` | Undefined DataFrame references |
+| `TsqlValidator` | A comment-stripped `CREATE TABLE` that does not re-parse, `#` comments, and `CREATE SCHEMA` outside its own batch |
+| `PipelineValidator` | Parameters or variables that are not name-keyed, `triggers` as a pipeline property, and secret-bearing expressions |
+
+A generated Warehouse view body is converted GoogleSQL → T-SQL. When conversion fails or produces
+constructs Fabric Warehouse does not support, the body is omitted, the artifact is marked invalid,
+and the candidate conversion appears as `--` comments for review. Generated pipelines carry named
+connection references bound to managed identity instead of connection strings. Manifest paths use
+POSIX separators so output is byte-identical across platforms.
 
 The validator also rejects a non-object JSON root with a deterministic validation error instead of
 raising. Parity evidence is hardened separately: negative or boolean row counts, duplicate schema
@@ -92,8 +107,35 @@ python -m pytest tests/test_artifact_validation.py -v
 python -m pytest tests/test_parity.py -v
 ```
 
-The results are `7 passed` and `18 passed`, respectively. These checks are offline-only and do not
-replace official Fabric schema validation, workload execution, or runtime/data parity evidence.
+Both focused suites pass in CI. These checks are offline-only and do not replace official Fabric
+schema validation, workload execution, or runtime/data parity evidence.
+
+### Review parity evidence
+
+Parity status is recomputed from evidence on every run. A `status` recorded in the inventory is
+never trusted:
+
+- Each check is derived from its own `source` and `target` payload.
+- A declared `passed` with no payload resolves to `not_run`.
+- A declared status that contradicts the computed result is preserved as `declaredStatus`, so the
+  disagreement is visible during review rather than silently overwritten.
+- The `type` check was removed because no comparator backed it. The check set is `schema`,
+  `row_count`, `checksum`, `aggregate`, `null_distribution`, `sample`, and `sql_result`.
+- Applicability is keyed on data-bearing kind — table, external table, view, materialized view —
+  rather than on whether columns happened to be captured.
+
+A `failed` check emits `PARITY_FAILED` and adds the `parity_failed` manual-review reason. An
+applicable check with missing or malformed evidence emits `PARITY_NOT_RUN`. No source or Fabric
+query is executed, so `passed` means the supplied evidence agrees — never that the data matches at
+runtime.
+
+### Review the readiness score
+
+The readiness score is computed per component, scaled by evidence coverage, and forced to zero for
+any component carrying a `FAIL` blocker. Type risk and SQL risk fold into the component that owns
+them, and schema width no longer contributes. A low score with high `FAIL` or `EVIDENCE_MISSING`
+counts therefore reflects incomplete evidence rather than an arbitrary penalty; close the evidence
+gaps first and re-assess.
 
 ### Verify CLI and deployment-readiness failure paths
 
@@ -105,18 +147,23 @@ The local contract fails closed for invalid inputs and incomplete generated pack
 | Malformed inventory | CLI exit code `5` |
 | Tampered deployment manifest | Manifest verification exit code `5` |
 | Invalid artifact validation | `deployment-check` blocks |
-| Unresolved dependencies | Readiness blocks |
-| Unsupported target component | Readiness blocks |
+| `FAIL` findings or recorded blockers | `deployment-check` blocks |
+| Failed parity | `deployment-check` blocks |
+| A component mapped `redesign` | `deployment-check` blocks |
+| Unsupported target component | `deployment-check` blocks |
+| Pending manual review | `deployment-check` blocks |
+| Unresolved dependencies | `deployment-check` blocks |
 
 Validate the complete failure-path contract with:
 
 ```powershell
-python -m pytest tests/test_cli.py tests/test_deployment_readiness.py -v
+python -m pytest tests/test_cli.py tests/test_deployment_readiness.py
 ```
 
-The focused suite passes with `14 passed`. These are offline, deterministic guards before any
-future deployment phase; they do not validate official Fabric schemas or APIs, execute workloads,
-establish runtime or data parity, or perform cloud operations.
+The focused suite passes in CI. These are offline, deterministic guards before any future
+deployment phase; they do not validate official Fabric schemas or APIs, execute workloads,
+establish runtime or data parity, or perform cloud operations. `ready_for_review` is a local gate
+result, never a deployment approval.
 
 ### Validate the canonical inventory contract
 
@@ -129,10 +176,11 @@ deployment readiness.
 Validate the focused provider and CLI contract with:
 
 ```powershell
-python -m pytest tests/test_models.py tests/test_cli.py -v
+python -m pytest tests/test_models.py tests/test_cli.py
 ```
 
-The validated result is `15 passed`.
+The focused suite passes in CI. For the per-kind required-evidence matrix an inventory author must
+satisfy, see [INVENTORY_SCHEMA.md](INVENTORY_SCHEMA.md#required-evidence-by-kind).
 
 ### Validate adapter contract edge cases
 
@@ -144,13 +192,13 @@ payloads deterministically.
 Run the focused offline contract tests with:
 
 ```powershell
-python -m pytest tests/test_discovery.py tests/test_dataflow_discovery.py -v
+python -m pytest tests/test_discovery.py tests/test_dataflow_discovery.py
 ```
 
-The validated result is `50 passed`. These fixtures do not validate official GCP API behavior,
-live permissions, metadata freshness, runtime or data parity, or an authorized live-GCP sandbox.
-Composer remains offline normalization/assessment only; Dataflow discovery is live only when
-explicit regions are requested and does not scan all regions.
+The focused suite passes in CI. These fixtures do not validate official GCP API behavior, live
+permissions, metadata freshness, runtime or data parity, or an authorized live-GCP sandbox. The
+Dataflow, Dataproc, Dataform, and Composer adapters are live but opt-in; regional adapters never
+scan all regions, and none has been exercised against an authorized sandbox.
 
 ## Assess a live GCP project
 
@@ -176,8 +224,15 @@ explicit regions are requested and does not scan all regions.
 
     ```powershell
     bqtofabric discover <project-id> --output artifacts/<project-id>/inventory.json
-    # Optional, repeatable regional Dataflow discovery:
-    bqtofabric discover <project-id> --dataflow-region europe-west1 --output artifacts/<project-id>/inventory.json
+    # Optional opt-in live adapters. Each makes credentialed read-only Google API calls and
+    # requests the broader cloud-platform.read-only scope. Without a flag, discovery is
+    # BigQuery-only.
+    bqtofabric discover <project-id> `
+        --dataflow-region europe-west1 `
+        --dataproc-region europe-west1 `
+        --dataform --dataform-location us-central1 `
+        --composer-region us-central1 `
+        --output artifacts/<project-id>/inventory.json
     bqtofabric validate artifacts/<project-id>/inventory.json
     bqtofabric inventory artifacts/<project-id>/inventory.json
     bqtofabric assess artifacts/<project-id>/inventory.json
@@ -189,54 +244,65 @@ explicit regions are requested and does not scan all regions.
 
 ## Discovery capability and permissions
 
-Discovery uses ADC with the `https://www.googleapis.com/auth/bigquery.readonly` scope. Required APIs
-are BigQuery API, BigQuery Data Transfer API, and BigQuery Connection API. The tool is read-only,
-redacts credential-like metadata, and does not print provider response bodies.
+The BigQuery path uses ADC with the `https://www.googleapis.com/auth/bigquery.readonly` scope and
+requires the BigQuery API, BigQuery Data Transfer API, and BigQuery Connection API.
 
-| Source family | Extracted today? | Rights extracted? | Minimum discovery permission/role guidance | Assessment status |
-|---|---|---|---|---|
-| BigQuery core: datasets, tables, views, materialized/external tables, routines, procedures, BQML models | Yes | No Cloud IAM bindings | Dataset-level metadata visibility, such as `roles/bigquery.metadataViewer`, for every dataset in scope | Live metadata extraction; assessed and mapped offline |
-| BigQuery jobs | Yes | No | For estate-wide history, use project-level `roles/bigquery.resourceViewer`, which supplies `bigquery.jobs.listAll`; do not grant broad administrative roles for discovery | Live metadata extraction; assessed and mapped offline |
-| Scheduled queries (BigQuery Data Transfer transfer configurations) | Yes | No | Grant only the Data Transfer visibility required for the transfer configurations in scope; validate the exact role with the security administrator | Live metadata extraction; assessed and mapped offline |
-| BigQuery connections | Yes | Connection IAM bindings are not extracted | Grant `bigquery.connections.get` and `bigquery.connections.list`, for example through a suitable role such as `roles/bigquery.connectionUser` where appropriate | Live metadata extraction; assessed and mapped offline |
-| Dataset ACLs (`datasets.get` payload `access` entries) | Yes | Redacted dataset access entries only, with `evidence_scope: dataset_access_entry`; they do not prove effective project, organization, group, or inherited IAM access | Dataset metadata visibility, such as `roles/bigquery.metadataViewer`, for every dataset in scope | Assessment emits `FAIL` `SECURITY_EFFECTIVE_ACCESS_REVIEW`; manual security review required |
-| Project/org IAM | No | No | No IAM API calls; live adapter and permission contract not implemented | Not extracted; manual security review required |
-| Connection IAM | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Distinct row access policies, BigQuery Data Policies, and policy tags | No | No | Live adapter and permission contract not yet implemented; security review required | Canonical/offline assessment type only |
-| Dataflow regional jobs | Yes, only for explicitly requested `--dataflow-region` values | No | Security-administrator-validated, read-only Dataflow job visibility for each requested region; use least-privilege viewer guidance rather than broad administrative access | Live identity, state, type, labels, timestamps, and present environment/pipeline metadata; missing compatibility evidence remains a finding |
-| Composer | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Dataproc | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Dataform compilation results | Partial | No | Read-only Dataform compilation-result visibility; validate the least-privilege role with the security administrator | Successful details aggregate models/assertions/incremental evidence; a detail-request failure emits an incomplete fallback workflow and requires manual review |
-| Workflows | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Pub/Sub | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Cloud Storage (GCS) | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Looker | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Vertex AI | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Dataplex | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Cloud SQL | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Spanner | No | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+> [!WARNING]
+> The Dataflow, Dataproc, Dataform, and Composer adapters are **live, credentialed, read-only
+> Google API calls**, not offline payload normalization. They are opt-in: nothing contacts those
+> services unless the corresponding CLI flag is supplied. All four request
+> `https://www.googleapis.com/auth/cloud-platform.read-only`, which is **broader** than
+> `bigquery.readonly`. A security administrator must review and approve that scope before first
+> use. **None of the adapters has been validated against an authorized GCP sandbox** — the adapter
+> code exists and is covered by offline fixture tests; the live verification does not exist.
+
+All adapters are read-only, redact credential-like metadata, pseudonymize principal identities as
+stable non-reversible `principal:<12 hex>` values, bound their paging, reject repeated page tokens,
+and never print provider response bodies. Regional adapters never scan all regions.
+
+| Source family | Live adapter? | Enabled by | Rights extracted? | Minimum discovery permission/role guidance | Assessment status |
+|---|---|---|---|---|---|
+| BigQuery core: datasets, tables, views, materialized/external tables, routines, procedures, BQML models | Yes, `bigquery.readonly` | Always | No Cloud IAM bindings | Dataset-level metadata visibility, such as `roles/bigquery.metadataViewer`, for every dataset in scope | Live metadata extraction; assessed and mapped offline |
+| BigQuery jobs | Yes, `bigquery.readonly` | Always | No | For estate-wide history, use project-level `roles/bigquery.resourceViewer`, which supplies `bigquery.jobs.listAll`; do not grant broad administrative roles for discovery | Live metadata extraction; assessed and mapped offline |
+| Scheduled queries (BigQuery Data Transfer transfer configurations) | Yes, `bigquery.readonly` | Always | No | Grant only the Data Transfer visibility required for the transfer configurations in scope; validate the exact role with the security administrator | Live metadata extraction; assessed and mapped offline |
+| BigQuery connections | Yes, `bigquery.readonly` | Always | Connection IAM bindings are not extracted | Grant `bigquery.connections.get` and `bigquery.connections.list`, for example through a suitable role such as `roles/bigquery.connectionUser` where appropriate | Live metadata extraction; assessed and mapped offline |
+| Dataset ACLs (`datasets.get` payload `access` entries) | Yes, `bigquery.readonly` | Always | Redacted, principal-pseudonymized dataset access entries only, with `evidence_scope: dataset_access_entry`; they do not prove effective project, organization, group, or inherited IAM access | Dataset metadata visibility, such as `roles/bigquery.metadataViewer`, for every dataset in scope | Assessment emits `FAIL` `SECURITY_EFFECTIVE_ACCESS_REVIEW`; manual security review required |
+| Dataflow regional jobs | **Yes, `cloud-platform.read-only`** | `--dataflow-region` (repeatable) | No | Security-administrator-validated, read-only Dataflow job visibility for each requested region; use least-privilege viewer guidance rather than broad administrative access | Live identity, state, type, labels, timestamps, and present environment/pipeline metadata; missing compatibility evidence remains a finding |
+| Dataproc regional jobs and clusters | **Yes, `cloud-platform.read-only`** | `--dataproc-region` (repeatable) | No | Security-administrator-validated, read-only Dataproc job and cluster visibility for each requested region | Live job type, language, and cluster-derived `runtime_version`; `unknown` remains missing evidence |
+| Dataform repositories, workflows, and compilation results | **Yes, `cloud-platform.read-only`** | `--dataform`, `--dataform-location` | No | Security-administrator-validated, read-only Dataform repository and compilation-result visibility | Successful details aggregate models/assertions/incremental evidence; a detail-request failure emits an incomplete fallback workflow and requires manual review |
+| Composer environments and DAGs | **Yes, `cloud-platform.read-only`** | `--composer-region` (repeatable) | No | Security-administrator-validated, read-only Composer environment visibility for each requested region | Live image/environment version, declared operators, and declared task connection names; no connection configuration or secrets |
+| Project/org IAM | No | — | No | No IAM API calls; live adapter and permission contract not implemented | Not extracted; manual security review required |
+| Connection IAM | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Distinct row access policies, BigQuery Data Policies, and policy tags | No | — | No | Live adapter and permission contract not yet implemented; security review required | Canonical/offline assessment type only |
+| Workflows | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Pub/Sub | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Cloud Storage (GCS) | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Looker | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Vertex AI | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Dataplex | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Cloud SQL | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Spanner | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 
 ### Exit code 3
 
 Exit code `3` means discovery could not establish the required read-only access. Re-run
-`gcloud auth application-default login`, confirm the BigQuery API, BigQuery Data Transfer API, and
-BigQuery Connection API are enabled, then have a security administrator verify the relevant
-least-privilege visibility in the matrix. Do not add credentials, tokens, or service-account keys to
-the inventory or command line.
+`gcloud auth application-default login`, confirm the APIs for the adapters you enabled are
+enabled, then have a security administrator verify the relevant least-privilege visibility in the
+matrix. Do not add credentials, tokens, or service-account keys to the inventory or command line.
 
-Composer, Dataproc, Dataform, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner
-have offline normalization and assessment support only; they do not have live adapters. Dataflow
-discovery is regional and opt-in; it never scans all regions. Without `--dataflow-region`, the
-path remains BigQuery-only. Each requested region must have separately validated read-only
-Dataflow visibility; extraction triggers no deployment behavior.
+Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have offline
+normalization and assessment support only; they do not have live adapters. The live adapters that
+do exist are opt-in per flag and, for Dataflow, Dataproc, and Composer, per region. Each requested
+region must have separately validated read-only visibility. Extraction triggers no deployment
+behavior.
 
 ### Discovery provenance
 
-Canonical components carry a `discovered_from` value so review can distinguish acquisition paths:
-imported canonical JSON defaults to `inventory`, the live BigQuery provider sets `bigquery_api`, the
-Dataflow adapter sets `dataflow_api`, and normalized external GCP payloads set `external_payload`.
-Assessment repeats the value for each object
-in `evidence_summary` and reports deterministic counts by source in `discovery_coverage`.
+Canonical components carry a `discovered_from` value so review can distinguish acquisition paths.
+The canonical values are `inventory` (imported canonical JSON, the default), `bigquery_api`,
+`dataflow_api`, `composer_api`, `dataproc_api`, `dataform_api`, and `external_payload`. Assessment
+repeats the value for each object in `evidence_summary` and reports deterministic counts by source
+in `discovery_coverage`.
 
 `external_payload` means that associated-service inventory was supplied for offline normalization; it
 does not mean BQToFabric called that service's API. Provenance is not a freshness assertion and does
@@ -259,21 +325,21 @@ Assessment emits `FAIL` `DATAFORM_COMPILATION_DETAILS_UNAVAILABLE`, which blocks
 affected assessment. The planner marks the fallback with `incomplete_dataform_compilation` and each
 downstream object with `depends_on_incomplete_dataform_compilation`. Re-run discovery after Dataform
 API or access recovery to obtain the actual compilation graph; the fallback is not evidence of the
-graph's completeness. This behavior was validated with `python -m pytest tests/test_discovery.py
-tests/test_assessment.py tests/test_dataform_conversion.py -v` (`56 passed`).
+graph's completeness. This behavior is validated by `python -m pytest tests/test_discovery.py
+tests/test_assessment.py tests/test_dataform_conversion.py`, which passes in CI.
 
 ### Composer schedule review
 
-Composer remains an offline normalized input; its live adapter is not implemented. Normalization
-writes `properties.schedule_interval` as the canonical schedule field and retains
-`properties.schedule` for compatibility. Generated pipelines read `schedule_interval` first and
-fall back to `schedule`, preserving `@daily`, `@hourly`, and `@weekly` trigger mapping for legacy
-inventories.
+Composer has an opt-in read-only live adapter (`--composer-region`) that has not been validated
+against an authorized GCP sandbox. Normalization writes `properties.schedule_interval` as the
+canonical schedule field and retains `properties.schedule` for compatibility. Generated pipelines
+read `schedule_interval` first and fall back to `schedule`, preserving `@daily`, `@hourly`, and
+`@weekly` trigger mapping for legacy inventories.
 
 Raw cron expressions are not automatically mapped. They remain review-required until the source
 cron, timezone, start-date, catchup, retries, and equivalent Fabric trigger semantics are reviewed.
-This limitation does not imply trigger execution or schedule parity. The behavior was validated by
-`python -m pytest tests/test_discovery.py tests/test_artifact_generation.py -v` (`79 passed`).
+This limitation does not imply trigger execution or schedule parity. The behavior is validated by
+`python -m pytest tests/test_discovery.py tests/test_artifact_generation.py`, which passes in CI.
 
 ### Composer adapter-evidence review
 
@@ -287,9 +353,10 @@ missing `connections` field remains incomplete evidence during assessment. In ei
 connection configuration, secret bindings, and effective runtime access manually before accepting a
 migration recommendation.
 
-This behavior was validated with `python -m pytest tests/test_discovery.py tests/test_assessment.py
--v` (`53 passed`). Composer remains offline normalization and assessment input; this contract does
-not add a live Composer adapter or establish runtime access parity.
+This behavior is validated by `python -m pytest tests/test_discovery.py tests/test_assessment.py`,
+which passes in CI. The evidence contract records static declarations only; it does not establish
+runtime access parity, and the Composer adapter itself has not been exercised against an authorized
+GCP sandbox.
 
 ### Dataproc adapter-evidence review
 
@@ -303,16 +370,16 @@ SQL and Hive map to `sql`, and Pig maps to `pig`. Unsupported or ambiguous job t
 runtime version or re-discover from a payload whose referenced cluster contains `imageVersion`
 before accepting readiness as complete.
 
-This behavior was validated with `python -m pytest tests/test_discovery.py tests/test_assessment.py
--v` (`54 passed`). This evidence contract does not add a live Dataproc adapter or establish runtime
-execution or parity.
+This behavior is validated by `python -m pytest tests/test_discovery.py tests/test_assessment.py`,
+which passes in CI. The evidence contract does not establish runtime execution or parity, and the
+Dataproc adapter has not been exercised against an authorized GCP sandbox.
 
 ### Incomplete external payloads
 
 An `external_payload` component without required offline evidence receives exactly one assessment
 finding: `FAIL` `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` in category `adapter`. It states that the
-offline evidence must be completed because no live adapter is implemented. Resolve the evidence
-gap before relying on its target recommendation or migration wave.
+offline evidence must be completed because the component was supplied rather than discovered.
+Resolve the evidence gap before relying on its target recommendation or migration wave.
 
 The planner marks the incomplete component and all direct and transitive dependents
 `manual_review`. This propagation is a review requirement, not an unresolved dependency:
@@ -322,12 +389,14 @@ workflow stays offline and does not call external GCP services or add live adapt
 ### Manual-review reasons
 
 `manual_review` remains the planner's decision flag. A flagged `PlanItem` also carries a
-deterministic `manual_review_reasons` list so reviewers can identify why action is needed. Review
-the following codes before approving a migration wave: `external_dependency`,
-`incompatible_mapping`, `streaming_downstream_review`, `incomplete_external_adapter`,
-`depends_on_incomplete_external_adapter`, `incomplete_dataform_compilation`,
-`depends_on_incomplete_dataform_compilation`, `sql_incompatibility`, and
-`cycle_or_unresolved_dependency`.
+deterministic `manual_review_reasons` list so reviewers can identify why action is needed. Reasons
+are recorded independently, so one component can carry several. Review all 12 codes before
+approving a migration wave: `cycle_or_unresolved_dependency`,
+`depends_on_incomplete_dataform_compilation`, `depends_on_incomplete_external_adapter`,
+`external_dependency`, `incompatible_mapping`, `incomplete_dataform_compilation`,
+`incomplete_external_adapter`, `missing_required_evidence`, `parity_failed`, `security_review`,
+`sql_incompatibility`, and `streaming_downstream_review`. Their triggers are tabulated in the
+[mapping reference](MAPPING_REFERENCE.md#manual-review-decision-contract).
 
 `migration-plan.md` renders the decision flag and codes. The generated
 `fabric/target-manifest.json` renders the corresponding `manualReview` and
@@ -341,6 +410,15 @@ entry lists `severity`, `code`, `category`, `source`, and `message`, making `WAR
 conditions visible in the human review report. Treat these entries as actionable review evidence:
 resolve, document, or explicitly accept each relevant finding before relying on a migration wave.
 
+All 16 finding codes, with their severity, category, trigger, and the reviewer action each expects,
+are tabulated in the
+[finding-code reference](MAPPING_REFERENCE.md#assessment-finding-codes). Triage by code, not by
+message text; message wording is not a stable contract.
+
+Type findings are attributable to the object that owns the type. A `TYPE_REDESIGN` or
+`TYPE_UNSUPPORTED` finding's `source_id` is the table or view, with one finding per distinct type
+per object listing the affected column paths.
+
 ### Review SQL fidelity
 
 The converter preserves `DIRECT` compatibility for existing supported GoogleSQL cases. It detects
@@ -351,12 +429,16 @@ design source-versus-target checks for the affected null-handling and membership
 Validate the focused conversion contract with:
 
 ```powershell
-python -m pytest tests/test_sql_converter.py -v
+python -m pytest tests/test_sql_converter.py
 ```
 
-The validated result is `85 passed`. This is an offline conversion check only; it does not execute
-source or target SQL, validate official Fabric schemas, or establish runtime/data parity. Do not
-approve transformed SQL without separate parity evidence.
+The focused suite passes in CI. Assessment and generation share one SQL conversion stack:
+`sql_assessment` delegates to the `converter/` package (`SqlConverter`), and SQL compatibility is
+the worst of the converter verdict, the detected semantic risks, and the mapping decision — it never
+defaults to `direct`. A non-SQL routine body, such as a JavaScript UDF, is `redesign` and emits no
+converted SQL. This is an offline conversion check only; it does not execute source or target SQL,
+validate official Fabric schemas, or establish runtime/data parity. Do not approve transformed SQL
+without separate parity evidence.
 
 The section is not proof that a finding has been remediated, that Fabric deployment is ready, or
 that runtime parity has been established. Use `assessment.json`, mapping output, generated artifacts,
@@ -368,8 +450,8 @@ Generated schedule triggers use `@utcNow()` for `startTime` instead of retaining
 `2024` date. This keeps the generated trigger start time current for the supported preset schedule
 mappings while preserving deterministic, offline artifact generation.
 
-This behavior was validated with `python -m pytest tests/test_artifact_generation.py -v` (`44
-passed`). Generated pipeline definitions remain review artifacts: validate them against the official
+This behavior is validated by `python -m pytest tests/test_artifact_generation.py`, which passes in
+CI. Generated pipeline definitions remain review artifacts: validate them against the official
 Fabric/ADF schema and complete deployment validation before deployment.
 
 ### Pipeline activity resilience defaults
@@ -378,7 +460,7 @@ Generated operational activities use deterministic policy defaults: `retry: 3`,
 `retryIntervalInSeconds: 30`, `secureInput: true`, and `secureOutput: true`. The failure handler
 retains its specialized secure policy. Validate the generated definition and its retry behavior
 against the official Fabric/ADF schema and runtime before treating it as deployable. This behavior
-was validated with `python -m pytest tests/test_artifact_generation.py -v` (`44 passed`).
+is validated by `python -m pytest tests/test_artifact_generation.py`, which passes in CI.
 
 ### Assessment summary
 
@@ -407,10 +489,10 @@ status.
 Validate the report-generation contract with:
 
 ```powershell
-python -m pytest tests/test_cli.py tests/test_deployment_readiness.py -v
+python -m pytest tests/test_cli.py tests/test_deployment_readiness.py
 ```
 
-The focused suite passes with `15 passed`. This artifact is generated from local inputs and is
+The focused suite passes in CI. This artifact is generated from local inputs and is
 offline-only. It does not validate official Fabric schemas, execute workloads, establish runtime
 or data parity, or authorize deployment.
 
@@ -444,39 +526,42 @@ or distinct row access policies.
 4. Generate dry-run Fabric artifacts and review SQL, notebooks, pipelines, identities, and names.
     Generated Warehouse SQL never emits `DROP TABLE` or `DROP VIEW`: table and scheduled-query
     targets are created only when absent and preserve existing objects; views use a guarded dynamic
-    create-only-when-absent statement and preserve existing definitions. This behavior was validated
-    by `python -m pytest tests/test_artifact_generation.py -v` with `40 passed`. An Eventhouse
+    create-only-when-absent statement and preserve existing definitions. View bodies are converted
+    GoogleSQL → T-SQL; when conversion fails or produces constructs Fabric Warehouse does not
+    support, the body is omitted, the artifact is marked invalid, and the candidate conversion is
+    emitted as `--` comments for review. An Eventhouse
     schema with no source columns is marked invalid: its artifact contains review comments and a
     `REDESIGN` warning only, with no KQL create, ingestion-mapping, or materialized-view statements;
     the artifact manifest records `valid: false`. Normal Eventhouse schema generation is unchanged.
     Generated Eventstream output is likewise a non-deployable review scaffold: it sets
     `deployable: false` and artifact `valid: false`, and its source node uses
     `connectionReference: review_required` rather than an invented `connectionId`. It includes
-    authoring TODOs and the artifact manifest propagates `valid: false`. This behavior was
-    validated by `python -m pytest tests/test_artifact_generation.py -v` with `40 passed`.
+    authoring TODOs and the artifact manifest propagates `valid: false`.
     For a table, view, or materialized view with no discovered columns, semantic-model generation
     instead returns an invalid review-only scaffold: `valid: false`, `deployable: false`, and
     `validationStatus: pending_source_schema`, with no tables, measures, relationships, or
     connection placeholders. It emits a `REDESIGN` warning requiring source-schema discovery and
-    regeneration; normal schema-backed output is unchanged. This behavior was validated by
-    `python -m pytest tests/test_artifact_generation.py -v` with `42 passed`.
+    regeneration; normal schema-backed output is unchanged.
+    Every `valid` flag is derived from a real content check by `NotebookValidator`,
+    `TsqlValidator`, or `PipelineValidator` rather than asserted by the generator.
     These structural dry-run guards are not official Fabric validation or deployment; author the
     Eventstream against the official Fabric API/schema and supply approved connections before
     deployment. Regenerated semantic models still require official Fabric semantic-model
     schema/API validation. All generated output requires validation and an explicit deployment
     workflow before it can be treated as deployable. Artifact generation processes each category
     in sorted source-ID order, serializes JSON artifacts, manifests, and notebooks with sorted
-    keys, and aggregates warnings in source-ID order. Equivalent inventories therefore produce
-    identical artifact paths and bytes even when input component order differs. This behavior was
-    validated by `python -m pytest tests/test_artifact_generation.py -v` with `42 passed`.
-    Distinct source IDs that produce the same generated filename remain an open collision-handling
-    case.
+    keys, aggregates warnings in source-ID order, and writes manifest paths with POSIX separators.
+    Equivalent inventories therefore produce identical artifact paths and bytes even when input
+    component order or host platform differs. Each artifact filename combines a filesystem-safe
+    source ID with the first 12 hexadecimal characters of that source ID's SHA-256 digest, so
+    distinct source IDs cannot collide on a generated filename.
     Numeric `Count of <column>` measures use DAX `COUNT`, so the generated measure counts populated
-    values as its name implies. This behavior was validated with
-    `python -m pytest tests/test_artifact_generation.py -v` (`44 passed`). Generated semantic
-    models remain dry-run review artifacts and still require official Fabric semantic-model
-    schema/API validation before deployment.
+    values as its name implies. Generated semantic models remain dry-run review artifacts and still
+    require official Fabric semantic-model schema/API validation before deployment. These behaviors
+    are validated by `python -m pytest tests/test_artifact_generation.py`, which passes in CI.
 5. Design parity checks for row counts, schemas, nulls, aggregates, samples, and security behavior.
+    Supplied parity evidence is always recomputed; a declared `status` is ignored, and a contradiction
+    is preserved as `declaredStatus`.
 6. Use the native Fabric BigQuery connector for Dataflow Gen2, Pipeline Copy/Lookup, or Copy Job.
 7. Pilot one representative dataset before scaling by migration wave.
 8. Add live deployment only after explicit approval, credentials, rollback, and audit controls.
