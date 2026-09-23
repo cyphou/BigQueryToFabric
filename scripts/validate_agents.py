@@ -50,6 +50,29 @@ def validate() -> list[str]:
         errors.append("Every agent must declare an ownership section")
 
     errors.extend(_validate_skills())
+    errors.extend(_validate_roster(names))
+    return errors
+
+
+def _validate_roster(names: set[str]) -> list[str]:
+    """The documented roster must match the agents that actually exist."""
+    roster_path = ROOT / "docs" / "AGENTS.md"
+    if not roster_path.exists():
+        return ["docs/AGENTS.md is missing"]
+
+    text = roster_path.read_text(encoding="utf-8")
+    documented = {
+        match.group(1).strip()
+        for match in re.finditer(r"^\| ([A-Za-z]+) \| .+ \|$", text, re.MULTILINE)
+    }
+    documented.discard("Agent")
+    documented.discard("Escalate to")
+
+    errors: list[str] = []
+    for missing in sorted(names - documented):
+        errors.append(f"docs/AGENTS.md does not document agent: {missing}")
+    for extra in sorted(documented - names):
+        errors.append(f"docs/AGENTS.md documents an agent that does not exist: {extra}")
     return errors
 
 
