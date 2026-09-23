@@ -386,6 +386,7 @@ def _required_evidence(kind: ObjectKind) -> tuple[str, ...]:
         ObjectKind.BQML_MODEL: ("model_type", "features", "evaluation_metrics"),
         ObjectKind.VERTEX_AI_PIPELINE: ("pipeline_steps", "models", "endpoints"),
         ObjectKind.SECURITY_POLICY: ("policy_type",),
+        ObjectKind.CONNECTION: ("connection_type", "location", "identity_model"),
         ObjectKind.CLOUD_SQL_DATABASE: ("engine", "version", "replication"),
         ObjectKind.SPANNER_DATABASE: ("dialect", "replication", "change_streams"),
     }

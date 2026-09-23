@@ -38,6 +38,173 @@ class MappingDecision:
     actions: tuple[str, ...] = ()
 
 
+def _map_connection_target(item: BigQueryObject) -> MappingDecision:
+    """Recommend how to recreate a BigQuery connection in Fabric Service.
+
+    Fabric connections are created once at tenant or workspace level and then bound by
+    reference, so the migration output is a setup instruction, never a credential.
+    """
+    connection_type = str(item.properties.get("connection_type", "UNKNOWN")).upper()
+    engine = str(item.properties.get("database_engine", "")).upper()
+    never_copy = "Never copy secret values; create the credential directly in Fabric."
+
+    if connection_type == "CLOUD_SQL":
+        engines = {
+            "POSTGRES": "PostgreSQL",
+            "MYSQL": "MySQL",
+            "SQL_SERVER": "SQL Server",
+        }
+        connector = engines.get(engine)
+        if connector is None:
+            return MappingDecision(
+                item.source_id,
+                item.kind,
+                FabricTarget.MANUAL,
+                Compatibility.REDESIGN,
+                "Cloud SQL engine is not recorded, so no Fabric connector can be named.",
+                (),
+                ("Record the Cloud SQL engine, then re-assess.", never_copy),
+            )
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.DATA_PIPELINE,
+            Compatibility.TRANSFORM,
+            f"Cloud SQL for {connector} maps to a Fabric {connector} connection.",
+            (FabricTarget.SQL_DATABASE,),
+            (
+                (
+                    f"In Fabric, create a connection of type {connector} "
+                    "(Manage connections and gateways, or the Get data dialog)."
+                ),
+                (
+                    "Expose the Cloud SQL instance to Fabric, or use an on-premises data "
+                    "gateway or VNet gateway if it is not publicly reachable."
+                ),
+                never_copy,
+            ),
+        )
+
+    if connection_type == "CLOUD_SPANNER":
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.MANUAL,
+            Compatibility.REDESIGN,
+            "Fabric has no native Cloud Spanner connector.",
+            (FabricTarget.DATA_PIPELINE,),
+            (
+                (
+                    "Replicate Spanner data into OneLake or a Fabric SQL database, or reach it "
+                    "through a custom connector; there is no direct equivalent."
+                ),
+                never_copy,
+            ),
+        )
+
+    if connection_type == "AWS":
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.ONELAKE_SHORTCUT,
+            Compatibility.TRANSFORM,
+            "AWS federation maps to an Amazon S3 shortcut or an S3 pipeline connection.",
+            (FabricTarget.DATA_PIPELINE,),
+            (
+                (
+                    "In Fabric, create an Amazon S3 shortcut in the Lakehouse, or an S3 "
+                    "connection for Data Factory."
+                ),
+                (
+                    "The AWS IAM role trust must be reissued for Fabric; the GCP-side role "
+                    "cannot be reused."
+                ),
+                never_copy,
+            ),
+        )
+
+    if connection_type == "AZURE":
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.DATA_PIPELINE,
+            Compatibility.TRANSFORM,
+            "Azure federation becomes native once the workload runs inside Fabric.",
+            (FabricTarget.ONELAKE_SHORTCUT,),
+            (
+                (
+                    "Replace the federated Entra application with a Fabric workspace identity "
+                    "or a service principal granted directly on the target resource."
+                ),
+                (
+                    "Re-grant the target Azure resource to the new identity; the federation "
+                    "path from GCP is no longer required."
+                ),
+                never_copy,
+            ),
+        )
+
+    if connection_type == "CLOUD_RESOURCE":
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.ONELAKE_SHORTCUT,
+            Compatibility.TRANSFORM,
+            (
+                "Cloud resource connections back external data access, which Fabric covers "
+                "with shortcuts."
+            ),
+            (FabricTarget.DATA_PIPELINE,),
+            (
+                (
+                    "Create a Google Cloud Storage shortcut in the Lakehouse, or a GCS "
+                    "connection for Data Factory, depending on whether access is read-only."
+                ),
+                (
+                    "Grant the Fabric connection its own GCP credential; the BigQuery service "
+                    "account is not reusable."
+                ),
+                never_copy,
+            ),
+        )
+
+    if connection_type == "SPARK":
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.LAKEHOUSE,
+            Compatibility.TRANSFORM,
+            (
+                "Spark connections are unnecessary in Fabric; notebooks reach the Lakehouse "
+                "directly."
+            ),
+            (FabricTarget.NOTEBOOK,),
+            (
+                "Drop the connection and bind the migrated notebook to its Lakehouse.",
+                (
+                    "If an external metastore was configured, map its catalogs to Lakehouse "
+                    "schemas or shortcuts."
+                ),
+            ),
+        )
+
+    return MappingDecision(
+        item.source_id,
+        item.kind,
+        FabricTarget.MANUAL,
+        Compatibility.REDESIGN,
+        "Connection backend is unknown, so no Fabric connection type can be recommended.",
+        (),
+        (
+            (
+                "Record the connection backend (cloudSql, cloudSpanner, aws, azure, "
+                "cloudResource, or spark), then re-assess."
+            ),
+            never_copy,
+        ),
+    )
+
+
 def map_component(
     item: BigQueryObject, preferences: dict[str, object] | None = None
 ) -> MappingDecision:
@@ -242,15 +409,7 @@ def map_component(
             ("Recreate policy tags, permissions, authorized views, and RLS; validate effective access.",),
         )
     if item.kind is ObjectKind.CONNECTION:
-        return MappingDecision(
-            item.source_id,
-            item.kind,
-            FabricTarget.DATA_PIPELINE,
-            Compatibility.TRANSFORM,
-            "Recreate external connections with Fabric connection objects and managed identities.",
-            (),
-            ("Never copy secret values; map identity and network requirements.",),
-        )
+        return _map_connection_target(item)
     if item.kind is ObjectKind.MATERIALIZED_VIEW:
         return MappingDecision(
             item.source_id,

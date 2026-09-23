@@ -106,7 +106,13 @@
       "name": "projects/demo-project/locations/eu/connections/crm",
       "friendlyName": "CRM",
       "description": "CRM connection",
-      "hasCredential": {"connectionType": "CLOUD_SQL", "password": "top-secret"}
+      "hasCredential": true,
+      "cloudSql": {
+        "instanceId": "demo-project:eu:crm-db",
+        "database": "crm",
+        "type": "POSTGRES",
+        "credential": {"username": "svc_bq", "password": "top-secret"}
+      }
     }
   ]
 }

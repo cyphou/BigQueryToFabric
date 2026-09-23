@@ -310,14 +310,19 @@ class GoogleCloudInventoryProvider:
     def _map_connection(self, resource: dict[str, Any]) -> BigQueryObject:
         resource_name = str(resource.get("name", ""))
         name = resource_name.rsplit("/", 1)[-1]
-        credential = resource.get("hasCredential", {})
-        properties = {
-            "connection_type": credential.get("connectionType", "UNKNOWN"),
+        location = (
+            resource_name.split("/locations/")[-1].split("/", 1)[0]
+            if "/locations/" in resource_name
+            else "unknown"
+        )
+        properties: dict[str, Any] = {
             "friendly_name": resource.get("friendlyName"),
             "description": resource.get("description"),
-            "location": resource_name.split("/locations/")[-1].split("/", 1)[0],
-            "auth_configured": bool(credential),
+            "location": location,
+            # The API reports only whether a credential exists, never its value.
+            "auth_configured": bool(resource.get("hasCredential", False)),
         }
+        properties.update(_connection_details(resource))
         return BigQueryObject(
             source_id=f"{self.project_id}.connections.{name}",
             name=name,
@@ -351,6 +356,55 @@ class GoogleCloudInventoryProvider:
                 }
             ),
         )
+
+
+# The BigQuery Connection resource carries exactly one backend block. Each maps to a
+# different Fabric connection story, so the block itself is the evidence that matters.
+_CONNECTION_BACKENDS = {
+    "cloudSql": "CLOUD_SQL",
+    "cloudSpanner": "CLOUD_SPANNER",
+    "aws": "AWS",
+    "azure": "AZURE",
+    "cloudResource": "CLOUD_RESOURCE",
+    "spark": "SPARK",
+}
+
+
+def _connection_details(resource: dict[str, Any]) -> dict[str, Any]:
+    """Extract the non-secret properties needed to recreate a connection in Fabric."""
+    for key, type_name in _CONNECTION_BACKENDS.items():
+        backend = resource.get(key)
+        if not isinstance(backend, dict):
+            continue
+        details: dict[str, Any] = {"connection_type": type_name}
+        if key == "cloudSql":
+            details["database_engine"] = str(backend.get("type", "UNKNOWN")).upper()
+            details["instance_id"] = backend.get("instanceId")
+            details["database"] = backend.get("database")
+            details["identity_model"] = (
+                "service_account" if backend.get("serviceAccountId") else "credential"
+            )
+        elif key == "cloudSpanner":
+            details["database"] = backend.get("database")
+            details["database_role"] = backend.get("databaseRole")
+            details["use_parallelism"] = bool(backend.get("useParallelism", False))
+            details["identity_model"] = "service_account"
+        elif key == "aws":
+            access_role = backend.get("accessRole")
+            details["identity_model"] = "iam_role" if access_role else "unknown"
+            if isinstance(access_role, dict):
+                details["aws_iam_role_id"] = access_role.get("iamRoleId")
+        elif key == "azure":
+            details["identity_model"] = "entra_application"
+            details["azure_client_id"] = backend.get("clientId")
+            details["azure_tenant_id"] = backend.get("customerTenantId")
+        elif key == "cloudResource":
+            details["identity_model"] = "service_account"
+        elif key == "spark":
+            details["identity_model"] = "service_account"
+            details["metastore_configured"] = "metastoreServiceConfig" in backend
+        return details
+    return {"connection_type": "UNKNOWN", "identity_model": "unknown"}
 
 
 def _map_columns(fields: Sequence[dict[str, Any]]) -> tuple[Column, ...]:

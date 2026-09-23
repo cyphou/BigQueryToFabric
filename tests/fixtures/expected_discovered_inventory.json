@@ -12,8 +12,12 @@
       "properties": {
         "connection_type": "CLOUD_SQL",
         "auth_configured": true,
+        "database": "crm",
+        "database_engine": "POSTGRES",
         "description": "CRM connection",
         "friendly_name": "CRM",
+        "identity_model": "credential",
+        "instance_id": "demo-project:eu:crm-db",
         "location": "eu"
       },
       "size_bytes": null,

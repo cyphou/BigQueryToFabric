@@ -142,6 +142,51 @@ def test_principal_pseudonyms_are_deterministic() -> None:
     assert pseudonymize("a@b.com") != pseudonymize("c@d.com")
 
 
+def test_connection_extraction_reads_the_documented_api_shape() -> None:
+    """hasCredential is a boolean in the API; the backend block carries the type."""
+    payload = json.loads(API_RESPONSES.read_text(encoding="utf-8"))
+    inventory = GoogleCloudInventoryProvider("demo-project", FakeBigQueryClient(payload)).load()
+    connection = next(
+        item for item in inventory.objects() if item.source_id.endswith(".connections.crm")
+    )
+
+    assert connection.properties["connection_type"] == "CLOUD_SQL"
+    assert connection.properties["database_engine"] == "POSTGRES"
+    assert connection.properties["instance_id"] == "demo-project:eu:crm-db"
+    assert connection.properties["auth_configured"] is True
+    assert "top-secret" not in json.dumps(connection.properties)
+    assert "svc_bq" not in json.dumps(connection.properties)
+
+
+@pytest.mark.parametrize(
+    ("backend", "expected_type"),
+    [
+        ({"cloudSpanner": {"database": "d"}}, "CLOUD_SPANNER"),
+        ({"aws": {"accessRole": {"iamRoleId": "r"}}}, "AWS"),
+        ({"azure": {"clientId": "c", "customerTenantId": "t"}}, "AZURE"),
+        ({"cloudResource": {"serviceAccountId": "sa@p.iam"}}, "CLOUD_RESOURCE"),
+        ({"spark": {"serviceAccountId": "sa@p.iam"}}, "SPARK"),
+        ({}, "UNKNOWN"),
+    ],
+)
+def test_every_connection_backend_is_recognized(backend: dict, expected_type: str) -> None:
+    """Each backend block maps to a distinct Fabric recreation story."""
+    payload = json.loads(API_RESPONSES.read_text(encoding="utf-8"))
+    payload["connections"] = [{
+        "name": "projects/demo-project/locations/eu/connections/x",
+        "hasCredential": False,
+        **backend,
+    }]
+
+    inventory = GoogleCloudInventoryProvider("demo-project", FakeBigQueryClient(payload)).load()
+    connection = next(
+        item for item in inventory.objects() if item.source_id.endswith(".connections.x")
+    )
+
+    assert connection.properties["connection_type"] == expected_type
+    assert "identity_model" in connection.properties
+
+
 def test_legacy_api_type_names_are_normalized_for_the_type_mapper() -> None:
     inventory = build_provider().load()
     events = next(item for item in inventory.objects() if item.name == "events")
