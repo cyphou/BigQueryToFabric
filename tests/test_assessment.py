@@ -265,10 +265,15 @@ def test_core_bigquery_objects_require_evidence() -> None:
 
     report = run_assessment(inventory)
 
+    def missing(source_id: str) -> list[object]:
+        value = report.evidence_summary[source_id]["missing"]
+        assert isinstance(value, list)
+        return value
+
     assert report.evidence_coverage < 100
-    assert "columns" in report.evidence_summary["core-evidence.bare"]["missing"]
-    assert "size_bytes" in report.evidence_summary["core-evidence.bare"]["missing"]
-    assert "sql" in report.evidence_summary["core-evidence.view"]["missing"]
+    assert "columns" in missing("core-evidence.bare")
+    assert "size_bytes" in missing("core-evidence.bare")
+    assert "sql" in missing("core-evidence.view")
 
 
 def test_assessment_penalizes_missing_family_evidence() -> None:
