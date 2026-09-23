@@ -26,7 +26,7 @@ validation commands.
 | Test suite | 364 passed |
 | Coverage | 89% |
 | Static quality | Ruff clean · Pyright clean |
-| Agent contracts | 10 agents · exclusive ownership · documentation handoff · 1 skill validated |
+| Agent contracts | 12 agents · exclusive ownership · documentation handoff · 5 skills validated |
 
 Reproduce with:
 
