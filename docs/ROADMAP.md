@@ -295,6 +295,21 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** These are deterministic review summaries only. They do not prove deployment readiness,
   runtime parity, security remediation, or finding remediation.
 
+### Validated assessment-report summary
+
+- **Expected:** Report generation should emit a deterministic summary suitable for dashboards and
+  HTML reports while retaining the detailed assessment contract.
+- **Implemented:** `write_reports` emits `assessment-summary.json` with `projectId`, `score`,
+  `evidenceCoverage`, `architecture`, `componentCount`, `findingCounts`, `targetSummary`,
+  `compatibilitySummary`, `paritySummary`, `manualReviewCount`, `manualReviewReasons`,
+  `unresolvedDependencies`, `blockers`, and `status`. The detailed `assessment.json` remains
+  available and is not replaced.
+- **Validated:** `python -m pytest tests/test_cli.py tests/test_deployment_readiness.py -v` passed
+  with `15 passed`.
+- **Open:** The summary is an offline presentation artifact. It does not validate official Fabric
+  schemas or APIs, execute workloads, establish runtime or data parity, remediate findings, or
+  authorize deployment.
+
 ### Validated streaming downstream guardrail
 
 - **Expected:** A `DATAFLOW_JOB` whose `properties.streaming` is `true` causes every transitive

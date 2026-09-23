@@ -41,6 +41,10 @@ def write_reports(
     _write_json(assessment_path, asdict(assessment))
     written.append(assessment_path)
 
+    summary_path = root / "assessment-summary.json"
+    _write_json(summary_path, _assessment_summary(assessment, plan))
+    written.append(summary_path)
+
     plan_path = root / "migration-plan.json"
     _write_json(plan_path, asdict(plan))
     written.append(plan_path)
@@ -215,6 +219,43 @@ def write_reports(
 
 def _finding_counts(assessment: AssessmentReport) -> Counter[str]:
     return Counter(finding.severity for finding in assessment.findings)
+
+
+def _assessment_summary(
+    assessment: AssessmentReport, plan: MigrationPlan
+) -> dict[str, Any]:
+    """Build the compact assessment contract consumed by reports and dashboards."""
+    finding_counts = _finding_counts(assessment)
+    parity_counts = _parity_counts(assessment)
+    blockers = [
+        {
+            "code": finding.code,
+            "category": finding.category,
+            "sourceId": finding.source_id,
+            "message": finding.message,
+        }
+        for finding in assessment.findings
+        if finding.severity == "FAIL"
+    ]
+    review_reasons = Counter(
+        reason for item in plan.items for reason in item.manual_review_reasons
+    )
+    return {
+        "projectId": assessment.project_id,
+        "score": assessment.score,
+        "evidenceCoverage": assessment.evidence_coverage,
+        "architecture": plan.architecture,
+        "componentCount": sum(assessment.component_summary.values()),
+        "findingCounts": dict(sorted(finding_counts.items())),
+        "targetSummary": dict(sorted(assessment.target_summary.items())),
+        "compatibilitySummary": dict(sorted(assessment.compatibility_summary.items())),
+        "paritySummary": dict(sorted(parity_counts.items())),
+        "manualReviewCount": sum(item.manual_review for item in plan.items),
+        "manualReviewReasons": dict(sorted(review_reasons.items())),
+        "unresolvedDependencies": list(plan.unresolved_dependencies),
+        "blockers": blockers,
+        "status": "blocked" if blockers or plan.unresolved_dependencies else "review_required",
+    }
 
 
 def _parity_counts(assessment: AssessmentReport) -> Counter[str]:

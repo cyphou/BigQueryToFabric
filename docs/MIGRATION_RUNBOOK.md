@@ -29,6 +29,12 @@ Review `migration-plan.md`, including its `Assessment summary` and `Findings` se
 `processingStage`; and inspect `fabric/artifact-validation.json` and
 `fabric/deployment-manifest.json`.
 
+Also inspect `assessment-summary.json` when feeding a dashboard or HTML report. `write_reports`
+creates this deterministic presentation summary with `projectId`, `score`, `evidenceCoverage`,
+`architecture`, `componentCount`, `findingCounts`, `targetSummary`, `compatibilitySummary`,
+`paritySummary`, `manualReviewCount`, `manualReviewReasons`, `unresolvedDependencies`, `blockers`,
+and `status`. It complements rather than replaces the detailed `assessment.json`.
+
 `FAIL` findings block reliance on the affected recommendation until the evidence or compatibility
 issue is resolved or explicitly accepted. `WARN` findings require documented design or manual
 review. Discovery exit code `3` means the required read-only ADC, API, or metadata visibility could
@@ -388,6 +394,25 @@ unchanged.
 Use these tables to prioritize review and compare the evidence in the detailed sections. They are
 deterministic review summaries only: they do not prove deployment readiness, runtime parity,
 security remediation, or finding remediation.
+
+### Assessment report summary artifact
+
+The validated assessment-report milestone adds `assessment-summary.json` to the generated report
+set. Use it for deterministic dashboard and HTML report inputs; use `assessment.json` for detailed
+findings, evidence, and assessment inspection. The summary contains project identity, score,
+evidence coverage, architecture, component count, finding counts, target and compatibility
+summaries, parity summary, manual-review count and reasons, unresolved dependencies, blockers, and
+status.
+
+Validate the report-generation contract with:
+
+```powershell
+python -m pytest tests/test_cli.py tests/test_deployment_readiness.py -v
+```
+
+The focused suite passes with `15 passed`. This artifact is generated from local inputs and is
+offline-only. It does not validate official Fabric schemas, execute workloads, establish runtime
+or data parity, or authorize deployment.
 
 ### Stage-readiness summary
 

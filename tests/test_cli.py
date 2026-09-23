@@ -28,6 +28,10 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
 
     assert result == ExitCode.SUCCESS
     assert (tmp_path / "assessment.json").is_file()
+    summary = json.loads((tmp_path / "assessment-summary.json").read_text())
+    assert summary["projectId"] == "retail-analytics"
+    assert summary["status"] == "review_required"
+    assert "findingCounts" in summary
     assert (tmp_path / "migration-plan.md").is_file()
     migration_plan = (tmp_path / "migration-plan.md").read_text()
     assert "Evidence coverage:" in migration_plan

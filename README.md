@@ -112,6 +112,11 @@ bqtofabric deployment-check artifacts/gcp-project/fabric
 The generated package contains:
 
 - `assessment.json` — score, evidence, SQL analysis, findings, and portfolio summaries.
+- `assessment-summary.json` — deterministic dashboard/HTML summary containing `projectId`, `score`,
+	`evidenceCoverage`, `architecture`, `componentCount`, `findingCounts`, `targetSummary`,
+	`compatibilitySummary`, `paritySummary`, `manualReviewCount`, `manualReviewReasons`,
+	`unresolvedDependencies`, `blockers`, and `status`. This is a presentation summary and does
+	not replace the detailed `assessment.json`.
 - `component-mapping.csv` — primary/supporting targets, compatibility, rationale, and actions.
 - `migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves, including
 	`manual_review` decisions and deterministic `manual_review_reasons` codes. The Markdown report
@@ -198,9 +203,21 @@ This contract was validated with:
 python -m pytest tests/test_cli.py tests/test_deployment_readiness.py -v
 ```
 
-The focused suite passed with `14 passed`. The checks are offline-only: they do not validate
+The focused suite passed with `15 passed`. The checks are offline-only: they do not validate
 official Fabric schemas or APIs, execute workloads, establish runtime or data parity, or authorize
 deployment. Cloud operations remain outside the default path.
+
+### Validated assessment-report milestone
+
+`write_reports` emits `assessment-summary.json` as a deterministic, machine-readable summary for
+dashboards and HTML reports. It preserves the detailed `assessment.json` as the source for full
+findings, evidence, and assessment detail. The summary includes project identity, score and
+evidence coverage, architecture and component counts, finding/target/compatibility/parity
+summaries, manual-review count and reasons, unresolved dependencies, blockers, and overall status.
+
+This milestone was validated with the focused CLI and deployment-readiness suite above (`15 passed`).
+The summary is generated from local assessment inputs; it does not call cloud services, validate
+official Fabric schemas, execute workloads, establish runtime or data parity, or authorize deployment.
 
 ## How to Test the Assessment
 

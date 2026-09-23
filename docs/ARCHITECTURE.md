@@ -73,6 +73,22 @@ tests/test_security.py -v` (`10 passed`). This is offline pattern and structural
 pattern scanning is not official Fabric schema validation and does not validate deployment. The
 full suite was validated with `python -m pytest -q` (`306 passed`); all checks remain offline-only.
 
+## Assessment report summary contract
+
+`write_reports` emits `assessment-summary.json` alongside the detailed `assessment.json`. The
+summary is deterministic and shaped for dashboard and HTML report consumers. It contains
+`projectId`, `score`, `evidenceCoverage`, `architecture`, `componentCount`, `findingCounts`,
+`targetSummary`, `compatibilitySummary`, `paritySummary`, `manualReviewCount`,
+`manualReviewReasons`, `unresolvedDependencies`, `blockers`, and `status`.
+
+`assessment.json` remains the detailed assessment contract and is not replaced by the summary.
+The summary is a local presentation rollup, not a new assessment authority: it does not call cloud
+services, validate official Fabric schemas, execute workloads, establish runtime or data parity,
+or authorize deployment.
+
+This milestone was validated with `python -m pytest tests/test_cli.py
+tests/test_deployment_readiness.py -v` (`15 passed`).
+
 ## CLI and deployment-readiness failure contract
 
 Local workflow guards fail closed and use deterministic results: a missing inventory returns exit

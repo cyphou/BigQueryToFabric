@@ -104,6 +104,7 @@ A generated package commonly contains:
 | File | Purpose |
 |---|---|
 | `assessment.json` | Scores, findings, evidence coverage, SQL assessments, and parity status |
+| `assessment-summary.json` | Deterministic dashboard/HTML summary of project, score, evidence, architecture, findings, targets, compatibility, parity, review, blockers, and status; it does not replace `assessment.json` |
 | `component-mapping.csv` | Source kinds, Fabric targets, compatibility, rationale, and actions |
 | `migration-plan.md` | Human-readable waves, findings, assessment summary, and manual-review reasons |
 | `migration-plan.json` | Machine-readable migration plan |
@@ -121,6 +122,20 @@ Prioritize these fields during review:
 - `processingStage` and `stageReadiness`: stage-level migration prioritization.
 - `parity_summary`: `passed`, `failed`, `not_run`, or `not_applicable` evidence status.
 - `valid`: whether an individual generated artifact passed local structural checks.
+
+### Assessment report summary
+
+`write_reports` emits `assessment-summary.json` for dashboard and HTML report consumers. Its
+deterministic fields are `projectId`, `score`, `evidenceCoverage`, `architecture`,
+`componentCount`, `findingCounts`, `targetSummary`, `compatibilitySummary`, `paritySummary`,
+`manualReviewCount`, `manualReviewReasons`, `unresolvedDependencies`, `blockers`, and `status`.
+Use `assessment.json` for the detailed assessment; the summary is a presentation-oriented sibling,
+not a replacement.
+
+The report milestone was validated with `python -m pytest tests/test_cli.py
+tests/test_deployment_readiness.py -v` (`15 passed`). This is offline-only report generation from
+local assessment inputs. It does not validate official Fabric schemas, execute workloads, establish
+runtime or data parity, or authorize deployment.
 
 A `ready_for_review` result from `deployment-check` is not a deployment approval. It means the local dry-run package passed the available offline gates.
 
