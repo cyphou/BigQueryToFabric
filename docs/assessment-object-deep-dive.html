@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BQToFabric | Object Assessment Deep Dive</title>
+<script>
+(() => {
+  const param = new URLSearchParams(window.location.search).get("scoutTheme");
+  const theme = param || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+  document.documentElement.setAttribute("data-theme", theme);
+})();
+</script>
+<style>
+:root {
+  color-scheme: light;
+  --cp-bg: #f7f4ef;
+  --cp-bg-elevated: #fcfbf8;
+  --cp-surface: #ffffff;
+  --cp-surface-soft: #f5f5f5;
+  --cp-border: #dedede;
+  --cp-border-strong: #919191;
+  --cp-text: #242424;
+  --cp-text-muted: #5c5c5c;
+  --cp-text-soft: #6f6f6f;
+  --cp-accent: #b11f4b;
+  --cp-accent-hover: #9a1a41;
+  --cp-accent-soft: rgba(177, 31, 75, 0.08);
+  --cp-accent-fg: #ffffff;
+  --cp-success: #16a34a;
+  --cp-danger: #dc2626;
+  --cp-warning: #f59e0b;
+  --cp-link: #0078d4;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.12);
+  --cp-overlay: rgba(255, 255, 255, 0.8);
+  --cp-panel: rgba(255, 255, 255, 0.86);
+  --cp-panel-strong: rgba(255, 255, 255, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.55);
+  --cp-highlight: rgba(177, 31, 75, 0.12);
+}
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --cp-bg: #3d3b3a;
+  --cp-bg-elevated: #343231;
+  --cp-surface: #292929;
+  --cp-surface-soft: #2e2e2e;
+  --cp-border: #474747;
+  --cp-border-strong: #5f5f5f;
+  --cp-text: #dedede;
+  --cp-text-muted: #919191;
+  --cp-text-soft: #b0b0b0;
+  --cp-accent: #fd8ea1;
+  --cp-accent-hover: #fb7b91;
+  --cp-accent-soft: rgba(253, 142, 161, 0.14);
+  --cp-accent-fg: #1a1a1a;
+  --cp-success: #4ade80;
+  --cp-danger: #f87171;
+  --cp-warning: #fbbf24;
+  --cp-link: #4da6ff;
+  --cp-shadow: 0 18px 48px rgba(0, 0, 0, 0.32);
+  --cp-overlay: rgba(41, 41, 41, 0.88);
+  --cp-panel: rgba(41, 41, 41, 0.72);
+  --cp-panel-strong: rgba(41, 41, 41, 0.96);
+  --cp-sheen: rgba(255, 255, 255, 0.04);
+  --cp-highlight: rgba(253, 142, 161, 0.12);
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--cp-bg); color: var(--cp-text); font-family: "Segoe UI", Aptos, Calibri, -apple-system, BlinkMacSystemFont, sans-serif; }
+code { font-family: Consolas, "Courier New", Courier, monospace; font-size: .85em; }
+.shell { max-width: 1480px; margin: auto; padding: 28px; }
+.header { display: flex; justify-content: space-between; gap: 24px; align-items: end; padding: 28px 32px; border: 1px solid var(--cp-border); border-radius: 16px; background: var(--cp-panel-strong); box-shadow: var(--cp-shadow); }
+.eyebrow { color: var(--cp-accent); font-size: .78rem; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
+h1 { margin: 8px 0; font-size: clamp(2rem, 4vw, 4rem); letter-spacing: -.045em; line-height: 1; }
+p { color: var(--cp-text-muted); margin: 0; line-height: 1.5; }
+.summary { text-align: right; min-width: 170px; } .summary strong { display: block; font-size: 2.3rem; color: var(--cp-accent); }
+.toolbar { display: grid; grid-template-columns: 1fr 180px 160px; gap: 10px; margin: 18px 0; }
+input, select { min-width: 0; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-surface); color: var(--cp-text); padding: 11px 13px; }
+.layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(320px, .8fr); gap: 16px; align-items: start; }
+.panel, .detail { background: var(--cp-surface); border: 1px solid var(--cp-border); border-radius: 16px; box-shadow: 0 0 2px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.14); }
+.panel { overflow: hidden; } .panel-title { padding: 18px 20px; border-bottom: 1px solid var(--cp-border); display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.panel-title h2 { margin: 0; font-size: 1.15rem; } .subtle { color: var(--cp-text-soft); font-size: .84rem; }
+.table-wrap { overflow: auto; max-height: 690px; } table { width: 100%; border-collapse: collapse; min-width: 740px; } th, td { padding: 12px 14px; text-align: left; border-bottom: 1px solid var(--cp-border); vertical-align: top; } th { position: sticky; top: 0; background: var(--cp-surface); color: var(--cp-text-soft); font-size: .72rem; text-transform: uppercase; letter-spacing: .08em; z-index: 1; } tbody tr { cursor: pointer; } tbody tr:hover, tbody tr.selected { background: var(--cp-accent-soft); }
+.object-name { font-weight: 700; } .object-name code { display: block; color: var(--cp-text-muted); font-weight: 400; margin-top: 3px; }
+.badge { display: inline-flex; padding: 4px 8px; border-radius: 8px; font-size: .72rem; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; background: var(--cp-surface-soft); color: var(--cp-text-muted); } .badge.review { background: var(--cp-accent-soft); color: var(--cp-danger); } .badge.ready { color: var(--cp-success); }
+.detail { padding: 22px; position: sticky; top: 18px; } .detail h2 { margin: 0 0 5px; font-size: 1.2rem; } .detail-id { color: var(--cp-text-muted); word-break: break-word; font-family: Consolas, "Courier New", Courier, monospace; font-size: .78rem; }
+.detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 18px 0; } .detail-stat { padding: 10px; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-surface-soft); } .detail-stat span { display: block; font-size: .72rem; color: var(--cp-text-soft); text-transform: uppercase; letter-spacing: .06em; } .detail-stat strong { display: block; margin-top: 3px; }
+.section { border-top: 1px solid var(--cp-border); padding-top: 15px; margin-top: 15px; } .section h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--cp-text-soft); margin: 0 0 8px; } ul { margin: 0; padding-left: 19px; color: var(--cp-text-muted); font-size: .88rem; } li + li { margin-top: 6px; }
+.empty { padding: 42px; text-align: center; color: var(--cp-text-soft); }
+@media (max-width: 950px) { .layout { grid-template-columns: 1fr; } .detail { position: static; } }
+@media (max-width: 620px) { .shell { padding: 14px; } .header { display: block; } .summary { text-align: left; margin-top: 16px; } .toolbar { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main class="shell">
+  <header class="header">
+    <div><div class="eyebrow">BQToFabric / object assessment</div><h1>Deep dive by object</h1><p>Inspect every planned source object, its target, migration wave, evidence gaps, review reasons, findings, and SQL conversion status.</p></div>
+    <div class="summary"><strong>28</strong><span>planned objects</span></div>
+  </header>
+  <div class="toolbar"><input id="search" type="search" placeholder="Search source ID or finding..."><select id="target"><option value="all">All targets</option></select><select id="review"><option value="all">All statuses</option><option value="review">Review required</option><option value="ready">No review flag</option></select></div>
+  <section class="layout">
+    <div class="panel"><div class="panel-title"><h2>Object register</h2><span class="subtle" id="count">28 objects</span></div><div class="table-wrap"><table><thead><tr><th>Object</th><th>Target</th><th>Wave</th><th>SQL</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>No objects match these filters.</div></div></div>
+    <aside class="detail" id="detail"><h2>Select an object</h2><p>Click any row to inspect object-level assessment details.</p></aside>
+  </section>
+</main>
+<script>
+const OBJECTS = [
+  {"source_id":"gcp-data-platform.analytics.hash_customer_id","target":"lakehouse","wave":1,"review":true,"reasons":["incompatible_mapping"],"missing":[],"findings":["MAPPING_REDESIGN","ACTION_REQUIRED"],"sql":{"status":"direct","notes":[]}},
+  {"source_id":"gcp-data-platform.analytics.normalized_event_date","target":"warehouse","wave":1,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":{"status":"direct","notes":[]}},
+  {"source_id":"gcp-data-platform.analytics.partner_events","target":"lakehouse","wave":1,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.bqml.churn","target":"data_science","wave":1,"review":true,"reasons":["incompatible_mapping"],"missing":["model_type","features","evaluation_metrics"],"findings":["MAPPING_REDESIGN","ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.cloudsql.orders","target":"sql_database","wave":1,"review":false,"reasons":[],"missing":["engine","version","replication"],"findings":["ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.connection.crm","target":"data_pipeline","wave":1,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.dataplex.catalog","target":"purview","wave":1,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.dataproc.legacy_etl","target":"lakehouse","wave":1,"review":false,"reasons":[],"missing":["language","runtime_version"],"findings":["ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.gcs.raw","target":"lakehouse","wave":1,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.looker.commerce","target":"semantic_model","wave":1,"review":true,"reasons":["incompatible_mapping"],"missing":["explores","measures","joins"],"findings":["MAPPING_REDESIGN","ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.pubsub.events","target":"eventhouse","wave":1,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.security.customer_policy","target":"manual","wave":1,"review":true,"reasons":["incompatible_mapping"],"missing":[],"findings":["MAPPING_UNSUPPORTED","ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.spanner.global_inventory","target":"sql_database","wave":1,"review":true,"reasons":["incompatible_mapping"],"missing":["dialect","replication","change_streams"],"findings":["MAPPING_REDESIGN","ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.vertex.churn_pipeline","target":"data_science","wave":1,"review":true,"reasons":["incompatible_mapping"],"missing":["pipeline_steps","models","endpoints"],"findings":["MAPPING_REDESIGN","ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.workflows.notify","target":"data_pipeline","wave":1,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.dataflow.batch_ingestion","target":"lakehouse","wave":2,"review":true,"reasons":["incompatible_mapping"],"missing":["streaming","portable","connector_compatible"],"findings":["MAPPING_REDESIGN","ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.dataflow.realtime_ingestion","target":"eventhouse","wave":2,"review":true,"reasons":["incompatible_mapping"],"missing":["portable","connector_compatible"],"findings":["MAPPING_REDESIGN","ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.analytics.events","target":"lakehouse","wave":3,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.analytics.daily_event_counts","target":"lakehouse","wave":4,"review":false,"reasons":[],"missing":[],"findings":[],"sql":{"status":"direct","notes":[]}},
+  {"source_id":"gcp-data-platform.analytics.daily_event_counts_mv","target":"warehouse","wave":4,"review":true,"reasons":["incompatible_mapping"],"missing":[],"findings":["MAPPING_REDESIGN","ACTION_REQUIRED"],"sql":{"status":"direct","notes":[]}},
+  {"source_id":"gcp-data-platform.analytics.daily_metrics_job","target":"data_pipeline","wave":4,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":{"status":"direct","notes":[]}},
+  {"source_id":"gcp-data-platform.analytics.events_stream","target":"eventhouse","wave":4,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":null},
+  {"source_id":"gcp-data-platform.analytics.hourly_metrics","target":"data_pipeline","wave":4,"review":false,"reasons":[],"missing":[],"findings":["ACTION_REQUIRED"],"sql":{"status":"direct","notes":[]}},
+  {"source_id":"gcp-data-platform.analytics.refresh_daily_metrics","target":"warehouse","wave":4,"review":true,"reasons":["sql_incompatibility"],"missing":[],"findings":["ACTION_REQUIRED","SQL_REDESIGN"],"sql":{"status":"redesign","notes":["The parser identified a dialect command that requires manual script redesign."]}},
+  {"source_id":"gcp-data-platform.spark.enrichment","target":"lakehouse","wave":4,"review":false,"reasons":[],"missing":["language","runtime_version"],"findings":["ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.sql.daily_metrics","target":"lakehouse","wave":4,"review":false,"reasons":[],"missing":[],"findings":[],"sql":{"status":"transform","notes":["UNNEST requires explicit nested-data handling and row-count parity checks."]}},
+  {"source_id":"gcp-data-platform.dataform.gold_models","target":"lakehouse","wave":5,"review":false,"reasons":[],"missing":["models","assertions","incremental"],"findings":["ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null},
+  {"source_id":"gcp-data-platform.composer.platform_dag","target":"airflow_job","wave":6,"review":false,"reasons":[],"missing":["operators","runtime_version","connections"],"findings":["ACTION_REQUIRED","EVIDENCE_MISSING"],"sql":null}
+];
+const rows = document.querySelector("#rows");
+const detail = document.querySelector("#detail");
+const search = document.querySelector("#search");
+const target = document.querySelector("#target");
+const review = document.querySelector("#review");
+const count = document.querySelector("#count");
+const empty = document.querySelector("#empty");
+const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
+const list = (values, fallback) => values.length ? `<ul>${values.map((value) => `<li><code>${esc(value)}</code></li>`).join("")}</ul>` : `<p>${fallback}</p>`;
+const renderDetail = (item) => {
+  const sql = item.sql ? `<div class="section"><h3>SQL conversion</h3><p><span class="badge ${item.sql.status === "redesign" ? "review" : "ready"}">${esc(item.sql.status)}</span></p>${list(item.sql.notes, "No SQL-specific notes.")}</div>` : "";
+  detail.innerHTML = `<h2>${esc(item.source_id.split(".").slice(-1)[0])}</h2><p class="detail-id">${esc(item.source_id)}</p><div class="detail-grid"><div class="detail-stat"><span>Target</span><strong>${esc(item.target)}</strong></div><div class="detail-stat"><span>Wave</span><strong>${item.wave}</strong></div><div class="detail-stat"><span>Review</span><strong>${item.review ? "Required" : "Not flagged"}</strong></div><div class="detail-stat"><span>Findings</span><strong>${item.findings.length}</strong></div></div><div class="section"><h3>Manual-review reasons</h3>${list(item.reasons, "No planner review reason.")}</div><div class="section"><h3>Missing evidence</h3>${list(item.missing, "No required evidence missing.")}</div><div class="section"><h3>Finding codes</h3>${list(item.findings, "No object-level finding code.")}</div>${sql}`;
+};
+const render = () => {
+  const query = search.value.toLowerCase();
+  const filtered = OBJECTS.filter((item) => {
+    const text = `${item.source_id} ${item.target} ${item.findings.join(" ")}`.toLowerCase();
+    return text.includes(query) && (target.value === "all" || item.target === target.value) && (review.value === "all" || (review.value === "review" ? item.review : !item.review));
+  });
+  rows.innerHTML = filtered.map((item, index) => `<tr data-index="${OBJECTS.indexOf(item)}"><td><span class="object-name">${esc(item.source_id.split(".").slice(-1)[0])}<code>${esc(item.source_id)}</code></span></td><td>${esc(item.target)}</td><td>${item.wave}</td><td>${item.sql ? `<span class="badge ${item.sql.status === "redesign" ? "review" : "ready"}">${esc(item.sql.status)}</span>` : "—"}</td><td><span class="badge ${item.review ? "review" : "ready"}">${item.review ? "review" : "ready"}</span></td></tr>`).join("");
+  count.textContent = `${filtered.length} of ${OBJECTS.length} objects`;
+  empty.hidden = filtered.length !== 0;
+  rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => { rows.querySelectorAll("tr").forEach((item) => item.classList.remove("selected")); row.classList.add("selected"); renderDetail(OBJECTS[Number(row.dataset.index)]); }));
+};
+[...new Set(OBJECTS.map((item) => item.target))].sort().forEach((value) => target.insertAdjacentHTML("beforeend", `<option value="${esc(value)}">${esc(value)}</option>`));
+[search, target, review].forEach((control) => control.addEventListener("input", render));
+render();
+renderDetail(OBJECTS.find((item) => item.review) || OBJECTS[0]);
+</script>
+</body>
+</html>
