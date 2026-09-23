@@ -455,7 +455,7 @@ execution, official Fabric schema validity, or deployment readiness.
   HTML reports while retaining the detailed assessment contract.
 - **Implemented:** `write_reports` emits `assessment-summary.json` with `projectId`, `score`,
   `evidenceCoverage`, `architecture`, `componentCount`, `findingCounts`, `targetSummary`,
-  `compatibilitySummary`, `paritySummary`, `manualReviewCount`, `manualReviewReasons`,
+  `compatibilitySummary`, `discoveryCoverage`, `paritySummary`, `manualReviewCount`, `manualReviewReasons`,
   `unresolvedDependencies`, `blockers`, and `status`. The detailed `assessment.json` remains
   available and is not replaced.
 - **Validated:** `python -m pytest tests/test_cli.py tests/test_deployment_readiness.py` passes in

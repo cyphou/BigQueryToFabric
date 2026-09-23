@@ -157,5 +157,6 @@ Then read `assessment-summary.json`:
 
 ## References
 
+- [Assisted evidence](../assisted-evidence/SKILL.md)
 - [Inventory schema](../../../docs/INVENTORY_SCHEMA.md)
 - [Mapping reference](../../../docs/MAPPING_REFERENCE.md)

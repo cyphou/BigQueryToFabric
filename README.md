@@ -123,7 +123,7 @@ The generated package contains:
 - `assessment.json` — score, evidence, SQL analysis, findings, and portfolio summaries.
 - `assessment-summary.json` — deterministic dashboard/HTML summary containing `projectId`, `score`,
 	`evidenceCoverage`, `architecture`, `componentCount`, `findingCounts`, `targetSummary`,
-	`compatibilitySummary`, `paritySummary`, `manualReviewCount`, `manualReviewReasons`,
+	`compatibilitySummary`, `discoveryCoverage`, `paritySummary`, `manualReviewCount`, `manualReviewReasons`,
 	`unresolvedDependencies`, `blockers`, and `status`. This is a presentation summary and does
 	not replace the detailed `assessment.json`.
 - `component-mapping.csv` — primary/supporting targets, compatibility, rationale, and actions.

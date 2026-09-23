@@ -136,7 +136,7 @@ pattern scanning is not official Fabric schema validation and does not validate 
 `write_reports` emits `assessment-summary.json` alongside the detailed `assessment.json`. The
 summary is deterministic and shaped for dashboard and HTML report consumers. It contains
 `projectId`, `score`, `evidenceCoverage`, `architecture`, `componentCount`, `findingCounts`,
-`targetSummary`, `compatibilitySummary`, `paritySummary`, `manualReviewCount`,
+`targetSummary`, `compatibilitySummary`, `discoveryCoverage`, `paritySummary`, `manualReviewCount`,
 `manualReviewReasons`, `unresolvedDependencies`, `blockers`, and `status`.
 
 `assessment.json` remains the detailed assessment contract and is not replaced by the summary.

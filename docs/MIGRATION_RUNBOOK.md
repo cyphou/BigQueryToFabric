@@ -32,8 +32,12 @@ Review `migration-plan.md`, including its `Assessment summary` and `Findings` se
 Also inspect `assessment-summary.json` when feeding a dashboard or HTML report. `write_reports`
 creates this deterministic presentation summary with `projectId`, `score`, `evidenceCoverage`,
 `architecture`, `componentCount`, `findingCounts`, `targetSummary`, `compatibilitySummary`,
-`paritySummary`, `manualReviewCount`, `manualReviewReasons`, `unresolvedDependencies`, `blockers`,
-and `status`. It complements rather than replaces the detailed `assessment.json`.
+`discoveryCoverage`, `paritySummary`, `manualReviewCount`, `manualReviewReasons`,
+`unresolvedDependencies`, `blockers`, and `status`. It complements rather than replaces the
+detailed `assessment.json`.
+
+`discoveryCoverage` counts objects by provenance. Review the `assisted` count before approving a
+wave: those components carry evidence an agent inferred rather than read from a source system.
 
 `FAIL` findings block reliance on the affected recommendation until the evidence or compatibility
 issue is resolved or explicitly accepted. `WARN` findings require documented design or manual

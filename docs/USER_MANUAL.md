@@ -131,7 +131,7 @@ Prioritize these fields during review:
 
 `write_reports` emits `assessment-summary.json` for dashboard and HTML report consumers. Its
 deterministic fields are `projectId`, `score`, `evidenceCoverage`, `architecture`,
-`componentCount`, `findingCounts`, `targetSummary`, `compatibilitySummary`, `paritySummary`,
+`componentCount`, `findingCounts`, `targetSummary`, `compatibilitySummary`, `discoveryCoverage`, `paritySummary`,
 `manualReviewCount`, `manualReviewReasons`, `unresolvedDependencies`, `blockers`, and `status`.
 Use `assessment.json` for the detailed assessment; the summary is a presentation-oriented sibling,
 not a replacement.

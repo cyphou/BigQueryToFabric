@@ -249,6 +249,7 @@ def _assessment_summary(
         "findingCounts": dict(sorted(finding_counts.items())),
         "targetSummary": dict(sorted(assessment.target_summary.items())),
         "compatibilitySummary": dict(sorted(assessment.compatibility_summary.items())),
+        "discoveryCoverage": dict(sorted(assessment.discovery_coverage.items())),
         "paritySummary": dict(sorted(parity_counts.items())),
         "manualReviewCount": sum(item.manual_review for item in plan.items),
         "manualReviewReasons": dict(sorted(review_reasons.items())),

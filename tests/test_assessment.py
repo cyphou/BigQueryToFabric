@@ -343,6 +343,40 @@ def test_unknown_provenance_is_rejected() -> None:
         validate_inventory_document(document)
 
 
+def test_assisted_evidence_is_visible_in_the_summary_contract() -> None:
+    """A reviewer must be able to see how much of the estate rests on inference."""
+    from bqtofabric.reporting import _assessment_summary
+
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "provenance",
+        "components": [
+            {
+                "source_id": "provenance.inferred",
+                "name": "inferred",
+                "kind": "dataproc_job",
+                "discovered_from": "assisted",
+                "properties": {
+                    "language": "python",
+                    "runtime_version": "2.1",
+                    "code": "df = spark.read.parquet('/Shortcuts/raw')\n",
+                },
+            },
+            {
+                "source_id": "provenance.read",
+                "name": "read",
+                "kind": "table",
+                "size_bytes": 1024,
+                "columns": [{"name": "id", "data_type": "INT64"}],
+            },
+        ],
+    })
+    report = run_assessment(inventory)
+
+    summary = _assessment_summary(report, build_plan(inventory, report))
+
+    assert summary["discoveryCoverage"] == {"assisted": 1, "inventory": 1}
+
+
 def test_assessment_penalizes_missing_family_evidence() -> None:
     inventory = JsonInventoryProvider(GCP_FIXTURE).load()
     report = run_assessment(inventory)
