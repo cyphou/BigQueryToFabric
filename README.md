@@ -13,8 +13,8 @@
 <p align="center">
 	<img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-146C94?style=for-the-badge"/>
 	<img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12+-3776AB?style=for-the-badge&amp;logo=python&amp;logoColor=white"/>
-	<img alt="Tests 81 passing" src="https://img.shields.io/badge/tests-81%20passing-1F883D?style=for-the-badge"/>
-	<img alt="Coverage 93.2 percent" src="https://img.shields.io/badge/coverage-93.2%25-12A594?style=for-the-badge"/>
+	<img alt="Tests 304 passing" src="https://img.shields.io/badge/tests-304%20passing-1F883D?style=for-the-badge"/>
+	<img alt="Static checks passing" src="https://img.shields.io/badge/static%20checks-Ruff%20%2B%20Pyright-12A594?style=for-the-badge"/>
 	<img alt="Dry run by default" src="https://img.shields.io/badge/cloud-dry--run%20default-F2C811?style=for-the-badge"/>
 	<a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2EA44F?style=for-the-badge"/></a>
 </p>
@@ -27,6 +27,41 @@
 | 🧪 **Quality** | 304 tests passed · Ruff and Pyright clean (`python -m pyright`; `python -m ruff check src tests`) |
 | 🤖 **Agent model** | 10 specialist agents · exclusive ownership and documentation handoff validated |
 | 🔒 **Safety** | Deterministic output · no credentials · no cloud mutation |
+
+## 🧭 How It Works
+
+```mermaid
+flowchart LR
+	I[📦 Inventory JSON] --> V[✅ Validate]
+	V --> A[🔎 Assess evidence]
+	A --> M[🧭 Map Fabric targets]
+	M --> P[🗺️ Plan migration waves]
+	P --> G[🏗️ Generate dry-run package]
+	G --> R[🧪 Review findings and gates]
+	R -. approved future phase .-> D[🚀 Deployment workflow]
+```
+
+**Core contract:** inventory → canonical model → assessment/mapping → strategy → dependency plan →
+deterministic dry-run artifacts. The deployment arrow is intentionally outside the default path.
+
+## 🧩 The Canonical Inventory
+
+The inventory is the stable boundary between discovery and planning. It holds source IDs, object
+kinds, columns, dependencies, workload evidence, and provenance without cloud credentials.
+
+```mermaid
+flowchart TD
+	ROOT[Inventory JSON] --> META[project_id + schema_version]
+	ROOT --> DS[datasets[]]
+	ROOT --> CP[components[]]
+	DS --> OBJ[BigQueryObject]
+	CP --> OBJ
+	OBJ --> COL[columns[]]
+	OBJ --> DEP[dependencies[]]
+	OBJ --> EVD[properties + discovered_from]
+```
+
+See the complete field reference and example in [docs/INVENTORY_SCHEMA.md](docs/INVENTORY_SCHEMA.md).
 
 > [!IMPORTANT]
 > BQToFabric `0.1.0` is an **assessment and dry-run generation toolkit**. Discovery is read-only and
@@ -81,6 +116,18 @@ artifact interpretation, security rules, and troubleshooting, see [docs/USER_MAN
 
 For a one-command PowerShell fixture walkthrough, run `./scripts/smoke_test.ps1` after installing
 the development package.
+
+### Documentation map
+
+| 📘 Guide | Use it when you need to... |
+|---|---|
+| [User manual](docs/USER_MANUAL.md) | Install, run workflows, interpret outputs, and troubleshoot |
+| [Inventory schema](docs/INVENTORY_SCHEMA.md) | Author or validate canonical inventory JSON |
+| [Architecture](docs/ARCHITECTURE.md) | Understand ownership boundaries and processing stages |
+| [Mapping reference](docs/MAPPING_REFERENCE.md) | Review source-to-Fabric target decisions |
+| [Migration runbook](docs/MIGRATION_RUNBOOK.md) | Execute a repeatable assessment and review process |
+| [Security](docs/SECURITY.md) | Apply credential and access-evidence rules |
+| [Roadmap](docs/ROADMAP.md) | Track implemented, validated, and open work |
 
 ### Generated artifact validation
 

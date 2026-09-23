@@ -36,6 +36,7 @@ python -m ruff check src tests
 ## 2. Recommended Offline Workflow
 
 Start with a canonical inventory. The repository includes sanitized fixtures under `tests/fixtures`.
+For the field-by-field contract and a minimal JSON example, see [INVENTORY_SCHEMA.md](INVENTORY_SCHEMA.md).
 
 ```powershell
 $inventory = "tests/fixtures/gcp_ecosystem_project.json"
