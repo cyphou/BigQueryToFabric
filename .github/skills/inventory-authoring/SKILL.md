@@ -51,7 +51,24 @@ assessed identically.
 | `size_bytes` | depends on kind | Non-negative integer. An explicit `null` is valid and means "recorded as unknown". |
 | `partition_field`, `clustering_fields` | no | Drive layout findings on large tables. |
 | `properties` | depends on kind | Free-form evidence bag. |
-| `discovered_from` | no | `inventory` (default), `bigquery_api`, `dataflow_api`, `composer_api`, `dataproc_api`, `dataform_api`, `external_payload`. |
+| `discovered_from` | no | `inventory` (default), `bigquery_api`, `dataflow_api`, `composer_api`, `dataproc_api`, `dataform_api`, `external_payload`, `assisted`. Any other value is rejected. |
+
+## Provenance and inferred evidence
+
+Provenance is a closed set, and it changes how strictly evidence is judged.
+
+| Provenance | Meaning | Treatment |
+|---|---|---|
+| `inventory` | Hand-authored | Missing evidence is a WARN. |
+| `*_api` | Read from a source system | Missing evidence is a WARN. |
+| `external_payload` | Supplied for a family with no live adapter | Missing evidence is a **FAIL**. |
+| `assisted` | **Inferred by an agent, not read from a source** | Missing evidence is a **FAIL**; complete evidence still emits `ASSISTED_EVIDENCE_UNVERIFIED` and always forces manual review. |
+
+Use `assisted` when an agent reads a source artifact and infers evidence a live
+adapter cannot yet capture — for example reading a Dataproc job body to populate
+`code`. This is the supported way to combine judgement with a deterministic
+assessment: **the agent supplies evidence, the engine still derives the verdict.**
+Never label inferred evidence as `*_api`; that would let a guess clear a gate.
 
 Validate before assessing:
 

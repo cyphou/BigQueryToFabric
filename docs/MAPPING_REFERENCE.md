@@ -18,7 +18,7 @@
 
 ## Assessment finding codes
 
-Assessment emits 16 stable finding codes. Codes are the review contract; message text is not.
+Assessment emits 18 stable finding codes. Codes are the review contract; message text is not.
 Every `FAIL` blocks reliance on the affected recommendation until it is resolved or explicitly
 accepted. Every `WARN` requires documented design or manual review.
 
@@ -28,6 +28,8 @@ accepted. Every `WARN` requires documented design or manual review.
 | `DATAFORM_COMPILATION_DETAILS_UNAVAILABLE` | FAIL | adapter | A Dataform compilation-result detail request failed, so the workflow's lineage graph is unavailable. | Restore Dataform API access, re-run discovery, and re-assess. Do not rely on lineage-dependent waves. |
 | `EVIDENCE_MISSING` | WARN | evidence | A required evidence field for the object's kind is absent. See the [required-evidence matrix](INVENTORY_SCHEMA.md#required-evidence-by-kind). | Supply the missing field in the inventory or re-discover the object, then re-assess. |
 | `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` | FAIL | adapter | A `discovered_from: external_payload` component lacks the offline evidence its kind requires, and no live adapter covers that service. | Complete the offline evidence for the component before relying on its target or wave. |
+| `ASSISTED_EVIDENCE_INCOMPLETE` | FAIL | provenance | A `discovered_from: assisted` component still lacks the evidence its kind requires. | Inference did not close the gap; capture the evidence from the source system. |
+| `ASSISTED_EVIDENCE_UNVERIFIED` | WARN | provenance | A component's evidence was inferred by an agent rather than read from a source system. | Confirm the inferred evidence against the source. Always forces manual review, even when evidence is complete. |
 | `MAPPING_REDESIGN` | WARN | mapping | The source-to-Fabric mapping is classified `redesign`. | Design the target explicitly; do not treat the generated artifact as a translation. |
 | `MAPPING_UNSUPPORTED` | FAIL | mapping | No safe automatic mapping is claimed for the source object. | Decide the target manually, or descope the object from the migration wave. |
 | `PARITY_FAILED` | FAIL | parity | A parity check computed `failed` from the supplied source/target evidence. | Inspect the recorded differences, correct the target or the evidence, and re-run the comparison. |
@@ -170,9 +172,10 @@ project, organization, group, or inherited IAM access and require manual securit
 Use assessment provenance when reviewing the mapping evidence: `evidence_summary` exposes each
 object's `discovered_from`, while `discovery_coverage` gives deterministic counts. The canonical
 values are `inventory`, `bigquery_api`, `dataflow_api`, `composer_api`, `dataproc_api`,
-`dataform_api`, and `external_payload`. `external_payload` represents supplied associated-service
-payloads normalized offline, not live discovery of those services. No value proves metadata
-freshness.
+`dataform_api`, `external_payload`, and `assisted`. `external_payload` represents supplied
+associated-service payloads normalized offline, not live discovery of those services.
+`assisted` represents evidence inferred by an agent rather than read from a source system.
+No value proves metadata freshness.
 
 If an `external_payload` component lacks required offline evidence, assessment emits exactly one
 `FAIL` `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` finding in category `adapter`, explaining that the
@@ -186,7 +189,7 @@ external source IDs and cycles.
 `manual_review` remains the planner's decision flag. Every flagged `PlanItem` also includes a
 deterministic `manual_review_reasons` list that makes the decision actionable. Reasons are recorded
 independently, so a single component can carry several codes rather than only the first matching
-condition. The 12 codes are:
+condition. The 13 codes are:
 
 | Code | Review trigger |
 |---|---|
@@ -195,6 +198,7 @@ condition. The 12 codes are:
 | `depends_on_incomplete_external_adapter` | The item depends on an incomplete external-adapter component. |
 | `external_dependency` | A required source dependency is external to the planned inventory. |
 | `incompatible_mapping` | The selected source-to-target mapping requires compatibility review. |
+| `assisted_evidence` | The object's evidence was inferred by an agent rather than read from a source system. |
 | `incomplete_dataform_compilation` | A Dataform compilation-result detail request failed, so the workflow graph is incomplete. |
 | `incomplete_external_adapter` | An external payload has incomplete evidence and no live adapter covers that service. |
 | `missing_required_evidence` | A required evidence field for the object's kind is absent. |

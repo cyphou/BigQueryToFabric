@@ -151,6 +151,24 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
                 "EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER",
                 "adapter",
             ))
+        if item.discovered_from == "assisted":
+            findings.append(AssessmentFinding(
+                "WARN",
+                item.source_id,
+                "Evidence was inferred by an assistant rather than read from a source "
+                "system; confirm it against the source before relying on this decision.",
+                "ASSISTED_EVIDENCE_UNVERIFIED",
+                "provenance",
+            ))
+            if missing:
+                findings.append(AssessmentFinding(
+                    "FAIL",
+                    item.source_id,
+                    f"{item.kind.value} has inferred evidence but is still missing: "
+                    f"{', '.join(missing)}. Inference did not close the gap.",
+                    "ASSISTED_EVIDENCE_INCOMPLETE",
+                    "provenance",
+                ))
         findings.extend(
             AssessmentFinding(
                 "FAIL" if item.kind is ObjectKind.SECURITY_POLICY else "WARN",

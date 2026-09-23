@@ -410,7 +410,7 @@ entry lists `severity`, `code`, `category`, `source`, and `message`, making `WAR
 conditions visible in the human review report. Treat these entries as actionable review evidence:
 resolve, document, or explicitly accept each relevant finding before relying on a migration wave.
 
-All 16 finding codes, with their severity, category, trigger, and the reviewer action each expects,
+All 18 finding codes, with their severity, category, trigger, and the reviewer action each expects,
 are tabulated in the
 [finding-code reference](MAPPING_REFERENCE.md#assessment-finding-codes). Triage by code, not by
 message text; message wording is not a stable contract.

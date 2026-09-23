@@ -20,10 +20,10 @@ validation commands.
 | Reference portfolio | 28 assessed components (`tests/fixtures/gcp_ecosystem_project.json`) |
 | Reference recommendation | Lakehouse primary · hybrid architecture · Airflow retained |
 | Generated package | 9 deterministic dry-run artifacts |
-| Assessment finding codes | 16 stable codes (see [mapping reference](MAPPING_REFERENCE.md#assessment-finding-codes)) |
-| Manual-review reason codes | 12 stable codes |
+| Assessment finding codes | 18 stable codes (see [mapping reference](MAPPING_REFERENCE.md#assessment-finding-codes)) |
+| Manual-review reason codes | 13 stable codes |
 | Parity check types | 7: `schema`, `row_count`, `checksum`, `aggregate`, `null_distribution`, `sample`, `sql_result` |
-| Test suite | 359 passed |
+| Test suite | 364 passed |
 | Coverage | 89% |
 | Static quality | Ruff clean · Pyright clean |
 | Agent contracts | 10 agents · exclusive ownership · documentation handoff · 1 skill validated |
@@ -221,7 +221,7 @@ execution, official Fabric schema validity, or deployment readiness.
   manifest records, verifies each referenced path, and fails for an invalid artifact referenced by
   a target whose `manualReview` flag is false. Invalid artifacts referenced by review-only targets
   are allowed.
-- **Validated:** `python -m pytest` passes in CI (359 passed at this release).
+- **Validated:** `python -m pytest` passes in CI (364 passed at this release).
 - **Open:** This is deterministic, offline consistency validation only. It does not validate
   official Fabric schemas or APIs, execute workloads, establish runtime/data parity, or authorize
   deployment.
@@ -481,8 +481,9 @@ execution, official Fabric schema validity, or deployment readiness.
 - **Expected:** A `PlanItem` marked `manual_review` retains that decision flag and records a
   deterministic reason list so reviewers can act on the specific planning condition. Both the
   human-readable migration plan and generated target manifest expose the decision and reasons.
-- **Implemented:** `PlanItem.manual_review_reasons` uses 12 stable codes:
-  `cycle_or_unresolved_dependency`, `depends_on_incomplete_dataform_compilation`,
+- **Implemented:** `PlanItem.manual_review_reasons` uses 13 stable codes:
+  `assisted_evidence`, `cycle_or_unresolved_dependency`,
+  `depends_on_incomplete_dataform_compilation`,
   `depends_on_incomplete_external_adapter`, `external_dependency`, `incompatible_mapping`,
   `incomplete_dataform_compilation`, `incomplete_external_adapter`,
   `missing_required_evidence`, `parity_failed`, `security_review`, `sql_incompatibility`, and
@@ -949,7 +950,7 @@ Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner until their adapters and sand
 exist.
 
 After the live-discovery gate, prioritize official format-specific validation for generated Fabric
-artifacts, then v0.5 runtime parity evidence. The current offline contracts and the 359-test suite
+artifacts, then v0.5 runtime parity evidence. The current offline contracts and the 364-test suite
 are strong foundations, but neither static checks nor dry-run generation proves cloud execution,
 semantic parity, or deployment readiness.
 

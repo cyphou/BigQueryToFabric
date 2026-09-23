@@ -32,6 +32,8 @@ clamps its component's readiness score to zero and blocks `deployment-check`.
 | `SECURITY_EFFECTIVE_ACCESS_REVIEW` | FAIL | security | Dataset ACL entry found | ACLs are not proof of effective IAM. Review inherited and org-level access. |
 | `SECURITY_EVIDENCE_MISSING` | FAIL | security | Required evidence absent on a `security_policy` | Complete the policy evidence. |
 | `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` | FAIL | adapter | `discovered_from: external_payload` with missing required evidence | No live adapter exists, so offline evidence must be complete. |
+| `ASSISTED_EVIDENCE_INCOMPLETE` | FAIL | provenance | `discovered_from: assisted` still missing required evidence | Inference did not close the gap; capture the real evidence. |
+| `ASSISTED_EVIDENCE_UNVERIFIED` | WARN | provenance | Any object with `discovered_from: assisted` | Evidence was inferred, not read. Confirm against the source. Always forces manual review. |
 | `DATAFORM_COMPILATION_DETAILS_UNAVAILABLE` | FAIL | adapter | Dataform compilation could not be read | Lineage is unproven; supply compilation output. |
 | `MAPPING_REDESIGN` | WARN | mapping | Target requires structural rework | Plan the redesign; it already forces manual review. |
 | `SQL_REDESIGN` | WARN | sql | GoogleSQL has no faithful translation | Rewrite and add parity evidence. |

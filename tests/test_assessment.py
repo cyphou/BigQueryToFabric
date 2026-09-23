@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from bqtofabric.assessment import run_assessment
 from bqtofabric.inventory import JsonInventoryProvider
 from bqtofabric.mapping import FabricTarget
@@ -274,6 +276,71 @@ def test_core_bigquery_objects_require_evidence() -> None:
     assert "columns" in missing("core-evidence.bare")
     assert "size_bytes" in missing("core-evidence.bare")
     assert "sql" in missing("core-evidence.view")
+
+
+def test_assisted_evidence_is_never_silently_trusted() -> None:
+    """Inferred evidence is usable input, never a cleared gate."""
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "assisted",
+        "components": [{
+            "source_id": "assisted.job",
+            "name": "job",
+            "kind": "dataproc_job",
+            "discovered_from": "assisted",
+            "properties": {
+                "language": "python",
+                "runtime_version": "2.1",
+                "code": "df = spark.read.parquet('/Shortcuts/raw')\n",
+            },
+        }],
+    })
+
+    report = run_assessment(inventory)
+    plan = build_plan(inventory, report)
+
+    # Evidence is complete, so there is no FAIL, but it still cannot pass unreviewed.
+    assert report.evidence_summary["assisted.job"]["missing"] == []
+    assert any(finding.code == "ASSISTED_EVIDENCE_UNVERIFIED" for finding in report.findings)
+    assert plan.items[0].manual_review is True
+    assert "assisted_evidence" in plan.items[0].manual_review_reasons
+
+
+def test_incomplete_assisted_evidence_blocks() -> None:
+    """Inference that did not close the gap must fail, like an incomplete adapter."""
+    inventory = BigQueryInventory.from_dict({
+        "project_id": "assisted-gap",
+        "components": [{
+            "source_id": "assisted-gap.job",
+            "name": "job",
+            "kind": "dataproc_job",
+            "discovered_from": "assisted",
+            "properties": {"language": "python"},
+        }],
+    })
+
+    report = run_assessment(inventory)
+
+    blockers = [finding for finding in report.findings if finding.severity == "FAIL"]
+    assert any(finding.code == "ASSISTED_EVIDENCE_INCOMPLETE" for finding in blockers)
+    assert report.score == 0
+
+
+def test_unknown_provenance_is_rejected() -> None:
+    """Provenance is a closed set so an unrecognised source cannot slip through."""
+    from bqtofabric.inventory import validate_inventory_document
+
+    document = {
+        "project_id": "bad-provenance",
+        "components": [{
+            "source_id": "bad-provenance.table",
+            "name": "table",
+            "kind": "table",
+            "discovered_from": "vibes",
+        }],
+    }
+
+    with pytest.raises(ValueError, match="Unknown inventory discovered_from"):
+        validate_inventory_document(document)
 
 
 def test_assessment_penalizes_missing_family_evidence() -> None:

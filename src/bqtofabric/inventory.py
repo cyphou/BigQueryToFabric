@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Any, Protocol
 
-from .models import BigQueryInventory, ObjectKind
+from .models import PROVENANCE_VALUES, BigQueryInventory, ObjectKind
 
 
 class BigQueryInventoryProvider(Protocol):
@@ -67,6 +67,13 @@ def _validate_object(value: Any, seen_ids: set[str]) -> None:
     if source_id in seen_ids:
         raise ValueError(f"Duplicate inventory source_id: {source_id}")
     seen_ids.add(source_id)
+    if "discovered_from" in value:
+        provenance = _require_string(value, "discovered_from", "Inventory object")
+        if provenance not in PROVENANCE_VALUES:
+            raise ValueError(
+                f"Unknown inventory discovered_from '{provenance}' for {source_id}; "
+                f"expected one of {', '.join(sorted(PROVENANCE_VALUES))}"
+            )
     for field_name in ("columns", "dependencies", "clustering_fields"):
         if field_name in value and not isinstance(value[field_name], list):
             raise ValueError(f"Inventory object {field_name} must be an array: {source_id}")

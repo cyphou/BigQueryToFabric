@@ -60,6 +60,11 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
         for finding in assessment.findings
         if finding.code == "EVIDENCE_MISSING"
     }
+    assisted_evidence_sources = {
+        finding.source_id
+        for finding in assessment.findings
+        if finding.code in {"ASSISTED_EVIDENCE_UNVERIFIED", "ASSISTED_EVIDENCE_INCOMPLETE"}
+    }
     remaining = set(objects)
     completed: set[str] = set()
     incomplete_adapter_dependencies: set[str] = set()
@@ -123,6 +128,8 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
                 reasons.append("security_review")
             if source_id in missing_evidence_sources:
                 reasons.append("missing_required_evidence")
+            if source_id in assisted_evidence_sources:
+                reasons.append("assisted_evidence")
             sql_assessment = sql_assessments.get(source_id)
             if sql_assessment and sql_assessment.compatibility.value in {"redesign", "unsupported"}:
                 reasons.append("sql_incompatibility")

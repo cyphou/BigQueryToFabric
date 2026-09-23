@@ -57,6 +57,21 @@ class Column:
         )
 
 
+# Where an object's evidence came from. `assisted` marks evidence inferred by an
+# agent rather than read from a source system, and is never allowed to clear a gate.
+PROVENANCE_VALUES = frozenset({
+    "inventory",
+    "bigquery_api",
+    "dataflow_api",
+    "composer_api",
+    "dataproc_api",
+    "dataform_api",
+    "external_payload",
+    "assisted",
+})
+UNVERIFIED_PROVENANCE = frozenset({"external_payload", "assisted"})
+
+
 @dataclass(frozen=True, slots=True)
 class BigQueryObject:
     source_id: str

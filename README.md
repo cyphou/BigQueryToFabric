@@ -22,7 +22,7 @@
 | | At a glance |
 |---|---|
 | 🔍 **Discovery** | Read-only BigQuery metadata, plus opt-in read-only adapters for Dataflow, Dataproc, Dataform, and Composer · credentials redacted by construction · principals pseudonymized |
-| 🧭 **Assessment** | 26 source kinds · per-component, evidence-scaled readiness score · 16 explainable finding codes |
+| 🧭 **Assessment** | 26 source kinds · per-component, evidence-scaled readiness score · 18 explainable finding codes |
 | 🏗️ **Fabric routing** | 15 target roles · compatibility-weighted strategy selection · workload overrides |
 | 🧪 **Quality** | Ruff and Pyright clean (`python -m pyright`; `python -m ruff check src tests`) |
 | 🤖 **Agent model** | 10 specialist agents · exclusive ownership and documentation handoff validated |
@@ -343,7 +343,7 @@ artifacts.
 also contains deterministic `manual_review_reasons` so the review is actionable. Reasons are
 recorded independently, so one component can carry several. Generated `migration-plan.md` renders
 the flag and codes; `fabric/target-manifest.json` exposes the same values as `manualReview` and
-`manualReviewReasons`. The 12 supported reason codes and their triggers are documented in the
+`manualReviewReasons`. The 13 supported reason codes and their triggers are documented in the
 [mapping reference](docs/MAPPING_REFERENCE.md#manual-review-decision-contract). This is offline
 planning metadata only and makes no cloud calls or deployment changes.
 
@@ -352,7 +352,7 @@ planning metadata only and makes no cloud calls or deployment changes.
 Generated `migration-plan.md` includes a `Findings` section that carries assessment findings into
 the review report. Each finding lists `severity`, `code`, `category`, `source`, and `message` so
 `WARN` and `FAIL` outcomes can be triaged from the plan without opening `assessment.json` first.
-The complete list of 16 finding codes, with the reviewer action each expects, is in the
+The complete list of 18 finding codes, with the reviewer action each expects, is in the
 [finding-code reference](docs/MAPPING_REFERENCE.md#assessment-finding-codes).
 These findings are dry-run evidence only; their presence does not prove remediation, deployment
 readiness, or Fabric runtime parity.

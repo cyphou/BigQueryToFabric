@@ -116,10 +116,29 @@ findings report the affected column paths, so nested detail is what makes a `TYP
 | `dataproc_api` | Opt-in read-only regional Dataproc adapter |
 | `dataform_api` | Opt-in read-only Dataform adapter |
 | `external_payload` | An associated-service payload supplied by the author and normalized offline |
+| `assisted` | Evidence inferred by an agent from a source artifact rather than read from a source system |
+
+Any other value is rejected by `bqtofabric validate`.
 
 Provenance identifies the acquisition path only. It is not a freshness, trusted-execution, or
 effective-access assertion. Services without a live adapter — Workflows, Pub/Sub, GCS, Looker,
 Vertex AI, Dataplex, Cloud SQL, and Spanner — never produce an API provenance value.
+
+### Inferred evidence
+
+`assisted` marks evidence an agent inferred, typically by reading a source artifact that no live
+adapter captures — for example a Dataproc job body, which discovery records only as a `main_file`
+URI. It is the supported way to combine judgement with a deterministic assessment: the agent
+supplies evidence, the engine still derives the verdict.
+
+Inferred evidence is never allowed to clear a gate on its own:
+
+- Missing required evidence is a `FAIL` `ASSISTED_EVIDENCE_INCOMPLETE`, as for `external_payload`.
+- Even complete evidence emits a `WARN` `ASSISTED_EVIDENCE_UNVERIFIED` and sets the
+  `assisted_evidence` manual-review reason, so the component can never reach a wave unreviewed.
+
+Do not label inferred evidence with an `*_api` value. That would let an inference clear a gate
+reserved for evidence read from a source system.
 
 ## `kind` Values
 
