@@ -7,6 +7,8 @@ from typing import Any
 
 from ..artifact_validation import NotebookValidator
 from ..assessment import AssessmentReport
+from ..converter.models import SparkCodeLanguage
+from ..converter.spark_converter import SparkConverter
 from ..mapping import FabricTarget, MappingDecision
 from ..models import BigQueryInventory, BigQueryObject, ObjectKind
 
@@ -191,8 +193,10 @@ class NotebookGenerator:
         ]
         cells.append(NotebookCell(cell_type="code", source=import_lines))
 
-        # Source SQL/code cell
-        if item.sql:
+        source_code = item.properties.get("code")
+        if isinstance(source_code, str) and source_code.strip():
+            cells.append(self._build_converted_code_cell(item, source_code, warnings))
+        elif item.sql:
             sql_lines = [
                 f"# Source SQL from {item.source_id}\n",
                 "# TODO: MANUAL REVIEW - Validate SQL syntax and adjust for Fabric\n",
@@ -229,6 +233,55 @@ class NotebookGenerator:
         cells.append(NotebookCell(cell_type="code", source=transform_lines))
 
         return cells
+
+    def _build_converted_code_cell(
+        self, item: BigQueryObject, source_code: str, warnings: list[str]
+    ) -> NotebookCell:
+        """Emit the converted source body so the notebook carries the original logic."""
+        language = str(item.properties.get("language", "python")).strip().lower()
+        spark_language = (
+            SparkCodeLanguage.SCALA if "scala" in language else SparkCodeLanguage.PYSPARK
+        )
+        conversion = SparkConverter().convert(item.source_id, source_code, spark_language)
+
+        warnings.extend(warning.message for warning in conversion.warnings)
+        warnings.extend(step.step for step in conversion.manual_steps)
+
+        if not conversion.target_text.strip():
+            warnings.append(
+                f"{spark_language.value} source could not be converted; the original body "
+                "is preserved as a comment and must be reimplemented."
+            )
+            return NotebookCell(cell_type="code", source=[
+                (
+                    f"# TODO: MANUAL REVIEW - {spark_language.value} source from "
+                    f"{item.source_id} has no automatic conversion path.\n"
+                ),
+                "# Original source retained for reference:\n",
+                *[f"# {line}\n" for line in source_code.splitlines()],
+                "\n",
+                "df_source = spark.read.format('delta').load(INPUT_PATH)\n",
+            ])
+
+        lines = [
+            f"# Converted from {item.source_id}\n",
+            "# TODO: MANUAL REVIEW - Verify the converted logic against the source job.\n",
+            "\n",
+            *[f"{line}\n" for line in conversion.target_text.splitlines()],
+        ]
+        # The converted body owns the pipeline, so expose its result under the name the
+        # sink cell expects without assuming the source defined it.
+        if "df_source" not in conversion.target_text:
+            lines.extend([
+                "\n",
+                "# TODO: MANUAL REVIEW - Point df_source at the DataFrame this job produces.\n",
+                "df_source = spark.read.format('delta').load(INPUT_PATH)\n",
+            ])
+            warnings.append(
+                "Converted code does not define df_source; the sink cell needs to be bound "
+                "to the DataFrame the job produces."
+            )
+        return NotebookCell(cell_type="code", source=lines)
 
     def _build_sink_cell(self, item: BigQueryObject, decision: MappingDecision) -> NotebookCell:
         """Build the Lakehouse sink cell."""

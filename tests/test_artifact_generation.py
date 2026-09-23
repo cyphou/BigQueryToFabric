@@ -194,6 +194,73 @@ class TestNotebookGenerator:
         assert notebook.valid is True
         assert any("not carried over" in warning for warning in notebook.warnings)
 
+    def test_notebook_carries_over_converted_source_code(self, spark_job) -> None:
+        """When source code is supplied, the notebook must contain the converted logic."""
+        code = (
+            "from pyspark.sql import SparkSession\n"
+            "session = SparkSession.builder.appName('etl').getOrCreate()\n"
+            "df_source = session.read.parquet('gs://acme-raw/events')\n"
+        )
+        job = BigQueryObject(
+            source_id="project.dataproc.etl",
+            name="etl",
+            kind=ObjectKind.DATAPROC_JOB,
+            dataset="dataproc",
+            properties={"language": "python", "runtime_version": "2.1", "code": code},
+        )
+        decision = MappingDecision(
+            source_id=job.source_id,
+            source_kind=job.kind,
+            target=FabricTarget.NOTEBOOK,
+            compatibility=Compatibility.TRANSFORM,
+            rationale="Dataproc job.",
+        )
+        inventory = BigQueryInventory(
+            project_id="test", datasets=(), components=(job,), metadata={}
+        )
+
+        notebook = NotebookGenerator(inventory, run_assessment(inventory)).generate_notebook(
+            job, decision
+        )
+
+        assert notebook is not None
+        body = "".join(
+            "".join(cell.source) for cell in notebook.cells if cell.cell_type == "code"
+        )
+        assert "df_source = session.read.parquet" in body
+        assert "gs://" not in body
+        assert "/Shortcuts/gcs_acme-raw/events" in body
+        assert "session = spark" in body
+        assert notebook.valid is True
+        assert any("Rewrote storage path" in warning for warning in notebook.warnings)
+
+    def test_notebook_without_source_code_says_so(self, spark_job) -> None:
+        """Absent source code must be stated, not silently replaced with a template."""
+        job = BigQueryObject(
+            source_id="project.dataproc.opaque",
+            name="opaque",
+            kind=ObjectKind.DATAPROC_JOB,
+            dataset="dataproc",
+            properties={"language": "python", "runtime_version": "2.1"},
+        )
+        decision = MappingDecision(
+            source_id=job.source_id,
+            source_kind=job.kind,
+            target=FabricTarget.NOTEBOOK,
+            compatibility=Compatibility.TRANSFORM,
+            rationale="Dataproc job.",
+        )
+        inventory = BigQueryInventory(
+            project_id="test", datasets=(), components=(job,), metadata={}
+        )
+
+        notebook = NotebookGenerator(inventory, run_assessment(inventory)).generate_notebook(
+            job, decision
+        )
+
+        assert notebook is not None
+        assert any("not carried over" in warning for warning in notebook.warnings)
+
     def test_notebook_validator_rejects_undefined_dataframe(self) -> None:
         """The validator must still reject code that uses a DataFrame it never defines."""
         from bqtofabric.artifact_validation import NotebookValidator

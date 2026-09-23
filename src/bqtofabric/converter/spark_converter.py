@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from ..models import BigQueryObject, ObjectKind
@@ -162,6 +163,14 @@ class SparkConverter:
         # Map storage paths
         storage_mapping = StoragePathMapper.map_multiple_paths(storage_paths, lakehouse_name)
 
+        target_text, rewrites = self._rewrite_pyspark(code, storage_mapping)
+        for rewrite in rewrites:
+            warnings.append(
+                ConversionWarning(message=rewrite, category="rewrite", severity="info")
+            )
+        if rewrites and compat_level == CompatibilityLevel.DIRECT:
+            compat_level = CompatibilityLevel.TRANSFORM
+
         # Detect all patterns
         patterns = analyze_pyspark_code(code)
 
@@ -213,7 +222,7 @@ class SparkConverter:
             language=SparkCodeLanguage.PYSPARK,
             source_text=self._redact(code),
             target_language="pyspark_notebook",
-            target_text=self._redact(code),  # No transformation for now; code is portable.
+            target_text=self._redact(target_text),
             compatibility_level=compat_level,
             warnings=tuple(warnings),
             manual_steps=tuple(manual_steps),
@@ -223,6 +232,59 @@ class SparkConverter:
             storage_mapping={path: storage_mapping[path] for path in storage_paths},
             rationale="PySpark code analyzed for Fabric compatibility.",
         )
+
+    def _rewrite_pyspark(
+        self, code: str, storage_mapping: dict[str, dict[str, Any]]
+    ) -> tuple[str, list[str]]:
+        """Rewrite the parts of a PySpark job that Fabric changes mechanically.
+
+        Only substitutions with an unambiguous target are applied; everything else is
+        left intact so a reviewer sees the original logic rather than a guess.
+        """
+        rewritten = code
+        notes: list[str] = []
+
+        for source_path, mapping in sorted(storage_mapping.items()):
+            target_path = mapping.get("target_path")
+            if not target_path or source_path not in rewritten:
+                continue
+            rewritten = rewritten.replace(source_path, str(target_path))
+            notes.append(f"Rewrote storage path {source_path} to {target_path}.")
+
+        # Fabric provides a live SparkSession; re-creating one is ignored at best.
+        session_pattern = re.compile(
+            r"(?m)^([ \t]*)([A-Za-z_][A-Za-z0-9_]*)\s*=\s*SparkSession\s*\.\s*builder"
+            r"[\s\S]*?\.\s*getOrCreate\s*\(\s*\)"
+        )
+        rewritten, session_count = session_pattern.subn(
+            lambda match: (
+                f"{match.group(1)}# Fabric provides the SparkSession"
+                if match.group(2) == "spark"
+                else f"{match.group(1)}{match.group(2)} = spark  "
+                "# Fabric provides the SparkSession"
+            ),
+            rewritten,
+        )
+        if session_count:
+            notes.append(
+                f"Replaced {session_count} SparkSession construction(s) with the "
+                "Fabric-provided session."
+            )
+
+        context_pattern = re.compile(
+            r"(?m)^([ \t]*)([A-Za-z_][A-Za-z0-9_]*)\s*=\s*SparkContext\s*\([^)]*\)"
+        )
+        rewritten, context_count = context_pattern.subn(
+            lambda match: f"{match.group(1)}{match.group(2)} = spark.sparkContext",
+            rewritten,
+        )
+        if context_count:
+            notes.append(
+                f"Replaced {context_count} SparkContext construction(s) with "
+                "spark.sparkContext."
+            )
+
+        return rewritten, notes
 
     def _convert_scala(
         self,

@@ -311,6 +311,7 @@ def test_assessment_accepts_complete_family_evidence() -> None:
             "properties": {
                 "language": "python",
                 "runtime_version": "3.5",
+                "code": "df = spark.read.parquet('/Shortcuts/raw')\n",
             },
         }],
     })
@@ -328,7 +329,11 @@ def test_assessment_does_not_treat_unknown_runtime_as_evidence() -> None:
             "source_id": "dataproc-unknown-runtime.job",
             "name": "job",
             "kind": "dataproc_job",
-            "properties": {"language": "python", "runtime_version": "unknown"},
+            "properties": {
+                "language": "python",
+                "runtime_version": "unknown",
+                "code": "df = spark.read.parquet('/Shortcuts/raw')\n",
+            },
         }],
     })
 
