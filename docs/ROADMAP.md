@@ -23,7 +23,7 @@ validation commands.
 | Assessment finding codes | 18 stable codes (see [mapping reference](MAPPING_REFERENCE.md#assessment-finding-codes)) |
 | Manual-review reason codes | 13 stable codes |
 | Parity check types | 7: `schema`, `row_count`, `checksum`, `aggregate`, `null_distribution`, `sample`, `sql_result` |
-| Test suite | 390 passed |
+| Test suite | passes in CI (`python -m pytest`) |
 | Coverage | 89% |
 | Static quality | Ruff clean · Pyright clean |
 | Agent contracts | 12 agents · exclusive ownership · documentation handoff · 5 skills validated |
@@ -221,7 +221,7 @@ execution, official Fabric schema validity, or deployment readiness.
   manifest records, verifies each referenced path, and fails for an invalid artifact referenced by
   a target whose `manualReview` flag is false. Invalid artifacts referenced by review-only targets
   are allowed.
-- **Validated:** `python -m pytest` passes in CI (390 passed at this release).
+- **Validated:** `python -m pytest` passes in CI.
 - **Open:** This is deterministic, offline consistency validation only. It does not validate
   official Fabric schemas or APIs, execute workloads, establish runtime/data parity, or authorize
   deployment.
@@ -950,7 +950,7 @@ Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner until their adapters and sand
 exist.
 
 After the live-discovery gate, prioritize official format-specific validation for generated Fabric
-artifacts, then v0.5 runtime parity evidence. The current offline contracts and the 390-test suite
+artifacts, then v0.5 runtime parity evidence. The current offline contracts and the test suite
 are strong foundations, but neither static checks nor dry-run generation proves cloud execution,
 semantic parity, or deployment readiness.
 

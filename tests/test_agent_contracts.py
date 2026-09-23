@@ -54,3 +54,23 @@ def test_escalation_paths_are_documented() -> None:
     assert "Preceptor" in instructions
     assert "TechLead" in instructions
     assert "Escalation" in instructions
+
+
+def test_deep_dive_report_is_current() -> None:
+    """The committed report is generated; nothing otherwise notices when it goes stale."""
+    import json
+    import re
+
+    from scripts.refresh_deep_dive_report import REPORT, build_objects
+
+    embedded = re.search(
+        r"const OBJECTS = \[\n(.*?)\n\];", REPORT.read_text(encoding="utf-8"), re.DOTALL
+    )
+    assert embedded is not None, "OBJECTS block not found in the report"
+
+    published = json.loads(f"[{embedded.group(1)}]")
+
+    assert published == build_objects(), (
+        "docs/assessment-object-deep-dive.html is stale; "
+        "run python scripts/refresh_deep_dive_report.py"
+    )

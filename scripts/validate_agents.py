@@ -61,12 +61,17 @@ def _validate_roster(names: set[str]) -> list[str]:
         return ["docs/AGENTS.md is missing"]
 
     text = roster_path.read_text(encoding="utf-8")
+    # Scope to the roster table so an unrelated table in this file cannot be read as agents.
+    table = re.search(
+        r"^\| Agent \| Responsibility \|\n\|[-| ]+\|\n((?:\|.*\|\n)+)", text, re.MULTILINE
+    )
+    if table is None:
+        return ["docs/AGENTS.md has no '| Agent | Responsibility |' roster table"]
+
     documented = {
         match.group(1).strip()
-        for match in re.finditer(r"^\| ([A-Za-z]+) \| .+ \|$", text, re.MULTILINE)
+        for match in re.finditer(r"^\| ([A-Za-z]+) \| .+ \|$", table.group(1), re.MULTILINE)
     }
-    documented.discard("Agent")
-    documented.discard("Escalate to")
 
     errors: list[str] = []
     for missing in sorted(names - documented):

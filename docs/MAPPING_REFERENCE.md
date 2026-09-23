@@ -16,6 +16,27 @@
 | Policy tags | Purview and Fabric permissions | Manual governance review required |
 | Row access policy | Workspace/item permissions and RLS | No automatic 1:1 security translation |
 
+## Connections
+
+A BigQuery connection carries exactly one backend block, and each maps to a different
+Fabric recreation path. Fabric connections are created once and bound by reference, so the
+migration output is a setup instruction, never a credential.
+
+| Backend | Fabric target | How to recreate |
+|---|---|---|
+| `cloudSql` (POSTGRES) | Data Pipeline connection | Create a PostgreSQL connection in Fabric; add a gateway if the instance is not publicly reachable |
+| `cloudSql` (MYSQL) | Data Pipeline connection | Create a MySQL connection in Fabric; same gateway consideration |
+| `cloudSpanner` | Manual — **redesign** | Fabric has no native Spanner connector; replicate into OneLake or a Fabric SQL database |
+| `aws` | OneLake shortcut | Create an Amazon S3 shortcut or S3 pipeline connection; the AWS IAM role trust must be reissued for Fabric |
+| `azure` | Data Pipeline connection | Replace the federated Entra application with a Fabric workspace identity or service principal, then re-grant the target resource |
+| `cloudResource` | OneLake shortcut | Create a Google Cloud Storage shortcut or GCS connection; grant it its own credential |
+| `spark` | Lakehouse | Drop the connection and bind the migrated notebook to its Lakehouse |
+
+When the Cloud SQL engine is not recorded, assessment returns `manual`/`redesign` rather
+than naming a connector, because the Fabric connection type cannot be derived without it.
+An unrecognized backend falls through to `manual`/`redesign` for the same reason; the
+backend list above is not exhaustive and newer BigQuery backends will take that path.
+
 ## Assessment finding codes
 
 Assessment emits 18 stable finding codes. Codes are the review contract; message text is not.
@@ -37,7 +58,7 @@ accepted. Every `WARN` requires documented design or manual review.
 | `PERFORMANCE_CLUSTERING_REVIEW` | WARN | performance | A `TABLE`, `EXTERNAL_TABLE`, or `MATERIALIZED_VIEW` at or above `10 GiB` records no clustering fields. | Choose a target clustering or ordering strategy during design review. This is not a measured performance claim. |
 | `PERFORMANCE_PARTITION_REVIEW` | WARN | performance | A `TABLE`, `EXTERNAL_TABLE`, or `MATERIALIZED_VIEW` at or above `10 GiB` records no partition field. | Choose a target partitioning strategy during design review. This is not a measured performance claim. |
 | `SECURITY_EFFECTIVE_ACCESS_REVIEW` | FAIL | security | A `security_policy` record with `evidence_scope: dataset_access_entry` is present. Dataset ACLs do not establish effective access. | Have a security administrator evaluate project, organization, group, and inherited IAM, then define the Fabric equivalent. |
-| `SECURITY_EVIDENCE_MISSING` | WARN | security | A security-relevant object lacks the policy evidence its kind requires. | Supply the policy evidence or record the control as manually reviewed. |
+| `SECURITY_EVIDENCE_MISSING` | FAIL | security | A security-relevant object lacks the policy evidence its kind requires. | Supply the policy evidence or record the control as manually reviewed. |
 | `SQL_REDESIGN` | WARN | sql | SQL conversion produced a `redesign` verdict, including non-SQL routine bodies such as JavaScript UDFs. | Rewrite the logic for the target engine. No converted SQL is emitted for a non-SQL body. |
 | `STREAMING_DOWNSTREAM_REVIEW` | WARN | streaming | The object is a transitive downstream consumer of a `DATAFLOW_JOB` with `properties.streaming: true`. | Review deduplication, idempotency, and out-of-order delivery for the consumer. |
 | `TYPE_REDESIGN` | WARN | type | A source column type has no direct Fabric equivalent and needs a modeled replacement. | Choose the target type and record the conversion rule. The finding lists the affected column paths. |

@@ -198,7 +198,8 @@ def _map_connection_target(item: BigQueryObject) -> MappingDecision:
         (
             (
                 "Record the connection backend (cloudSql, cloudSpanner, aws, azure, "
-                "cloudResource, or spark), then re-assess."
+                "cloudResource, or spark). Newer BigQuery backends exist and are not "
+                "recognized here; those stay manual."
             ),
             never_copy,
         ),

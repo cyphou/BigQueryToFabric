@@ -13,7 +13,7 @@
 <p align="center">
 	<img alt="Version 0.1.0" src="https://img.shields.io/badge/version-0.1.0-146C94?style=for-the-badge"/>
 	<img alt="Python 3.12+" src="https://img.shields.io/badge/python-3.12+-3776AB?style=for-the-badge&amp;logo=python&amp;logoColor=white"/>
-	<img alt="Tests 359 passing" src="https://img.shields.io/badge/tests-359%20passing-1F883D?style=for-the-badge"/>
+	<img alt="Tests passing" src="https://img.shields.io/badge/tests-passing-1F883D?style=for-the-badge"/>
 	<img alt="Static checks passing" src="https://img.shields.io/badge/static%20checks-Ruff%20%2B%20Pyright-12A594?style=for-the-badge"/>
 	<img alt="Dry run by default" src="https://img.shields.io/badge/cloud-dry--run%20default-F2C811?style=for-the-badge"/>
 	<a href="LICENSE"><img alt="MIT License" src="https://img.shields.io/badge/license-MIT-2EA44F?style=for-the-badge"/></a>
