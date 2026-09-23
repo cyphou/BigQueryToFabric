@@ -87,8 +87,15 @@ input, select { min-width: 0; border: 1px solid var(--cp-border); border-radius:
 .section { border-top: 1px solid var(--cp-border); padding-top: 15px; margin-top: 15px; } .section h3 { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--cp-text-soft); margin: 0 0 8px; } ul { margin: 0; padding-left: 19px; color: var(--cp-text-muted); font-size: .88rem; } li + li { margin-top: 6px; }
 .source-code { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0 0; padding: 12px; border: 1px solid var(--cp-border); border-radius: 10px; background: var(--cp-surface-soft); color: var(--cp-text); font: .78rem/1.5 Consolas, "Courier New", Courier, monospace; }
 .empty { padding: 42px; text-align: center; color: var(--cp-text-soft); }
+.finding-panel { margin-top: 16px; }
+.finding-row { display: grid; grid-template-columns: 100px 1.2fr 1fr; gap: 14px; padding: 13px 20px; border-bottom: 1px solid var(--cp-border); }
+.finding-row:last-child { border-bottom: 0; }
+.finding-code { color: var(--cp-accent); font: .76rem Consolas, "Courier New", Courier, monospace; font-weight: 700; }
+.finding-source { color: var(--cp-text-muted); font: .78rem Consolas, "Courier New", Courier, monospace; word-break: break-word; }
+.finding-message { color: var(--cp-text-muted); font-size: .88rem; }
 @media (max-width: 950px) { .layout { grid-template-columns: 1fr; } .detail { position: static; } }
 @media (max-width: 620px) { .shell { padding: 14px; } .header { display: block; } .summary { text-align: left; margin-top: 16px; } .toolbar { grid-template-columns: 1fr; } }
+@media (max-width: 620px) { .finding-row { grid-template-columns: 1fr; gap: 5px; } }
 </style>
 </head>
 <body>
@@ -102,6 +109,7 @@ input, select { min-width: 0; border: 1px solid var(--cp-border); border-radius:
     <div class="panel"><div class="panel-title"><h2>Object register</h2><span class="subtle" id="count">28 objects</span></div><div class="table-wrap"><table><thead><tr><th>Object</th><th>Target</th><th>Wave</th><th>SQL</th><th>Status</th></tr></thead><tbody id="rows"></tbody></table><div id="empty" class="empty" hidden>No objects match these filters.</div></div></div>
     <aside class="detail" id="detail"><h2>Select an object</h2><p>Click any row to inspect object-level assessment details.</p></aside>
   </section>
+  <section class="panel finding-panel"><div class="panel-title"><h2>Assessment findings</h2><span class="subtle" id="findingCount">8 priority findings</span></div><div id="findings"></div></section>
 </main>
 <script>
 const OBJECTS = [
@@ -152,6 +160,7 @@ const target = document.querySelector("#target");
 const review = document.querySelector("#review");
 const count = document.querySelector("#count");
 const empty = document.querySelector("#empty");
+const findings = document.querySelector("#findings");
 const esc = (value) => String(value).replace(/[&<>"']/g, (char) => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;","'":"&#39;"}[char]));
 const list = (values, fallback) => values.length ? `<ul>${values.map((value) => `<li><code>${esc(value)}</code></li>`).join("")}</ul>` : `<p>${fallback}</p>`;
 const renderDetail = (item) => {
@@ -183,6 +192,17 @@ const render = () => {
   empty.hidden = filtered.length !== 0;
   rows.querySelectorAll("tr").forEach((row) => row.addEventListener("click", () => { rows.querySelectorAll("tr").forEach((item) => item.classList.remove("selected")); row.classList.add("selected"); renderDetail(OBJECTS[Number(row.dataset.index)]); }));
 };
+const FINDINGS = [
+  {severity:"FAIL", code:"MAPPING_UNSUPPORTED", source:"gcp-data-platform.security.customer_policy", message:"Security policies have no safe automatic one-to-one migration."},
+  {severity:"WARN", code:"SQL_REDESIGN", source:"gcp-data-platform.analytics.refresh_daily_metrics", message:"The parser identified a dialect command that requires manual script redesign."},
+  {severity:"WARN", code:"MAPPING_REDESIGN", source:"gcp-data-platform.analytics.hash_customer_id", message:"JavaScript routines require notebook redesign. SQL routines may translate to T-SQL."},
+  {severity:"WARN", code:"MAPPING_REDESIGN", source:"gcp-data-platform.dataflow.realtime_ingestion", message:"Apache Beam pipelines require redesign as Eventstream or Fabric notebook pipelines."},
+  {severity:"WARN", code:"EVIDENCE_MISSING", source:"gcp-data-platform.composer.platform_dag", message:"Assessment evidence is missing: runtime_version and connections."},
+  {severity:"WARN", code:"EVIDENCE_MISSING", source:"gcp-data-platform.bqml.churn", message:"Assessment evidence is missing: model_type, features, and evaluation_metrics."},
+  {severity:"WARN", code:"ACTION_REQUIRED", source:"gcp-data-platform.security.customer_policy", message:"Recreate policy tags, permissions, authorized views, and RLS; validate effective access."},
+  {severity:"WARN", code:"TYPE_REDESIGN", source:"STRUCT / GEOGRAPHY", message:"Keep nested or geospatial data in Lakehouse or flatten with explicit lineage."}
+];
+findings.innerHTML = FINDINGS.map((item) => `<div class="finding-row"><div class="finding-code">${esc(item.severity)}<br>${esc(item.code)}</div><div class="finding-source">${esc(item.source)}</div><div class="finding-message">${esc(item.message)}</div></div>`).join("");
 [...new Set(OBJECTS.map((item) => item.target))].sort().forEach((value) => target.insertAdjacentHTML("beforeend", `<option value="${esc(value)}">${esc(value)}</option>`));
 [search, target, review].forEach((control) => control.addEventListener("input", render));
 render();
