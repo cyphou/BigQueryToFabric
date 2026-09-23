@@ -6,6 +6,7 @@ from bqtofabric.inventory import JsonInventoryProvider
 from bqtofabric.mapping import FabricTarget
 from bqtofabric.models import BigQueryInventory
 from bqtofabric.planner import build_plan
+from bqtofabric.type_mapping import Compatibility
 
 FIXTURE = Path(__file__).parent / "fixtures" / "mixed_project.json"
 GCP_FIXTURE = Path(__file__).parent / "fixtures" / "gcp_ecosystem_project.json"
@@ -102,6 +103,61 @@ def test_sql_redesign_requires_manual_plan_review() -> None:
     plan = build_plan(inventory, report)
 
     assert plan.items[0].manual_review is True
+
+
+def test_javascript_routine_is_never_reported_as_translatable_sql() -> None:
+    """A JavaScript UDF has no SQL translation path and must not be marked direct."""
+    inventory = type(JsonInventoryProvider(FIXTURE).load()).from_dict({
+        "project_id": "sql-lang",
+        "components": [{
+            "source_id": "sql-lang.hash_id",
+            "name": "hash_id",
+            "kind": "routine",
+            "sql": "CREATE FUNCTION hash_id(value STRING) RETURNS STRING LANGUAGE js AS 'return value;'",
+            "properties": {"language": "JAVASCRIPT"},
+        }],
+    })
+
+    result = run_assessment(inventory).sql_assessments[0]
+
+    assert result.compatibility is Compatibility.REDESIGN
+    assert result.converted_sql is None
+    assert any("JAVASCRIPT" in note for note in result.notes)
+
+
+def test_sql_compatibility_never_defaults_to_direct() -> None:
+    """Unrecognised-but-parseable GoogleSQL must not be blessed as directly compatible."""
+    inventory = type(JsonInventoryProvider(FIXTURE).load()).from_dict({
+        "project_id": "sql-default",
+        "components": [{
+            "source_id": "sql-default.wildcard",
+            "name": "wildcard",
+            "kind": "view",
+            "sql": "SELECT * FROM `project.dataset.events_*` WHERE _TABLE_SUFFIX = '20240101'",
+        }],
+    })
+
+    result = run_assessment(inventory).sql_assessments[0]
+
+    assert result.compatibility is not Compatibility.DIRECT
+    assert any("_TABLE_SUFFIX" in note for note in result.notes)
+
+
+def test_sql_compatibility_is_never_better_than_the_mapping_decision() -> None:
+    """SQL and mapping are two axes of the same component; report the worse one."""
+    inventory = JsonInventoryProvider(GCP_FIXTURE).load()
+    report = run_assessment(inventory)
+    decisions = {decision.source_id: decision for decision in report.decisions}
+    order = [
+        Compatibility.DIRECT,
+        Compatibility.TRANSFORM,
+        Compatibility.REDESIGN,
+        Compatibility.UNSUPPORTED,
+    ]
+
+    for result in report.sql_assessments:
+        decision = decisions[result.source_id]
+        assert order.index(result.compatibility) >= order.index(decision.compatibility)
 
 
 def test_assessment_penalizes_missing_family_evidence() -> None:
