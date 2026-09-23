@@ -29,7 +29,8 @@ class DataflowInventoryProvider:
             for region in regions
             for resource in self.client.list_jobs(region)
         ]
-        return tuple(sorted(jobs, key=lambda item: item.source_id))
+        unique = {job.source_id: job for job in jobs}
+        return tuple(unique[source_id] for source_id in sorted(unique))
 
     def _map_job(self, region: str, resource: dict[str, Any]) -> BigQueryObject:
         job_id = str(resource.get("id", ""))

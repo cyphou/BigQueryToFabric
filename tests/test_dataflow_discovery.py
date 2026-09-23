@@ -139,6 +139,15 @@ def test_dataflow_output_is_deterministic_and_merge_preserves_bigquery_inventory
     ]
 
 
+def test_dataflow_duplicate_page_items_are_deduplicated() -> None:
+    job = _job("same", "JOB_TYPE_BATCH")
+    client = _FakeDataflowClient({"us-central1": [job, dict(job)]})
+
+    objects = DataflowInventoryProvider("demo-project", client).load(["us-central1"])
+
+    assert [item.source_id for item in objects] == ["demo-project.dataflow.us-central1.same"]
+
+
 class _FailingSession:
     def get(self, url: str, params: dict | None = None, timeout: int = 60) -> _Response:
         return _Response(403, {"error": "Bearer ya29.super-secret"})

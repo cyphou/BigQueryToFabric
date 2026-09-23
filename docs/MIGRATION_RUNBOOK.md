@@ -128,6 +128,24 @@ python -m pytest tests/test_models.py tests/test_cli.py -v
 
 The validated result is `15 passed`.
 
+### Validate adapter contract edge cases
+
+Composer normalization extracts task connection names even when the DAG dependency map is empty.
+If no task declares a connection, it emits explicit `connections: []`, which is distinct from
+missing evidence. Dataflow discovery deduplicates repeated job IDs across regional and paginated
+payloads deterministically.
+
+Run the focused offline contract tests with:
+
+```powershell
+python -m pytest tests/test_discovery.py tests/test_dataflow_discovery.py -v
+```
+
+The validated result is `50 passed`. These fixtures do not validate official GCP API behavior,
+live permissions, metadata freshness, runtime or data parity, or an authorized live-GCP sandbox.
+Composer remains offline normalization/assessment only; Dataflow discovery is live only when
+explicit regions are requested and does not scan all regions.
+
 ## Assess a live GCP project
 
 1. Install the optional dependencies and enable the **BigQuery API**, **BigQuery Data Transfer API**,

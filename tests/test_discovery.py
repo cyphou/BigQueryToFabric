@@ -592,6 +592,19 @@ def test_composer_extracts_declared_connection_names() -> None:
     assert daily_etl.properties["connections"] == ["analytics-prod"]
 
 
+def test_composer_empty_dependency_graph_still_emits_connections() -> None:
+    provider, payload = build_composer_provider()
+    dag = payload["dags"][0]
+    dag["serializedDag"]["dependencies"] = {}
+    dag["serializedDag"]["_task_cycle"] = [{"task_id": "only", "task_type": "BashOperator"}]
+
+    components = provider.load(["us-central1"])
+    daily_etl = next(item for item in components if item.name == "daily_revenue_etl")
+
+    assert daily_etl.properties["operators"] == ["BashOperator"]
+    assert daily_etl.properties["connections"] == []
+
+
 def test_composer_extracts_bigquery_dependencies() -> None:
     provider, _ = build_composer_provider()
     components = provider.load(["us-central1"])

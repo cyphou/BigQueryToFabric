@@ -11,6 +11,9 @@
   labels, timestamps, and present environment/pipeline metadata only. `portable` and
   `connector_compatible` remain absent unless directly supplied by the API payload, so assessment
   reports missing evidence rather than inferring compatibility.
+- Composer connection extraction and Dataflow job-ID deduplication are validated deterministic
+  offline contracts. They do not establish live Composer adapter support, live Dataflow coverage,
+  API parity, permission coverage, metadata freshness, or an authorized live-GCP sandbox result.
 - An associated GCP component supplied through `external_payload` without required adapter
   evidence produces FAIL `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` and propagates a manual-review
   requirement to downstream components. This signals incomplete scope or evidence, not a missing

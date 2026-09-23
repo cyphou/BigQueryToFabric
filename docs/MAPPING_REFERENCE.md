@@ -59,6 +59,23 @@ those manually before relying on a migration decision.
 This contract was validated with `python -m pytest tests/test_discovery.py
 tests/test_assessment.py -v` (`53 passed`).
 
+Composer connection extraction is independent of dependency extraction. When the DAG dependency
+map is empty, normalization still inspects task connection fields and emits `connections: []` when
+none are declared; this explicit empty list is complete evidence, while an absent field remains
+incomplete evidence.
+
+## Dataflow job discovery deduplication
+
+Regional and paginated Dataflow payloads may repeat a job ID. Normalization emits one canonical
+job per ID and resolves repeated records deterministically, so output does not depend on response
+page or region ordering. This is a deterministic discovery contract, not evidence of complete
+regional coverage or metadata freshness.
+
+This edge-case contract was validated with
+`python -m pytest tests/test_discovery.py tests/test_dataflow_discovery.py -v` (`50 passed`).
+The check is offline against fixtures; Composer has no live adapter, and Dataflow live discovery
+remains opt-in for explicitly requested regions without an authorized live-GCP sandbox claim.
+
 ## Dataproc adapter evidence
 
 Dataproc job normalization records canonical `properties.language`: PySpark maps to `python`,

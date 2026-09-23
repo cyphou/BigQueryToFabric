@@ -121,7 +121,7 @@ class ComposerInventoryProvider:
             if deps:
                 task_dependencies[task_id] = list(deps)
 
-            connections = _extract_connections(task_cycle)
+        connections = _extract_connections(task_cycle)
 
         properties["operators"] = sorted(operator_types)
         properties["connections"] = sorted(connections)
