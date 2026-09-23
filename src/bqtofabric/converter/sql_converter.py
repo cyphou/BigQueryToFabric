@@ -319,6 +319,7 @@ class SqlConverter:
         """Detect SQL patterns in parsed statement."""
         patterns: set[str] = set()
         node_keys = {node.key for node in stmt.walk()}
+        source_sql = stmt.sql(dialect="bigquery")
 
         # Structural patterns
         if "select" in node_keys:
@@ -362,6 +363,10 @@ class SqlConverter:
             patterns.add("case_expr")
         if "coalesce" in node_keys or "nullif" in node_keys:
             patterns.add("null_handling")
+        if "safe_cast" in node_keys or "SAFE_CAST" in source_sql.upper():
+            patterns.add("safe_cast")
+        if "not" in node_keys and "in" in node_keys:
+            patterns.add("not_in")
         if "distinct" in node_keys:
             patterns.add("distinct")
         if "limit" in node_keys:
@@ -532,6 +537,44 @@ class SqlConverter:
                     "Window functions require PySpark DataFrame or Spark SQL context.",
                     category="semantics",
                     severity="info",
+                )
+            )
+            if compat_level == CompatibilityLevel.DIRECT:
+                compat_level = CompatibilityLevel.TRANSFORM
+
+        if "safe_cast" in patterns:
+            warnings.append(
+                ConversionWarning(
+                    "SAFE_CAST detected; verify null-on-conversion-failure behavior in the target dialect.",
+                    category="semantics",
+                    severity="warning",
+                )
+            )
+            manual_steps.append(
+                ManualStep(
+                    "Validate SAFE_CAST failure behavior with invalid and null inputs.",
+                    "Target CAST/TRY_CAST behavior may differ for malformed values and error handling.",
+                    "high",
+                    ("safe_cast",),
+                )
+            )
+            if compat_level == CompatibilityLevel.DIRECT:
+                compat_level = CompatibilityLevel.TRANSFORM
+
+        if "not_in" in patterns:
+            warnings.append(
+                ConversionWarning(
+                    "NOT IN detected; validate NULL semantics against the target engine.",
+                    category="semantics",
+                    severity="warning",
+                )
+            )
+            manual_steps.append(
+                ManualStep(
+                    "Run NULL-containing NOT IN parity cases before approving the conversion.",
+                    "Three-valued logic can change results when the subquery or list contains NULL.",
+                    "high",
+                    ("not_in",),
                 )
             )
             if compat_level == CompatibilityLevel.DIRECT:

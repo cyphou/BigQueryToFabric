@@ -335,6 +335,23 @@ entry lists `severity`, `code`, `category`, `source`, and `message`, making `WAR
 conditions visible in the human review report. Treat these entries as actionable review evidence:
 resolve, document, or explicitly accept each relevant finding before relying on a migration wave.
 
+### Review SQL fidelity
+
+The converter preserves `DIRECT` compatibility for existing supported GoogleSQL cases. It detects
+`SAFE_CAST` and `NOT IN`, downgrades affected conversions to `TRANSFORM`, and emits semantic
+warnings and manual parity steps. Inspect those warnings and steps in the conversion output, then
+design source-versus-target checks for the affected null-handling and membership semantics.
+
+Validate the focused conversion contract with:
+
+```powershell
+python -m pytest tests/test_sql_converter.py -v
+```
+
+The validated result is `85 passed`. This is an offline conversion check only; it does not execute
+source or target SQL, validate official Fabric schemas, or establish runtime/data parity. Do not
+approve transformed SQL without separate parity evidence.
+
 The section is not proof that a finding has been remediated, that Fabric deployment is ready, or
 that runtime parity has been established. Use `assessment.json`, mapping output, generated artifacts,
 and independent parity/security checks for deeper review.

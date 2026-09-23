@@ -454,6 +454,38 @@ def test_convert_is_null(converter: SqlConverter) -> None:
     assert "NULL" in result.target_text.upper()
 
 
+def test_safe_cast_requires_semantic_review(converter: SqlConverter) -> None:
+    """SAFE_CAST conversions must verify null-on-failure behavior in the target."""
+    obj = BigQueryObject(
+        source_id="test.safe_cast",
+        name="safe_cast",
+        kind=ObjectKind.VIEW,
+        sql="SELECT SAFE_CAST(raw_value AS INT64) AS value FROM events",
+    )
+
+    result = converter.convert(obj, TargetDialect.TSQL)
+
+    assert "safe_cast" in result.detected_patterns
+    assert result.compatibility_level == CompatibilityLevel.TRANSFORM
+    assert any("SAFE_CAST" in warning.message for warning in result.warnings)
+
+
+def test_not_in_requires_null_semantics_review(converter: SqlConverter) -> None:
+    """NOT IN conversions must explicitly account for NULL-containing inputs."""
+    obj = BigQueryObject(
+        source_id="test.not_in",
+        name="not_in",
+        kind=ObjectKind.VIEW,
+        sql="SELECT * FROM events WHERE customer_id NOT IN (SELECT customer_id FROM blocked)",
+    )
+
+    result = converter.convert(obj, TargetDialect.SPARK_SQL)
+
+    assert "not_in" in result.detected_patterns
+    assert result.compatibility_level == CompatibilityLevel.TRANSFORM
+    assert any("NULL semantics" in warning.message for warning in result.warnings)
+
+
 # =====================================================================
 # CAST AND TYPE CONVERSION TESTS (4 tests)
 # =====================================================================

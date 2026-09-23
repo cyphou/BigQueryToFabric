@@ -16,6 +16,17 @@
 | Policy tags | Purview and Fabric permissions | Manual governance review required |
 | Row access policy | Workspace/item permissions and RLS | No automatic 1:1 security translation |
 
+## SQL fidelity mapping
+
+Supported GoogleSQL cases retain `DIRECT` compatibility. `SAFE_CAST` and `NOT IN` are detected as
+semantic-risk patterns and map to `TRANSFORM`, with semantic warnings and manual parity steps
+recorded for review. The downgrade is intentional: target-dialect translation alone does not
+prove equivalent null-handling or membership semantics.
+
+This contract was validated with `python -m pytest tests/test_sql_converter.py -v` (`85 passed`).
+The test is offline and does not execute source or target SQL, validate official Fabric schemas,
+or establish runtime/data parity. Reviewers must run approved parity checks for transformed SQL.
+
 ## Composer schedule compatibility
 
 Composer payload normalization stores the DAG schedule in `properties.schedule_interval` and retains

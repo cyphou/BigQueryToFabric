@@ -38,6 +38,19 @@ For equivalent inventories, this produces identical generated paths and bytes re
 component ordering. This contract is verified by generating inventories with reversed component
 order and comparing every artifact path and byte sequence.
 
+## SQL conversion fidelity boundary
+
+The SQL converter parses GoogleSQL before translation and preserves the existing `DIRECT` result
+for supported cases. It detects `SAFE_CAST` and `NOT IN` as semantic-risk constructs, downgrades
+the affected conversion to `TRANSFORM`, and emits semantic warnings together with manual parity
+steps. This keeps compatibility decisions visible to assessment and planning rather than implying
+that a syntactic translation proves equivalent null or membership semantics.
+
+The focused contract was validated with `python -m pytest tests/test_sql_converter.py -v`
+(`85 passed`). The check is offline conversion validation only: it does not execute source or
+target SQL, validate official Fabric schemas, or establish runtime/data parity. Transformed SQL
+requires manual source-versus-target parity testing before migration approval.
+
 Every generated artifact filename combines a filesystem-safe representation of its source ID with
 the first 12 hexadecimal characters of that source ID's SHA-256 digest. The suffix is stable and
 keeps distinct source IDs from overwriting one another, including IDs that normalize to the same

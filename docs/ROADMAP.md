@@ -519,6 +519,18 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Implemented:** 80 golden tests covering all patterns, dialects, and edge cases.
 - **Verified:** 82% code coverage · Ruff clean · Pyright clean · deterministic output.
 
+#### Validated SQL semantic-fidelity handling
+
+- **Expected:** Existing supported SQL cases must remain direct, while constructs whose translated
+  semantics require review must be identified and downgraded rather than treated as equivalent.
+- **Implemented:** The converter detects `SAFE_CAST` and `NOT IN`, assigns `TRANSFORM`
+  compatibility, and emits semantic warnings and manual parity steps. Existing supported direct
+  cases retain their prior behavior.
+- **Validated:** `python -m pytest tests/test_sql_converter.py -v` passed with `85 passed`.
+- **Open:** The milestone validates offline conversion behavior only. Source/target SQL execution,
+  official Fabric schema validation, and runtime/data parity remain open; transformed SQL requires
+  manual parity evidence.
+
 **Conversion Example:**
 ```python
 from bqtofabric.converter import SqlConverter, TargetDialect

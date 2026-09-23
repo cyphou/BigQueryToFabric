@@ -187,6 +187,22 @@ BQToFabric uses four compatibility levels:
 
 Treat `WARN` and `FAIL` findings as review work. In particular, do not promote an object because its mapping is `transform` if required evidence, credentials, schema, or runtime parity is missing.
 
+### SQL fidelity review
+
+SQL conversion preserves direct compatibility for existing supported GoogleSQL cases. It detects
+`SAFE_CAST` and `NOT IN` as semantic-risk patterns, marks the conversion `transform`, and records
+semantic warnings and manual parity steps in the conversion result. Review those warnings and
+execute source-versus-target parity checks before accepting the generated SQL.
+
+The focused converter contract was validated with:
+
+```powershell
+python -m pytest tests/test_sql_converter.py -v
+```
+
+The result was `85 passed`. This validation is offline: it does not execute source or target SQL,
+validate official Fabric schemas, or establish runtime/data parity.
+
 ## 6. Security Rules
 
 Never place these in inventories, source snippets, generated artifacts, logs, or issue attachments:

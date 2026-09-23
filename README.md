@@ -44,6 +44,18 @@ flowchart LR
 **Core contract:** inventory → canonical model → assessment/mapping → strategy → dependency plan →
 deterministic dry-run artifacts. The deployment arrow is intentionally outside the default path.
 
+### Validated SQL fidelity milestone
+
+- **Expected:** SQL conversion should preserve existing direct behavior for supported GoogleSQL
+	cases and make semantic-risk constructs explicit instead of silently claiming equivalence.
+- **Implemented:** Conversion detects `SAFE_CAST` and `NOT IN`, downgrades affected results to
+	`TRANSFORM`, and emits semantic warnings plus manual parity steps. Existing supported cases
+	retain their direct compatibility behavior.
+- **Validated:** `python -m pytest tests/test_sql_converter.py -v` passed with `85 passed`.
+- **Open:** This is offline conversion and evidence validation. It does not execute source or
+	target SQL, validate official Fabric schemas, or establish runtime/data parity; manual parity
+	testing remains required for transformed SQL.
+
 ## 🧩 The Canonical Inventory
 
 The inventory is the stable boundary between discovery and planning. It holds source IDs, object
