@@ -194,6 +194,35 @@ class TestNotebookGenerator:
         assert notebook.valid is True
         assert any("not carried over" in warning for warning in notebook.warnings)
 
+    def test_generated_eventhouse_schema_is_valid_kql(self) -> None:
+        """The generator must not emit commands the Eventhouse engine rejects."""
+        from bqtofabric.artifact_validation import KqlValidator
+        from bqtofabric.generator.eventstream_generator import generate_all_eventhouse_schemas
+
+        stream = BigQueryObject(
+            source_id="project.stream.events",
+            name="events",
+            kind=ObjectKind.STREAM,
+            columns=(
+                Column(name="event_id", data_type="STRING"),
+                Column(name="amount", data_type="FLOAT64"),
+            ),
+        )
+        inventory = BigQueryInventory(
+            project_id="test", datasets=(), components=(stream,), metadata={}
+        )
+
+        schema = generate_all_eventhouse_schemas(inventory, run_assessment(inventory))[
+            "project.stream.events"
+        ]
+
+        assert ".create-or-alter table events (" not in schema.kql_script
+        assert ".create-merge table events (" in schema.kql_script
+        assert "'$.event_id'" not in schema.kql_script
+        assert '"Path": "$.event_id"' in schema.kql_script
+        assert "ago(" not in schema.kql_script
+        assert KqlValidator(schema.kql_script).validate().valid is True
+
     def test_notebook_carries_over_converted_source_code(self, spark_job) -> None:
         """When source code is supplied, the notebook must contain the converted logic."""
         code = (

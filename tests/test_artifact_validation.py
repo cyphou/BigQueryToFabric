@@ -58,6 +58,67 @@ def test_pipeline_validator_rejects_undefined_predecessor() -> None:
     assert any("Undefined" in error for error in result.errors)
 
 
+def test_kql_validator_rejects_create_or_alter_table() -> None:
+    """.create-or-alter applies to functions and materialized views, not tables."""
+    from bqtofabric.artifact_validation import KqlValidator
+
+    result = KqlValidator(".create-or-alter table events (\n  id: string\n)\n").validate()
+
+    assert result.valid is False
+    assert any(".create-or-alter table is not a command" in error for error in result.errors)
+
+
+def test_kql_validator_rejects_csv_style_json_mapping() -> None:
+    """A json mapping takes a JSON array, not CSV-style parentheses."""
+    from bqtofabric.artifact_validation import KqlValidator
+
+    script = (
+        ".create table events ingestion json mapping 'm'\n"
+        "(\n  'id' = '$.id'\n)\n"
+    )
+
+    result = KqlValidator(script).validate()
+
+    assert result.valid is False
+    assert any("json ingestion mapping" in error for error in result.errors)
+
+
+def test_kql_validator_rejects_nondeterministic_materialized_view() -> None:
+    """ago() and now() are not permitted in a materialized-view definition."""
+    from bqtofabric.artifact_validation import KqlValidator
+
+    script = (
+        ".create-or-alter materialized-view MV on table events\n"
+        "{\n  events\n  | where _ingestion_time >= ago(7d)\n"
+        "  | summarize count() by bin(_ingestion_time, 1h)\n}\n"
+    )
+
+    result = KqlValidator(script).validate()
+
+    assert result.valid is False
+    assert any("non-deterministic" in error for error in result.errors)
+
+
+def test_kql_validator_accepts_the_generated_shape() -> None:
+    """The shape the generator emits must validate."""
+    from bqtofabric.artifact_validation import KqlValidator
+
+    script = (
+        ".create-merge table events (\n  id: string,\n  _ingestion_time: datetime\n)\n"
+        "\n.alter-merge table events policy retention softdelete = 90d\n"
+        "\n.create-or-alter table events ingestion json mapping 'm'\n"
+        "'[{\"column\": \"id\", \"Properties\": {\"Path\": \"$.id\"}}]'\n"
+        "\n.create-or-alter materialized-view with (backfill=true) events_hourly\n"
+        "on table events\n{\n  events\n"
+        "  | summarize count() by bin(_ingestion_time, 1h)\n}\n"
+    )
+
+    result = KqlValidator(script).validate()
+
+    assert result.valid is True
+    assert result.errors == ()
+
+
 def test_validate_directory_checks_nested_kql_and_pipeline_json(tmp_path: Path) -> None:
     """Generated subdirectories must use the same KQL and pipeline validators."""
     realtime = tmp_path / "realtime"

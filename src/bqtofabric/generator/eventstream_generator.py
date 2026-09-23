@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from typing import Any
 
@@ -223,7 +224,7 @@ class EventhouseGenerator:
         # Create table
         table_name = item.name
         lines.extend([
-            f".create-or-alter table {table_name} (\n",
+            f".create-merge table {table_name} (\n",
         ])
 
         # Build column definitions
@@ -290,41 +291,60 @@ class EventhouseGenerator:
         return kql_type
 
     def _build_ingestion_mapping(self, item: BigQueryObject, warnings: list[str]) -> list[str]:
-        """Build ingestion mapping definition."""
-        lines = [
-            "// Define ingestion mapping\n",
-            f".create table {item.name} ingestion json mapping 'ingestion_mapping_{item.name}'\n",
-        ]
+        """Build ingestion mapping definition.
 
-        if item.columns:
-            lines.append("(\n")
-            mappings: list[str] = []
-            for col in item.columns:
-                mappings.append(f"  '{col.name}' = '$.{col.name}'")
-            lines.append(",\n".join(mappings))
-            lines.append("\n)\n")
-        else:
+        A JSON mapping takes a JSON array of column/Path objects; the ``'col' = '$.col'``
+        form is CSV mapping syntax and is rejected for JSON.
+        """
+        lines = ["// Define ingestion mapping\n"]
+
+        if not item.columns:
             lines.append("// TODO: MANUAL REVIEW - Define column mappings\n")
             warnings.append("Ingestion mapping: no columns defined; manual definition required")
+            lines.append("\n")
+            return lines
 
+        mapping = json.dumps(
+            [
+                {"column": col.name, "Properties": {"Path": f"$.{col.name}"}}
+                for col in item.columns
+            ]
+        ).replace("'", "\\'")
+        lines.append(
+            f".create-or-alter table {item.name} ingestion json mapping "
+            f"'ingestion_mapping_{item.name}'\n"
+        )
+        lines.append(f"'{mapping}'\n")
         lines.append("\n")
         return lines
 
     def _build_materialized_view(self, item: BigQueryObject, warnings: list[str]) -> list[str]:
-        """Build materialized view for common aggregations."""
+        """Build materialized view for common aggregations.
+
+        A materialized-view definition must be deterministic, so no ``ago()`` window is
+        applied here; bound the range with a retention policy instead.
+        """
         lines = [
             "// Create materialized view for hourly aggregation\n",
-            f".create-or-alter materialized-view with (backfill=true, folder='Generated') {item.name}_hourly_stats\n",
+            (
+                ".create-or-alter materialized-view with (backfill=true, folder='Generated') "
+                f"{item.name}_hourly_stats\n"
+            ),
             f"on table {item.name}\n",
             "{\n",
             f"  {item.name}\n",
-            "  | where todatetime(_ingestion_time) >= ago(7d)\n",
             "  | summarize count() by bin(_ingestion_time, 1h)\n",
             "}\n",
             "\n",
         ]
 
-        warnings.append("Materialized view created for hourly aggregation; customize aggregation logic")
+        warnings.append(
+            "Materialized view created for hourly aggregation; customize aggregation logic"
+        )
+        warnings.append(
+            "Materialized-view definitions must stay deterministic; bound history with a "
+            "retention policy rather than a time filter."
+        )
 
         return lines
 

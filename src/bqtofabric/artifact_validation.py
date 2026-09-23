@@ -158,7 +158,37 @@ class KqlValidator:
             errors.append("KQL syntax error: query is empty")
         if re.search(r"\bSELECT\s+FROM\s+WHERE\b", self.query, re.IGNORECASE):
             errors.append("KQL syntax error: incomplete SQL SELECT statement")
+        # .create-or-alter applies to functions and materialized views, not tables.
+        if re.search(r"^\s*\.create-or-alter\s+table\s+\S+\s*\(", self.query, re.MULTILINE):
+            errors.append(
+                "KQL command error: .create-or-alter table is not a command; "
+                "use .create table, .create-merge table, or .alter table"
+            )
+        if re.search(
+            r"ingestion\s+json\s+mapping\b[^\n]*\n\s*\(", self.query, re.IGNORECASE
+        ):
+            errors.append(
+                "KQL mapping error: a json ingestion mapping takes a JSON array of "
+                "column/Path objects, not CSV-style parentheses"
+            )
+        errors.extend(_nondeterministic_view_errors(self.query))
         return ArtifactValidationResult(valid=not errors, errors=tuple(errors))
+
+
+def _nondeterministic_view_errors(query: str) -> list[str]:
+    """Materialized-view definitions must not depend on wall-clock time."""
+    errors: list[str] = []
+    for match in re.finditer(
+        r"\.create(?:-or-alter)?\s+materialized-view\b.*?\{(.*?)\}", query, re.DOTALL
+    ):
+        body = match.group(1)
+        for function in ("ago", "now"):
+            if re.search(rf"\b{function}\s*\(", body):
+                errors.append(
+                    f"KQL materialized view error: {function}() is non-deterministic and "
+                    "is not permitted in a materialized-view definition"
+                )
+    return errors
 
 
 class PipelineValidator:
