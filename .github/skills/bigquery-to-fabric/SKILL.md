@@ -28,13 +28,30 @@ reviewable migration plan.
 
 ## Golden rules
 
-- Discovery is read-only and never writes credentials into an inventory.
-- Choose targets by workload, not by product preference.
+- Discovery is read-only and never writes credentials into an inventory. Principal
+  identities are pseudonymized, not copied.
+- Choose targets by workload, not by product preference. Strategy weight follows
+  compatibility, so a target that cannot run the workload earns no weight.
 - Honor Lakehouse and Notebook preferences for compatible analytical workloads.
 - Preserve existing Composer DAGs as Airflow Job candidates when operators remain reusable.
 - Convert GoogleSQL to T-SQL, Spark SQL, or PySpark; reserve DAX for semantic measures.
 - Prefer native Fabric BigQuery connectors over custom data-copy code.
 - Treat generated artifacts as review material, not production deployment payloads.
+
+## Reading the output honestly
+
+- `valid` in `generated/manifest.json` is derived from real validators. A `false` flag
+  means the artifact was proven broken, not that a check was skipped.
+- Parity is recomputed from supplied `source`/`target` evidence. A declared `passed`
+  with no payload resolves to `not_run`; a contradicted declaration is recorded as
+  `declaredStatus`. `not_run` is not success.
+- The readiness score is per component, scaled by evidence coverage, and clamped to
+  zero when the component carries a FAIL finding. A low score usually means missing
+  evidence rather than an unmigratable estate.
+- `deployment-check` blocks on FAIL findings, failed parity, redesign components and
+  pending manual review. Blocked is the expected state until evidence is supplied.
+- Generated notebooks only carry source logic when `properties.code` is supplied.
+  Otherwise the notebook says so explicitly and the job is flagged as missing evidence.
 
 ## References
 
