@@ -43,6 +43,19 @@ The focused validation contract was checked with `python -m pytest tests/test_ar
 tests/test_security.py -v` (`10 passed`). This is offline pattern and structural validation;
 pattern scanning is not official Fabric schema validation and does not validate deployment.
 
+## CLI and deployment-readiness failure contract
+
+Local workflow guards fail closed and use deterministic results: a missing inventory returns exit
+code `2`; malformed inventory returns exit code `5`; and tampered deployment-manifest verification
+returns exit code `5`. `deployment-check` blocks invalid artifact validation. Readiness blocks plans
+with unresolved dependencies or unsupported target components. These guards operate on local dry-run
+artifacts and do not perform cloud operations.
+
+This contract was validated with `python -m pytest tests/test_cli.py
+tests/test_deployment_readiness.py -v` (`14 passed`). It remains offline-only and does not validate
+official Fabric schemas or APIs, execute workloads, establish runtime or data parity, or authorize
+deployment.
+
 ## Composer schedule contract
 
 Offline Composer normalization writes `properties.schedule_interval` as the canonical DAG schedule

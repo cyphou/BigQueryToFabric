@@ -200,3 +200,41 @@ def test_deployment_check_blocks_unresolved_plan(tmp_path: Path) -> None:
     result = main(["deployment-check", str(generated / "fabric")])
 
     assert result == ExitCode.SUCCESS
+
+
+def test_inventory_command_reports_missing_file(capsys, tmp_path: Path) -> None:
+    result = main(["inventory", str(tmp_path / "missing.json")])
+
+    assert result == ExitCode.FILE_NOT_FOUND
+    assert "missing.json" in capsys.readouterr().out
+
+
+def test_validate_command_rejects_malformed_json(capsys, tmp_path: Path) -> None:
+    path = tmp_path / "malformed.json"
+    path.write_text("{invalid", encoding="utf-8")
+
+    result = main(["validate", str(path)])
+
+    assert result == ExitCode.VALIDATION_FAILED
+    assert "Invalid inventory" in capsys.readouterr().out
+
+
+def test_manifest_verify_rejects_tampered_manifest(tmp_path: Path, capsys) -> None:
+    manifest = tmp_path / "manifest.json"
+    manifest.write_text(json.dumps({"sha256": "bad", "payload": {}}), encoding="utf-8")
+
+    result = main(["manifest-verify", str(manifest)])
+
+    assert result == ExitCode.VALIDATION_FAILED
+    assert "FAIL" in capsys.readouterr().out
+
+
+def test_deployment_check_blocks_invalid_artifacts(tmp_path: Path) -> None:
+    generated = tmp_path / "generated"
+    assert main(["generate", str(FIXTURE), "--output", str(generated)]) == ExitCode.SUCCESS
+    validation = generated / "fabric" / "artifact-validation.json"
+    validation.write_text(json.dumps({"status": "failed", "artifacts": []}), encoding="utf-8")
+
+    result = main(["deployment-check", str(generated / "fabric")])
+
+    assert result == ExitCode.VALIDATION_FAILED

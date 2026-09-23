@@ -60,6 +60,20 @@ Measured on the committed GCP ecosystem fixture and local validation commands:
 - **Open:** These checks remain offline-only. They do not validate official Fabric schemas, execute
   source or target workloads, establish runtime/data parity, or authorize deployment.
 
+### Validated CLI and deployment-readiness failure paths
+
+- **Expected:** Invalid local inputs and generated artifacts must fail deterministically, and
+  deployment readiness must block unsafe or incomplete plans before any cloud operation.
+- **Implemented:** A missing inventory returns exit code `2`; malformed inventory returns exit code
+  `5`; tampered deployment-manifest verification returns exit code `5`. `deployment-check` blocks
+  invalid artifact validation, while readiness blocks unresolved dependencies and unsupported target
+  components.
+- **Validated:** `python -m pytest tests/test_cli.py tests/test_deployment_readiness.py -v` passed
+  with `14 passed`.
+- **Open:** These are offline guards only. They do not validate official Fabric schemas or APIs,
+  execute source or target workloads, establish runtime/data parity, or authorize deployment. Cloud
+  operations remain outside the default path.
+
 ### Validated assessment test guide
 
 - **Expected:** Reviewers can reproduce the offline fixture assessment and understand the live

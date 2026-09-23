@@ -86,6 +86,29 @@ python -m pytest tests/test_parity.py -v
 The results are `7 passed` and `18 passed`, respectively. These checks are offline-only and do not
 replace official Fabric schema validation, workload execution, or runtime/data parity evidence.
 
+### Verify CLI and deployment-readiness failure paths
+
+The local contract fails closed for invalid inputs and incomplete generated packages:
+
+| Failure path | Expected result |
+|---|---|
+| Missing inventory | CLI exit code `2` |
+| Malformed inventory | CLI exit code `5` |
+| Tampered deployment manifest | Manifest verification exit code `5` |
+| Invalid artifact validation | `deployment-check` blocks |
+| Unresolved dependencies | Readiness blocks |
+| Unsupported target component | Readiness blocks |
+
+Validate the complete failure-path contract with:
+
+```powershell
+python -m pytest tests/test_cli.py tests/test_deployment_readiness.py -v
+```
+
+The focused suite passes with `14 passed`. These are offline, deterministic guards before any
+future deployment phase; they do not validate official Fabric schemas or APIs, execute workloads,
+establish runtime or data parity, or perform cloud operations.
+
 ## Assess a live GCP project
 
 1. Install the optional dependencies and enable the **BigQuery API**, **BigQuery Data Transfer API**,

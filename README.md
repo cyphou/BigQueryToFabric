@@ -109,6 +109,24 @@ python -m pytest tests/test_artifact_validation.py -v  # 7 passed
 python -m pytest tests/test_parity.py -v                # 18 passed
 ```
 
+### CLI and deployment-readiness failure paths
+
+The CLI reports deterministic failures for invalid local inputs: a missing inventory returns exit
+code `2`, malformed inventory returns exit code `5`, and tampered deployment-manifest verification
+returns exit code `5`. `deployment-check` blocks when artifact validation is invalid, and readiness
+blocks when dependencies remain unresolved or a target component is unsupported. These checks stop
+the local dry-run workflow before any deployment action is possible.
+
+This contract was validated with:
+
+```powershell
+python -m pytest tests/test_cli.py tests/test_deployment_readiness.py -v
+```
+
+The focused suite passed with `14 passed`. The checks are offline-only: they do not validate
+official Fabric schemas or APIs, execute workloads, establish runtime or data parity, or authorize
+deployment. Cloud operations remain outside the default path.
+
 ## How to Test the Assessment
 
 ### Local fixture smoke test
