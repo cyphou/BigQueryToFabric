@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from typing import Any
 
 from ..models import BigQueryObject, ObjectKind
@@ -14,6 +15,7 @@ from .models import (
     SparkCodeLanguage,
     SparkConversion,
     SparkOperation,
+    SparkPattern,
 )
 from .pyspark_patterns import PySpark_PatternMatcher, analyze_pyspark_code
 from .scala_patterns import ScalaPatternMatcher, analyze_scala_code
@@ -32,6 +34,28 @@ class SparkConverter:
     def _redact(self, value: str) -> str:
         """Remove credentials before they enter a conversion record."""
         return self.credential_scanner.redact(value)
+
+    def _redact_value(self, value: Any) -> Any:
+        """Redact credential-bearing strings recursively in persisted metadata."""
+        if isinstance(value, str):
+            return self._redact(value)
+        if isinstance(value, dict):
+            return {self._redact_value(key): self._redact_value(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [self._redact_value(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(self._redact_value(item) for item in value)
+        return value
+
+    def _redact_patterns(self, patterns: tuple[SparkPattern, ...]) -> tuple[SparkPattern, ...]:
+        return tuple(
+            replace(
+                pattern,
+                code_snippet=self._redact(pattern.code_snippet),
+                metadata=self._redact_value(pattern.metadata),
+            )
+            for pattern in patterns
+        )
 
     def convert(
         self,
@@ -226,10 +250,13 @@ class SparkConverter:
             compatibility_level=compat_level,
             warnings=tuple(warnings),
             manual_steps=tuple(manual_steps),
-            detected_patterns=patterns,
-            extracted_sql=extracted_sql,
-            storage_paths=storage_paths,
-            storage_mapping={path: storage_mapping[path] for path in storage_paths},
+            detected_patterns=self._redact_patterns(patterns),
+            extracted_sql=tuple(self._redact(sql) for sql in extracted_sql),
+            storage_paths=tuple(self._redact(path) for path in storage_paths),
+            storage_mapping={
+                self._redact(path): self._redact_value(storage_mapping[path])
+                for path in storage_paths
+            },
             rationale="PySpark code analyzed for Fabric compatibility.",
         )
 
@@ -249,7 +276,9 @@ class SparkConverter:
             if not target_path or source_path not in rewritten:
                 continue
             rewritten = rewritten.replace(source_path, str(target_path))
-            notes.append(f"Rewrote storage path {source_path} to {target_path}.")
+            notes.append(
+                self._redact(f"Rewrote storage path {source_path} to {target_path}.")
+            )
 
         # Fabric provides a live SparkSession; re-creating one is ignored at best.
         session_pattern = re.compile(
@@ -303,7 +332,9 @@ class SparkConverter:
             if not target_path or source_path not in rewritten:
                 continue
             rewritten = rewritten.replace(source_path, str(target_path))
-            notes.append(f"Rewrote storage path {source_path} to {target_path}.")
+            notes.append(
+                self._redact(f"Rewrote storage path {source_path} to {target_path}.")
+            )
 
         # Fabric provides a live SparkSession; re-creating one is ignored at best.
         # Scala pattern: val spark = SparkSession.builder().appName(...).getOrCreate()
@@ -466,10 +497,13 @@ class SparkConverter:
             compatibility_level=compat_level,
             warnings=tuple(warnings),
             manual_steps=tuple(manual_steps),
-            detected_patterns=patterns,
-            extracted_sql=extracted_sql,
-            storage_paths=storage_paths,
-            storage_mapping={path: storage_mapping[path] for path in storage_paths},
+            detected_patterns=self._redact_patterns(patterns),
+            extracted_sql=tuple(self._redact(sql) for sql in extracted_sql),
+            storage_paths=tuple(self._redact(path) for path in storage_paths),
+            storage_mapping={
+                self._redact(path): self._redact_value(storage_mapping[path])
+                for path in storage_paths
+            },
             rationale="Scala code requires manual translation to Python for Fabric; mechanical rewrites applied.",
         )
 

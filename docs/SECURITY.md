@@ -46,19 +46,20 @@
 - `connection-transcode.json` contains only deterministic logical references and review metadata.
   Embedded credential material is detected by type and forces `manual_review`; the original value
   is never copied into the transcode result.
-- Expected behavior for persisted SQL and Spark conversion records: source and target text must not
-  retain credentials or service-account key-file paths. `CredentialScanner` redacts SQL conversion
-  source and target text during serialization and Spark conversion source and target text when the
-  record is created. Spark warnings for embedded credential paths use a fixed security message and
-  do not include the detected raw path.
+- Expected behavior for persisted SQL and Spark conversion records: source and target text,
+  extracted SQL, storage paths, mappings, pattern metadata, and rewrite warnings must not retain
+  credentials or service-account key-file paths. `CredentialScanner` also redacts credential values
+  in URL query parameters such as `password`, `token`, `secret`, and `api_key`. Spark conversion
+  records sanitize all persisted metadata before serialization; warnings for embedded credential
+  paths use a fixed security message and do not include the detected raw path.
 - This credential-hygiene behavior is validated by `pytest tests/test_security.py
-  tests/test_spark_converter.py -v` (66 passed).
+  tests/test_spark_converter.py -v`, including a full serialized-record regression test.
 - Discovery classifies `service_account` and `serviceaccount` keys as sensitive and redacts a
   corresponding `service_account_path` before canonical inventory persistence. This behavior is
   validated by `python -m pytest tests/test_discovery.py tests/test_security.py -v` (42 passed).
-- Broader secret-scan coverage remains open: other generated artifacts and path-bearing fields
-  require explicit review and test coverage before they can be considered protected by a
-  credential-redaction behavior.
+- Broader secret-scan coverage remains open for generated artifacts and path-bearing fields outside
+  the SQL and Spark conversion records covered above; each new persisted surface requires explicit
+  review and test coverage before it can be considered protected.
 - `manual_review_reasons` make known assessment constraints explicit in dry-run output. They do
   not prove remediation, parity, effective access, or deployment readiness.
 - The repair loop is offline and opt-in. It works on defensive copies, records applied rule names,

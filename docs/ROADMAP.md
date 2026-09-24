@@ -773,10 +773,14 @@ result = converter.convert(bigquery_obj, TargetDialect.SPARK_SQL)
 ### v0.3.1 — Spark/Dataproc and Dataform Conversion *(implemented; offline-validated)*
 
 - **Implemented:** Convert Spark/Dataproc code to Fabric notebook review records, including GCS
-  path mapping, credential redaction, language/runtime evidence, and manual compatibility steps.
+  path mapping, credential redaction across source/target text and persisted metadata, language/
+  runtime evidence, and manual compatibility steps. URL query-parameter credentials are redacted
+  before storage paths, mappings, snippets, SQL, or rewrite warnings enter a conversion record.
 - **Implemented:** Translate Dataform graph evidence, assertions, and incremental-model requirements
   into reviewable Fabric pipeline recipes with deterministic incomplete-lineage blockers.
-- **Validated:** Spark, Dataform, and adapter contract tests pass in the full suite.
+- **Validated:** Spark, Dataform, and adapter contract tests pass in the full suite, including a
+  serialized Spark conversion regression test that proves credential values do not survive in
+  metadata or warnings.
 - **Open:** These conversions remain offline review artifacts; runtime execution and parity are not
   established. `SparkConverter` performs no real Spark code transformation, and generated notebooks
   do not carry over source Dataproc/Spark logic.

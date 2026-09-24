@@ -35,6 +35,10 @@ class CredentialScanner:
             r"(?:postgresql|mysql|mssql|oracle)://[^\s]+:[^\s@]+@[^\s\"\']",
             re.IGNORECASE,
         ),
+        "credential_parameter": re.compile(
+            r"([?&](?:key|password|secret|token|api_key)=)[^&\s\"\']+",
+            re.IGNORECASE,
+        ),
         "oauth_token": re.compile(
             r'(?:access_token|oauth_token|bearer)["\']?[=:]\s*["\']?([a-zA-Z0-9_\-\.]+)["\']?',
             re.IGNORECASE,
@@ -83,6 +87,11 @@ class CredentialScanner:
         # Redact connection strings
         result = self.PATTERNS["connection_string"].sub(
             "[REDACTED_CONNECTION_STRING]", result
+        )
+
+        # Redact credential values embedded in query parameters.
+        result = self.PATTERNS["credential_parameter"].sub(
+            r"\1[REDACTED_CREDENTIAL_PARAMETER]", result
         )
 
         # Redact OAuth tokens

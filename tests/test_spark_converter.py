@@ -598,6 +598,25 @@ def test_embedded_credentials_detection() -> None:
     assert 'credential' in reason.lower() or 'password' in reason.lower()
 
 
+def test_spark_conversion_redacts_all_persisted_path_evidence() -> None:
+    """Credential-bearing paths must not survive in conversion metadata or warnings."""
+    import json
+    from dataclasses import asdict
+
+    code = (
+        'path = "gs://bucket/data?password=secret123&token=abc12345"\n'
+        "df = spark.read.parquet(path)\n"
+        "spark.sql(f\"SELECT * FROM `{path}`\")\n"
+    )
+
+    result = SparkConverter().convert("job-credentials", code, SparkCodeLanguage.PYSPARK)
+    serialized = json.dumps(asdict(result), default=str)
+
+    assert "secret123" not in serialized
+    assert "abc12345" not in serialized
+    assert "REDACTED" in serialized
+
+
 def test_scala_udf_manual_porting_flag() -> None:
     """Test that Scala UDFs are flagged with manual porting requirement."""
     code = """
