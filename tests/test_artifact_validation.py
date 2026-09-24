@@ -119,6 +119,27 @@ def test_kql_validator_accepts_the_generated_shape() -> None:
     assert result.errors == ()
 
 
+def test_pipeline_validator_requires_a_lookup_dataset() -> None:
+    """A Lookup resolves its connection through a dataset, not a bare linked service."""
+    from bqtofabric.artifact_validation import PipelineValidator
+
+    pipeline = {
+        "properties": {
+            "activities": [{
+                "name": "Get Watermark",
+                "type": "Lookup",
+                "typeProperties": {"firstRowOnly": True},
+                "linkedServiceName": {"referenceName": "L", "type": "LinkedServiceReference"},
+            }]
+        }
+    }
+
+    result = PipelineValidator(pipeline).validate()
+
+    assert result.valid is False
+    assert any("needs a dataset reference" in error for error in result.errors)
+
+
 def test_validate_directory_checks_nested_kql_and_pipeline_json(tmp_path: Path) -> None:
     """Generated subdirectories must use the same KQL and pipeline validators."""
     realtime = tmp_path / "realtime"

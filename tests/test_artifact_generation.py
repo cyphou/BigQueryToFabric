@@ -194,6 +194,39 @@ class TestNotebookGenerator:
         assert notebook.valid is True
         assert any("not carried over" in warning for warning in notebook.warnings)
 
+    def test_row_count_measure_counts_rows_not_values(self) -> None:
+        """COUNTA counts non-blank values in one column, which undercounts rows."""
+        from bqtofabric.generator.semantic_model_generator import generate_all_semantic_models
+
+        table = BigQueryObject(
+            source_id="project.sales.orders",
+            name="orders",
+            kind=ObjectKind.TABLE,
+            dataset="sales",
+            size_bytes=1024,
+            columns=(
+                Column(name="order_id", data_type="STRING"),
+                Column(name="total", data_type="FLOAT64"),
+            ),
+        )
+        inventory = BigQueryInventory(
+            project_id="test", datasets=(), components=(table,), metadata={}
+        )
+
+        models = generate_all_semantic_models(inventory, run_assessment(inventory))
+        model = models["project.sales.orders"].model
+        row_count = next(
+            measure for measure in model["measures"] if measure["name"] == "Row Count"
+        )
+
+        assert row_count["expression"] == "COUNTROWS('orders')"
+        assert "COUNTA" not in row_count["expression"]
+        # A null mode is not a Fabric connection mode; omit the key instead.
+        assert all(
+            connection.get("mode") is not None
+            for connection in model["connections"]
+        )
+
     def test_generated_eventhouse_schema_is_valid_kql(self) -> None:
         """The generator must not emit commands the Eventhouse engine rejects."""
         from bqtofabric.artifact_validation import KqlValidator

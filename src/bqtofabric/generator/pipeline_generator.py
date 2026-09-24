@@ -90,6 +90,11 @@ class PipelineGenerator:
                     "sqlReaderQuery": "SELECT ISNULL(MAX(watermark_value), '1900-01-01') AS value FROM watermark_table WHERE table_name = '@{pipeline().parameters.TableName}'",
                 },
                 "firstRowOnly": True,
+                # A Lookup resolves its connection through a dataset, not a bare linked service.
+                "dataset": {
+                    "referenceName": "ds_watermark",
+                    "type": "DatasetReference",
+                },
             },
             "linkedServiceName": {"referenceName": "AzureSqlLinkedService", "type": "LinkedServiceReference"},
         })

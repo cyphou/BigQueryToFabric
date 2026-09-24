@@ -87,15 +87,15 @@ class SemanticModelGenerator:
         model["hierarchies"] = self._build_hierarchies(item, warnings)
 
         # Connection properties
-        model["connections"] = [
-            {
-                "connectionType": "DirectQuery" if item.kind is ObjectKind.VIEW else "Import",
-                "mode": "directLake" if item.kind is ObjectKind.TABLE else None,
-                "sourceType": decision.target.value,
-                "connectionString": "Data Source=$(FABRIC_WORKSPACE_ID);Initial Catalog=$(FABRIC_LAKEHOUSE_ID);",
-                "credentials": "managedIdentity",
-            }
-        ]
+        connection: dict[str, Any] = {
+            "connectionType": "DirectQuery" if item.kind is ObjectKind.VIEW else "Import",
+            "sourceType": decision.target.value,
+            "connectionString": "Data Source=$(FABRIC_WORKSPACE_ID);Initial Catalog=$(FABRIC_LAKEHOUSE_ID);",
+            "credentials": "managedIdentity",
+        }
+        if item.kind is ObjectKind.TABLE:
+            connection["mode"] = "directLake"
+        model["connections"] = [connection]
 
         model["warnings"] = [
             "TODO: MANUAL REVIEW - Configure connection credentials",
@@ -205,10 +205,10 @@ class SemanticModelGenerator:
                     "displayFolder": "Summary Metrics",
                 })
 
-        # Add row count measure
+        # COUNTA counts non-blank values in one column, which undercounts rows.
         measures.append({
             "name": "Row Count",
-            "expression": f"COUNTA('{item.name}'[{item.columns[0].name}])",
+            "expression": f"COUNTROWS('{item.name}')",
             "isHidden": False,
             "displayFolder": "Summary Metrics",
         })

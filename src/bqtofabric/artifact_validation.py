@@ -217,6 +217,18 @@ class PipelineValidator:
             if not isinstance(activity, dict):
                 errors.append("Pipeline activity must be an object")
                 continue
+            if activity.get("type") == "Lookup":
+                type_properties = activity.get("typeProperties", {})
+                dataset = (
+                    type_properties.get("dataset")
+                    if isinstance(type_properties, dict)
+                    else None
+                )
+                if not isinstance(dataset, dict) or not dataset.get("referenceName"):
+                    errors.append(
+                        f"Lookup activity {activity.get('name', '<unnamed>')} needs a "
+                        "dataset reference"
+                    )
             for dependency in activity.get("dependsOn", []):
                 predecessor = dependency.get("activity") if isinstance(dependency, dict) else None
                 if predecessor and predecessor not in names:
