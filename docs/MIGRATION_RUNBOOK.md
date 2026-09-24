@@ -48,6 +48,50 @@ not be established; it does not indicate a deployment failure or success.
 success validates Python typing and lint checks only; it does not validate generated artifacts
 against official Fabric schemas or APIs, establish runtime parity, or authorize deployment.
 
+### Review connection transcode and repair results
+
+The offline connectivity contract maps canonical GCP connection metadata to a deterministic Fabric
+reference candidate without creating a connection or persisting credentials. Embedded credential
+material and unsupported backends produce `manual_review`; only the finding type is retained.
+The normal report/generate flow writes these records to `connection-transcode.json` for review.
+The generic repair loop applies explicitly supplied `RepairRule` instances once, records the rules
+that changed the value, and revalidates the result. Domain rules move misplaced pipeline
+`triggers` to the resource level and remove only exact duplicate schema fields; conflicting
+duplicate definitions remain `manual_review`. A failed validator remains `manual_review`. Repairs are opt-in
+and operate on a defensive copy rather than silently rewriting a persisted artifact.
+
+Validate these contracts with:
+
+```powershell
+python -m pytest tests/test_connectivity_enabler.py tests/test_repair_loop.py tests/test_parity.py
+```
+
+These results are planning evidence only. They do not prove Fabric connectivity, identity binding,
+runtime parity, or deployment readiness.
+
+### Run the opt-in live GCP discovery gate
+
+The live integration test is disabled unless explicitly enabled. It requires Application Default
+Credentials with read-only access, the BigQuery and external-adapter APIs, and an authorized
+sandbox project with visibility in the configured regions. The external adapters request the
+broader `cloud-platform.read-only` scope.
+
+```powershell
+$env:BQTOFABRIC_LIVE_GCP = "1"
+$env:BQTOFABRIC_GCP_PROJECT = "your-sandbox-project"
+$env:BQTOFABRIC_DATAFLOW_REGIONS = "us-central1"
+$env:BQTOFABRIC_DATAPROC_REGIONS = "us-central1"
+$env:BQTOFABRIC_COMPOSER_REGIONS = "us-central1"
+$env:BQTOFABRIC_DATAFORM_LOCATION = "us-central1"
+
+python -m pytest -m live_gcp tests/test_live_gcp_discovery.py -v
+```
+
+The test runs the public `discover` command twice with BigQuery, Dataflow, Dataproc, Dataform,
+and Composer enabled. It requires byte-identical canonical output, checks adapter provenance, and
+scans the result for credential-like values. Do not enable it in CI until the sandbox and scope
+approval are in place. The default test command remains cloud-free.
+
 ### Review performance-layout findings
 
 Assessment emits deterministic `WARN` findings for `TABLE`, `EXTERNAL_TABLE`, and

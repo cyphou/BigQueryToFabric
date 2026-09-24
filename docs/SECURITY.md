@@ -43,6 +43,9 @@
 - Treat policy tags, row access policies, authorized views, and cross-project access as migration
   blockers until target permissions and RLS are validated.
 - Generated output must contain logical references, never secret values.
+- `connection-transcode.json` contains only deterministic logical references and review metadata.
+  Embedded credential material is detected by type and forces `manual_review`; the original value
+  is never copied into the transcode result.
 - Expected behavior for persisted SQL and Spark conversion records: source and target text must not
   retain credentials or service-account key-file paths. `CredentialScanner` redacts SQL conversion
   source and target text during serialization and Spark conversion source and target text when the
@@ -58,6 +61,9 @@
   credential-redaction behavior.
 - `manual_review_reasons` make known assessment constraints explicit in dry-run output. They do
   not prove remediation, parity, effective access, or deployment readiness.
+- The repair loop is offline and opt-in. It works on defensive copies, records applied rule names,
+  and revalidates before reporting `repaired`; it does not perform live healing, modify cloud state,
+  or rewrite persisted input.
 - Generated `Findings` are review evidence for migration planning. They do not prove remediation,
   security parity, effective access, or deployment readiness.
 - Preserve redaction boundaries: inventories and generated artifacts may include only logical,

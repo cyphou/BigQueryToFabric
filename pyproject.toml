@@ -34,6 +34,9 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q --tb=short"
+markers = [
+    "live_gcp: opt-in read-only integration test requiring an authorized GCP sandbox",
+]
 # Keeps `scripts` importable whether pytest runs as a console script or via `python -m`.
 pythonpath = ["."]
 

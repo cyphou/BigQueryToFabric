@@ -66,6 +66,24 @@ For equivalent inventories, this produces identical generated paths and bytes re
 component ordering. This contract is verified by generating inventories with reversed component
 order and comparing every artifact path and byte sequence.
 
+## Connectivity transcode boundary
+
+`connectivity.transcode_connection` is the narrow boundary between connection mapping and report
+generation. It reuses the canonical mapping decision and credential scanner, then emits only a
+stable reference name, target type, compatibility, status, redaction verdict, findings, and safe
+actions. `write_reports` serializes these records to `connection-transcode.json` in dry-run mode.
+No connection is created, no identity is resolved, and no secret-bearing value is persisted.
+
+Known credential material or unsupported backends fail closed to `manual_review`.
+
+## Offline repair boundary
+
+`repair.repair_and_validate` applies ordered `RepairRule` instances to a defensive copy and runs a
+validator after the rules. A successful changed value is marked `repaired`; a failed validator or
+validator exception is `manual_review`. Current domain rules move misplaced pipeline `triggers` and
+remove exact duplicate schema fields recursively. Same-name conflicting definitions are preserved,
+not guessed or renamed. Repairs are opt-in and do not rewrite persisted inventories or artifacts.
+
 ## SQL conversion boundary
 
 There is one SQL conversion stack. `sql_assessment` delegates to the `converter/` package

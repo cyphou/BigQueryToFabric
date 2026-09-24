@@ -286,6 +286,57 @@ class SparkConverter:
 
         return rewritten, notes
 
+    def _rewrite_scala(
+        self, code: str, storage_mapping: dict[str, dict[str, Any]]
+    ) -> tuple[str, list[str]]:
+        """Rewrite the parts of Scala Spark code that can be mechanically transformed.
+
+        Handles storage paths, SparkSession construction, and marks language-specific
+        patterns for manual review. Scala → Python conversion is guided, not automated.
+        """
+        rewritten = code
+        notes: list[str] = []
+
+        # Rewrite storage paths
+        for source_path, mapping in sorted(storage_mapping.items()):
+            target_path = mapping.get("target_path")
+            if not target_path or source_path not in rewritten:
+                continue
+            rewritten = rewritten.replace(source_path, str(target_path))
+            notes.append(f"Rewrote storage path {source_path} to {target_path}.")
+
+        # Fabric provides a live SparkSession; re-creating one is ignored at best.
+        # Scala pattern: val spark = SparkSession.builder().appName(...).getOrCreate()
+        scala_session_pattern = re.compile(
+            r"(?m)^([ \t]*)val\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*SparkSession\s*\.\s*builder"
+            r"[\s\S]*?\.\s*getOrCreate\s*\(\s*\)"
+        )
+        rewritten, scala_session_count = scala_session_pattern.subn(
+            lambda match: (
+                f"{match.group(1)}// Fabric provides the SparkSession"
+                if match.group(2) == "spark"
+                else f"{match.group(1)}{match.group(2)} = spark  "
+                "// Fabric provides the SparkSession"
+            ),
+            rewritten,
+        )
+        if scala_session_count:
+            notes.append(
+                f"Replaced {scala_session_count} Scala SparkSession construction(s). "
+                "Fabric provides the session; use it directly in Python."
+            )
+
+        # Convert val/var declarations to Python assignment syntax
+        val_var_pattern = re.compile(r"(?m)^\s*(?:val|var)\s+")
+        rewritten, val_var_count = val_var_pattern.subn("", rewritten)
+        if val_var_count:
+            notes.append(
+                f"Removed {val_var_count} Scala val/var keyword(s); "
+                "translated to Python assignment syntax."
+            )
+
+        return rewritten, notes
+
     def _convert_scala(
         self,
         source_id: str,
@@ -375,6 +426,16 @@ class SparkConverter:
         # Map storage paths
         storage_mapping = StoragePathMapper.map_multiple_paths(storage_paths, lakehouse_name)
 
+        # Apply mechanical Scala rewrites (SparkSession, paths, etc.)
+        target_text, rewrites = self._rewrite_scala(code, storage_mapping)
+        for rewrite in rewrites:
+            warnings.append(
+                ConversionWarning(message=rewrite, category="rewrite", severity="info")
+            )
+        if rewrites and compat_level == CompatibilityLevel.TRANSFORM:
+            # Keep as TRANSFORM since val/var and other syntax still need manual port
+            pass
+
         # Extract SQL from spark.sql() calls
         extracted_sql = ScalaPatternMatcher.detect_sql_patterns(code)
 
@@ -401,7 +462,7 @@ class SparkConverter:
             language=SparkCodeLanguage.SCALA,
             source_text=self._redact(code),
             target_language="python",
-            target_text="",  # No auto-conversion; manual porting required.
+            target_text=self._redact(target_text),  # Mechanical transformations applied
             compatibility_level=compat_level,
             warnings=tuple(warnings),
             manual_steps=tuple(manual_steps),
@@ -409,7 +470,7 @@ class SparkConverter:
             extracted_sql=extracted_sql,
             storage_paths=storage_paths,
             storage_mapping={path: storage_mapping[path] for path in storage_paths},
-            rationale="Scala code requires manual translation to Python for Fabric.",
+            rationale="Scala code requires manual translation to Python for Fabric; mechanical rewrites applied.",
         )
 
     def extract_embedded_sql(

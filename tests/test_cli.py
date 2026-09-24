@@ -33,6 +33,14 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert summary["status"] == "review_required"
     assert "findingCounts" in summary
     assert (tmp_path / "migration-plan.md").is_file()
+    connection_transcode = json.loads(
+        (tmp_path / "connection-transcode.json").read_text()
+    )
+    assert connection_transcode == {
+        "connections": [],
+        "mode": "dry-run",
+        "projectId": "retail-analytics",
+    }
     migration_plan = (tmp_path / "migration-plan.md").read_text()
     assert "Evidence coverage:" in migration_plan
     assert "## Findings" in migration_plan

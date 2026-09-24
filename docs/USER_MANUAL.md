@@ -110,6 +110,7 @@ A generated package commonly contains:
 | `assessment.json` | Scores, findings, evidence coverage, SQL assessments, and parity status |
 | `assessment-summary.json` | Deterministic dashboard/HTML summary of project, score, evidence, architecture, findings, targets, compatibility, parity, review, blockers, and status; it does not replace `assessment.json` |
 | `component-mapping.csv` | Source kinds, Fabric targets, compatibility, rationale, and actions |
+| `connection-transcode.json` | Secret-free, deterministic connection candidates and review findings |
 | `migration-plan.md` | Human-readable waves, findings, assessment summary, and manual-review reasons |
 | `migration-plan.json` | Machine-readable migration plan |
 | `lineage.mmd` | Dependency graph for review |
@@ -126,6 +127,15 @@ Prioritize these fields during review:
 - `processingStage` and `stageReadiness`: stage-level migration prioritization.
 - `parity_summary`: `passed`, `failed`, `not_run`, or `not_applicable` evidence status.
 - `valid`: whether an individual generated artifact passed local structural checks.
+
+Connection candidates are review records only. `connection-transcode.json` never creates a Fabric
+connection, resolves an identity binding, or claims access. Embedded credential material and
+unsupported backends produce `manual_review` with the finding type retained but the value omitted.
+
+The optional repair contract applies named deterministic rules to a defensive copy and validates
+the result. Current rules repair misplaced pipeline `triggers` and remove exact duplicate schema
+fields. Conflicting duplicate definitions remain manual review; no persisted source file is changed
+automatically.
 
 ### Assessment report summary
 

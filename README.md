@@ -25,7 +25,7 @@
 | 🧭 **Assessment** | 26 source kinds · per-component, evidence-scaled readiness score · 18 explainable finding codes |
 | 🏗️ **Fabric routing** | 15 target roles · compatibility-weighted strategy selection · workload overrides |
 | 🧪 **Quality** | Ruff and Pyright clean (`python -m pyright`; `python -m ruff check src tests`) |
-| 🤖 **Agent model** | 10 specialist agents · exclusive ownership and documentation handoff validated |
+| 🤖 **Agent model** | 13 specialist agents · exclusive ownership and documentation handoff validated |
 | 🔒 **Safety** | Deterministic output · no credentials · no cloud mutation |
 
 Exact counts — suite size, coverage, supported kinds, CLI commands, and the reference-fixture
@@ -127,6 +127,8 @@ The generated package contains:
 	`unresolvedDependencies`, `blockers`, and `status`. This is a presentation summary and does
 	not replace the detailed `assessment.json`.
 - `component-mapping.csv` — primary/supporting targets, compatibility, rationale, and actions.
+- `connection-transcode.json` — deterministic, secret-free GCP-to-Fabric connection candidates,
+	including target type, compatibility, redaction status, and manual-review findings.
 - `migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves, including
 	`manual_review` decisions and deterministic `manual_review_reasons` codes. The Markdown report
 	also includes a `Findings` section listing assessment findings by severity, code, category,
@@ -188,6 +190,17 @@ sits beside `properties` because triggers are separate Fabric resources. Manifes
 separators, so generated output is byte-identical across platforms.
 
 These validators are structural and offline. A `valid: true` artifact is still a dry-run skeleton.
+
+### Offline repair and review loop
+
+The optional `repair` contract applies named deterministic repairs to a defensive copy and then
+revalidates the result. Current rules move misplaced pipeline `triggers` to the resource level and
+remove only exact duplicate schema fields. Conflicting duplicate definitions remain for
+`manual_review`; repairs never silently rewrite a persisted inventory or artifact.
+
+Validated with `python -m pytest tests/test_repair_loop.py tests/test_artifact_validation.py
+tests/test_parity.py`. This is an offline planning aid, not runtime healing or deployment
+automation.
 
 ### Contract-hardening validation
 

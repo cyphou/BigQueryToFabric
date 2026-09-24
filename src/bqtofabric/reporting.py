@@ -12,6 +12,7 @@ from typing import Any, cast
 from .airflow_compatibility import assess_airflow_compatibility
 from .artifact_validation import validate_directory
 from .assessment import AssessmentReport
+from .connectivity import transcode_connection
 from .dataform_conversion import convert_dataform_workflow
 from .deployment_manifest import build_manifest
 from .fabric_artifacts import build_specialized_artifacts
@@ -67,6 +68,18 @@ def write_reports(
                 ";".join(decision.actions),
             ))
     written.append(mapping_path)
+
+    connection_transcode_path = root / "connection-transcode.json"
+    _write_json(connection_transcode_path, {
+        "mode": "dry-run",
+        "projectId": inventory.project_id,
+        "connections": [
+            transcode_connection(item).to_dict()
+            for item in sorted(inventory.objects(), key=lambda value: value.source_id)
+            if item.kind.value == "connection"
+        ],
+    })
+    written.append(connection_transcode_path)
 
     markdown_path = root / "migration-plan.md"
     lines = [

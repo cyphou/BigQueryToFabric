@@ -26,7 +26,7 @@ validation commands.
 | Test suite | passes in CI (`python -m pytest`) |
 | Coverage | 89% |
 | Static quality | Ruff clean · Pyright clean |
-| Agent contracts | 12 agents · exclusive ownership · documentation handoff · 5 skills validated |
+| Agent contracts | 13 agents · exclusive ownership · documentation handoff · 5 skills validated |
 
 Reproduce with:
 
@@ -290,6 +290,29 @@ execution, official Fabric schema validity, or deployment readiness.
 - Existing Composer DAGs remain Airflow candidates when requested.
 - GoogleSQL can be parsed and classified through an AST before translation is attempted.
 - Dependency waves, component mappings, findings, lineage, and dry-run artifacts are deterministic.
+
+### v0.2.0 — connectivity enabler and safe transcode path
+
+- **Expected:** GCP connection metadata and connection semantics should be normalized into a deterministic, reviewable mapping model before artifact generation. This path should convert service-auth patterns into safe Fabric connection references without serializing secrets or claiming live connectivity.
+- **Implemented:** The architecture now treats connection mapping as a specialized sub-path under the existing `Architect` → `FabricGenerator` flow. `connectivity.transcode_connection` emits a deterministic reference name, target type, compatibility, review status, and redaction verdict while reusing the canonical mapper and credential scanner. Embedded credentials and unsupported backends fail closed to `manual_review`; no input value is copied into the result.
+- **Validated:** `connection-transcode.json` is emitted by the normal report/generate flow, and `python -m pytest tests/test_connectivity_enabler.py tests/test_cli.py` covers deterministic output, known backend mapping, secret-free serialization, unknown-backend escalation, and CLI packaging. The path remains offline and reviewable until authorized sandbox access is available.
+- **Open:** Fabric connection IDs, identity bindings, and effective access still require explicit authoring and review. This contract does not create connections or claim live connectivity.
+
+### v0.2.1 — self-healing migration loop
+
+- **Expected:** The offline migration engine should automatically repair common metadata and artifact defects while preserving reviewability and safety. This loop should normalize bad evidence, repair deterministic incompatibilities, validate the repair, and escalate unresolved issues to manual review rather than pretending the migration is complete.
+- **Implemented:** `repair.repair_and_validate` now applies ordered deterministic `RepairRule` instances to a defensive copy, records the rules that changed the value, and revalidates the final result. Domain rules now cover misplaced pipeline triggers and exact duplicate schema fields. Conflicting duplicate definitions remain unchanged for manual review. A valid repaired value is marked `repaired`; an invalid result or validator error is marked `manual_review` with no success claim.
+- **Validated:** `python -m pytest tests/test_repair_loop.py tests/test_artifact_validation.py tests/test_parity.py` covers recorded repairs, final validation, source immutability, the real pipeline validator, and the existing schema parity comparator.
+- **Open:** Domain-specific repair rules for generated artifact defects should be added only with focused tests and explicit ownership. The generic loop and domain rules are opt-in; they perform no silent normalization of persisted artifacts.
+- **Hard guardrails:** No hidden cloud calls, no raw secret persistence, no deployment claims, and no parity success without evidence. Any unresolved repair stays `manual_review`, `not_run`, or `redesign`.
+
+### Sub-path role: Connectivity Enabler
+
+- **Purpose:** Performs the enabling work that sits between the `Architect` mapping decision and the `FabricGenerator` artifact output.
+- **Scope:** Connection metadata normalization, secret-redaction checks, auth-pattern classification, and safe Fabric transcode modeling.
+- **Inputs:** GCP service metadata, discovery payloads, authoring rules, and target-connection requirements.
+- **Outputs:** A reviewable mapping table, redaction verdicts, and a safe candidate connection reference pattern ready for `FabricGenerator` and `Reviewer`.
+- **Hard guardrails:** No raw connection strings, no bearer-token serialization, no live authenticated calls, and no deployment claim.
 
 ### Validated processing-chain example
 
@@ -638,6 +661,11 @@ execution, official Fabric schema validity, or deployment readiness.
   row access policies, data policies, policy tags, and the remaining external-family adapters
   remain unimplemented and require security review where they affect migration decisions.
 
+- **Implemented:** An opt-in `live_gcp` integration test now runs the public discovery command
+  twice with BigQuery, Dataflow, Dataproc, Dataform, and Composer enabled, then checks deterministic
+  output, adapter provenance, and credential-like redaction. It remains skipped unless
+  `BQTOFABRIC_LIVE_GCP=1` and the sandbox configuration variables are explicitly supplied.
+
 - **Implement `GoogleCloudInventoryProvider` behind an optional `gcp` dependency group.** *Done.*
   The provider consumes BigQuery REST resources through a `BigQueryMetadataClient` protocol, so
   discovery is exercised offline against committed API payloads and needs no credentials to test.
@@ -941,13 +969,12 @@ this repository does not have.
 
 ## Priority now
 
-**Next development priority: close the v0.2 live-discovery exit gate.** Build an authorized,
-read-only sandbox integration harness that verifies the BigQuery, Dataflow, Dataproc, Dataform, and
-Composer paths together, including API enablement, permissions and the broader
-`cloud-platform.read-only` scope, pagination, redaction, principal pseudonymization, deterministic
-serialization, and safe provider failures. Do not claim live coverage for Workflows, Pub/Sub, GCS,
-Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner until their adapters and sandbox permissions
-exist.
+**Next development priority: execute the v0.2 live-discovery exit gate.** The opt-in harness now
+exists; run it in an authorized, read-only sandbox and verify API enablement, permissions, the
+broader `cloud-platform.read-only` scope, pagination, redaction, principal pseudonymization,
+deterministic serialization, and safe provider failures. Do not claim live coverage for Workflows,
+Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, or Spanner until their adapters and sandbox
+permissions exist.
 
 After the live-discovery gate, prioritize official format-specific validation for generated Fabric
 artifacts, then v0.5 runtime parity evidence. The current offline contracts and the test suite

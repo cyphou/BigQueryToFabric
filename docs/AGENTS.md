@@ -19,6 +19,7 @@
 | Extractor | Canonical BigQuery model and inventory providers |
 | Assessor | Readiness score and evidence-based findings |
 | Architect | Component mapping, Fabric strategy, types, migration waves |
+| ConnectivityEnabler | Safe GCP/Fabric connection metadata normalization and transcode modeling |
 | SqlConverter | GoogleSQL compatibility and structured translation |
 | FabricGenerator | Dry-run Fabric definitions |
 | Deployer | Future packaging and authenticated deployment boundary |

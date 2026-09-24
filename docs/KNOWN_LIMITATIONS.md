@@ -79,6 +79,13 @@
   invalid rather than emitting an unverified translation.
 - Generated pipeline connection references and managed-identity bindings are review placeholders.
   They are not resolved against a Fabric workspace and grant no access.
+- `connection-transcode.json` is a dry-run mapping record, not a Fabric connection definition or
+  connectivity test. Identity bindings, access rights, and official connector configuration remain
+  open for authoring and review.
+- The self-healing loop is deliberately narrow and opt-in. It repairs only misplaced pipeline
+  `triggers` and exact duplicate schema fields; conflicting duplicate definitions and unsupported
+  artifact defects remain manual review. It does not execute workloads, call cloud services, or
+  rewrite persisted inventory files.
 - Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have **no** live
   adapter and are limited to offline payload normalization and assessment. Conversion and deployment
   remain outside every adapter's behavior.
