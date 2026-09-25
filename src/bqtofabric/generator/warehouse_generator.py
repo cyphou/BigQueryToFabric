@@ -30,6 +30,11 @@ def _escape_comment(value: str) -> str:
     return " ".join(str(value).split())
 
 
+def _invalid_identifier(name: str) -> bool:
+    """Return whether a T-SQL identifier cannot be safely emitted for review."""
+    return not str(name).strip() or any(ord(char) < 32 for char in str(name))
+
+
 def _clean_error(error: Exception) -> str:
     """Return the first error line without terminal escape sequences."""
     text = str(error).splitlines()[0] if str(error).splitlines() else str(error)
@@ -89,6 +94,22 @@ class WarehouseGenerator:
 
         # Schema creation
         schema_name = item.dataset or "dbo"
+        identifier_names = [schema_name, item.name]
+        identifier_names.extend(column.name for column in item.columns)
+        if any(_invalid_identifier(name) for name in identifier_names):
+            warning = (
+                "REDESIGN: Warehouse generation requires non-empty identifiers without "
+                "control characters."
+            )
+            return WarehouseScript(
+                name=f"warehouse_{_escape_comment(item.name)}",
+                description=f"Generated from {item.kind.value} {item.source_id}",
+                source_id=item.source_id,
+                source_kind=item.kind,
+                script="".join(lines + [f"-- {warning}\n"]),
+                warnings=(warning,),
+                valid=False,
+            )
         lines.append("-- Create schema if it does not exist\n")
         lines.extend(self._build_schema_creation(schema_name))
 

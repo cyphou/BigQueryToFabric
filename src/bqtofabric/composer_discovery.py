@@ -122,9 +122,21 @@ class ComposerInventoryProvider:
                 task_dependencies[task_id] = list(deps)
 
         connections = _extract_connections(task_cycle)
+        providers = _extract_task_values(task_cycle, "provider")
+        sensors = sorted(task_type for task_type in operator_types if "Sensor" in task_type)
+        pools = _extract_task_values(task_cycle, "pool")
+        sla = _first_task_value(task_cycle, "sla")
+        retries = _first_task_value(task_cycle, "retries")
+        retry_delay = _first_task_value(task_cycle, "retry_delay")
 
         properties["operators"] = sorted(operator_types)
         properties["connections"] = sorted(connections)
+        properties["providers"] = providers
+        properties["sensors"] = sensors
+        properties["pools"] = pools
+        properties["sla"] = sla
+        properties["retries"] = retries
+        properties["retry_delay"] = retry_delay
         properties["has_bigquery_operators"] = any(
             "BigQuery" in op for op in operator_types
         )
@@ -220,6 +232,22 @@ def _extract_connections(task_cycle: list[dict[str, Any]]) -> set[str]:
             if isinstance(value, str) and value:
                 connections.add(value)
     return connections
+
+
+def _extract_task_values(task_cycle: list[dict[str, Any]], key: str) -> list[str]:
+    """Extract non-empty string task metadata deterministically."""
+    values = {
+        str(task[key])
+        for task in task_cycle
+        if isinstance(task, dict) and task.get(key) not in (None, "")
+    }
+    return sorted(values)
+
+
+def _first_task_value(task_cycle: list[dict[str, Any]], key: str) -> Any:
+    """Return the first declared task value without fabricating missing evidence."""
+    values = [task[key] for task in task_cycle if isinstance(task, dict) and task.get(key) is not None]
+    return values[0] if values else None
 
 
 class RestComposerClient:

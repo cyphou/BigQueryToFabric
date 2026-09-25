@@ -15,6 +15,7 @@ from .assessment import AssessmentReport
 from .connectivity import transcode_connection
 from .dataform_conversion import convert_dataform_workflow
 from .deployment_manifest import build_manifest
+from .evidence_manifest import build_evidence_manifest
 from .fabric_artifacts import build_specialized_artifacts
 from .generator.artifact_generator import generate_artifacts
 from .mapping import FabricTarget, MappingDecision
@@ -49,6 +50,15 @@ def write_reports(
     plan_path = root / "migration-plan.json"
     _write_json(plan_path, asdict(plan))
     written.append(plan_path)
+
+    signoff_path = root / "wave-signoff.json"
+    _write_json(signoff_path, _wave_signoff(plan, assessment))
+    written.append(signoff_path)
+
+    evidence_manifest_path = root / "evidence-manifest.json"
+    evidence_paths = (assessment_path, summary_path, plan_path, signoff_path)
+    _write_json(evidence_manifest_path, build_evidence_manifest(root, evidence_paths))
+    written.append(evidence_manifest_path)
 
     mapping_path = root / "component-mapping.csv"
     with mapping_path.open("w", newline="", encoding="utf-8") as stream:
@@ -202,6 +212,21 @@ def write_reports(
         "",
         "## Migration waves",
         "",
+        "### Wave decision summary",
+        "",
+        "| Wave | Status | Approval | Owner | Effort | Components | Manual review | Dependencies | Blockers |",
+        "|---:|---|---|---|---:|---:|---:|---|---|",
+    ])
+    for wave in plan.waves:
+        dependencies = ", ".join(str(value) for value in wave.dependency_waves) or "-"
+        blockers = "; ".join(wave.blockers) or "-"
+        lines.append(
+            f"| {wave.wave} | {wave.status} | {wave.approval_status} | {wave.owner} | "
+            f"{wave.effort_band} | {len(wave.source_ids)} | {wave.manual_review_count} | {dependencies} | "
+            f"{_markdown_cell(blockers)} |"
+        )
+    lines.extend([
+        "",
         "| Wave | BigQuery object | Fabric target | Manual review | Review reasons |",
         "|---:|---|---|---|---|",
     ])
@@ -269,6 +294,97 @@ def _assessment_summary(
         "unresolvedDependencies": list(plan.unresolved_dependencies),
         "blockers": blockers,
         "status": "blocked" if blockers or plan.unresolved_dependencies else "review_required",
+    }
+
+
+def _wave_signoff(plan: MigrationPlan, assessment: AssessmentReport) -> dict[str, Any]:
+    """Build a deterministic, non-approving wave sign-off package."""
+    return {
+        "mode": "offline-review",
+        "projectId": plan.project_id,
+        "architecture": plan.architecture,
+        "approvalPolicy": "human_review_required",
+        "waves": [
+            {
+                "wave": wave.wave,
+                "status": wave.status,
+                "approvalStatus": wave.approval_status,
+                "owner": wave.owner,
+                "effortBand": wave.effort_band,
+                "sourceIds": list(wave.source_ids),
+                "targetSummary": dict(wave.target_summary),
+                "dependencyWaves": list(wave.dependency_waves),
+                "manualReviewCount": wave.manual_review_count,
+                "blockers": list(wave.blockers),
+                "entryCriteria": list(wave.entry_criteria),
+                "exitCriteria": list(wave.exit_criteria),
+                "parityStatuses": {
+                    source_id: assessment.parity_summary.get(source_id, {}).get("status", "not_run")
+                    for source_id in wave.source_ids
+                },
+                "parityEvidence": {
+                    source_id: _parity_evidence_record(
+                        assessment.parity_summary.get(source_id, {})
+                    )
+                    for source_id in wave.source_ids
+                },
+                "securityEvidence": _security_evidence_record(wave.source_ids, assessment),
+            }
+            for wave in plan.waves
+        ],
+    }
+
+
+def _parity_evidence_record(value: dict[str, Any]) -> dict[str, Any]:
+    """Summarize supplied parity evidence without claiming collection freshness."""
+    checks = value.get("checks", {})
+    if not isinstance(checks, dict):
+        checks = {}
+    return {
+        "status": value.get("status", "not_run"),
+        "checks": {
+            name: {
+                "status": check.get("status", "not_run"),
+                "provenance": check.get("provenance", "not_recorded"),
+                "collectedAt": check.get("collectedAt", "not_recorded"),
+            }
+            for name, check in sorted(checks.items())
+            if isinstance(check, dict)
+        },
+    }
+
+
+def _security_evidence_record(
+    source_ids: tuple[str, ...], assessment: AssessmentReport
+) -> dict[str, Any]:
+    """Summarize security evidence without treating absent findings as proof of safety."""
+    source_set = set(source_ids)
+    findings = [
+        finding for finding in assessment.findings
+        if finding.source_id in source_set and finding.category == "security"
+    ]
+    blockers = sorted({finding.code for finding in findings if finding.severity == "FAIL"})
+    review_codes = sorted({finding.code for finding in findings if finding.severity != "FAIL"})
+    if blockers:
+        status = "blocked"
+    elif review_codes:
+        status = "review_required"
+    else:
+        status = "not_recorded"
+    provenance = {
+        source_id: assessment.evidence_summary.get(source_id, {}).get(
+            "discovered_from", "not_recorded"
+        )
+        for source_id in source_ids
+    }
+    return {
+        "status": status,
+        "blockerCodes": blockers,
+        "reviewCodes": review_codes,
+        "affectedSourceIds": sorted({finding.source_id for finding in findings}),
+        "provenance": provenance,
+        "effectiveAccess": "not_recorded",
+        "fabricPermissionParity": "not_recorded",
     }
 
 

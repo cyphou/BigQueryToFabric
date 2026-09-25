@@ -1165,6 +1165,31 @@ class TestArtifactGeneratorIntegration:
                 # Should start with comment
                 assert sql_content.lstrip().startswith("/*") or "CREATE" in sql_content
 
+    def test_warehouse_rejects_empty_or_control_character_identifiers(self):
+        item = BigQueryObject(
+            source_id="project.dataset.invalid_identifier",
+            name="orders\ninvalid",
+            kind=ObjectKind.TABLE,
+            dataset="sales",
+            columns=(Column(name="", data_type="INT64"),),
+        )
+        decision = MappingDecision(
+            source_id=item.source_id,
+            source_kind=item.kind,
+            target=FabricTarget.WAREHOUSE,
+            compatibility=Compatibility.DIRECT,
+            rationale="Test identifier validation",
+        )
+
+        inventory = BigQueryInventory(project_id="project", datasets=(), components=(item,))
+        script = WarehouseGenerator(
+            inventory, run_assessment(inventory)
+        ).generate_warehouse_script(item, decision)
+
+        assert script is not None
+        assert script.valid is False
+        assert any("identifier" in warning.lower() for warning in script.warnings)
+
     def test_warnings_are_collected(self, basic_inventory, basic_assessment):
         """Test that all warnings are collected in report."""
         gen = ArtifactGenerator(basic_inventory, basic_assessment)

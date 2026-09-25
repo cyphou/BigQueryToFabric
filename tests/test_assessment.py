@@ -80,6 +80,14 @@ def test_plan_orders_view_after_its_table_dependency() -> None:
 
     assert waves["retail-analytics.sales.orders"] < waves["retail-analytics.sales.daily_sales"]
     assert plan.unresolved_dependencies == ()
+    assert plan.waves[0].status in {"blocked", "ready_for_review"}
+    assert plan.waves[0].source_ids
+    assert plan.waves[1].dependency_waves == (1,)
+    assert plan.waves[1].entry_criteria
+    assert plan.waves[1].exit_criteria
+    assert plan.waves[0].owner == "unassigned"
+    assert plan.waves[0].effort_band in {"S", "M", "L", "XL"}
+    assert plan.waves[0].approval_status == "pending_review"
 
 
 def test_sql_assessment_keeps_structured_target_conversion() -> None:

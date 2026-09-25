@@ -29,6 +29,26 @@ Review `migration-plan.md`, including its `Assessment summary` and `Findings` se
 `processingStage`; and inspect `fabric/artifact-validation.json` and
 `fabric/deployment-manifest.json`.
 
+Review the `Wave decision summary` in `migration-plan.md` and the `waves` array in
+`migration-plan.json`. A wave is `blocked` when its plan items carry manual-review reasons or
+unresolved dependencies. `ready_for_review` means only that the local decision package is complete
+enough for human review; it does not mean deployable or runtime-parity proven.
+Wave `owner` is `unassigned` until a migration program assigns a responsible team. `effort_band`
+(`S`, `M`, `L`, or `XL`) is deterministic triage metadata, not a delivery estimate or cost model.
+Generated waves always have `approval_status: pending_review`; changing it to `approved`, `deferred`,
+or `rejected` requires a future explicit review workflow and is not performed by offline generation.
+The generated `wave-signoff.json` is the portable summary for a review board. Its
+`approvalPolicy` is `human_review_required`; it records parity status and criteria but never grants
+approval or deployment authority. `parityEvidence` contains per-check status, provenance, and
+`collectedAt`; absent values are explicitly `not_recorded`.
+`securityEvidence` separately reports security blockers and review codes. Its `effectiveAccess` and
+`fabricPermissionParity` fields remain `not_recorded` unless a future approved evidence source
+supplies them; absence of a security finding is not a security pass.
+`evidence-manifest.json` hashes the assessment, summary, migration plan, and sign-off files. Use
+the local `verify_evidence_manifest` contract before accepting a package; it detects byte changes
+but does not establish source-system authenticity or runtime parity. `validate_artifact` also checks
+this manifest when it is present in a package.
+
 Also inspect `assessment-summary.json` when feeding a dashboard or HTML report. `write_reports`
 creates this deterministic presentation summary with `projectId`, `score`, `evidenceCoverage`,
 `architecture`, `componentCount`, `findingCounts`, `targetSummary`, `compatibilitySummary`,
@@ -137,6 +157,10 @@ generator:
 | `NotebookValidator` | Undefined DataFrame references |
 | `TsqlValidator` | A comment-stripped `CREATE TABLE` that does not re-parse, `#` comments, and `CREATE SCHEMA` outside its own batch |
 | `PipelineValidator` | Parameters or variables that are not name-keyed, `triggers` as a pipeline property, and secret-bearing expressions |
+| Airflow compatibility validator | Missing Composer/Airflow report contract fields |
+| Warehouse generator guard | Empty or control-character schema, object, or column identifiers |
+| Manifest consistency validator | Duplicate generated artifact paths for different source IDs |
+| Manifest path confinement | Artifact paths resolving outside `generated/`, including `..` traversal |
 
 A generated Warehouse view body is converted GoogleSQL → T-SQL. When conversion fails or produces
 constructs Fabric Warehouse does not support, the body is omitted, the artifact is marked invalid,

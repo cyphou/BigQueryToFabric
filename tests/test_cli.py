@@ -33,6 +33,31 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert summary["status"] == "review_required"
     assert "findingCounts" in summary
     assert (tmp_path / "migration-plan.md").is_file()
+    migration_plan_json = json.loads((tmp_path / "migration-plan.json").read_text())
+    assert migration_plan_json["waves"]
+    assert migration_plan_json["waves"][0]["status"] in {"blocked", "ready_for_review"}
+    assert migration_plan_json["waves"][0]["owner"] == "unassigned"
+    assert migration_plan_json["waves"][0]["effort_band"] in {"S", "M", "L", "XL"}
+    assert migration_plan_json["waves"][0]["approval_status"] == "pending_review"
+    signoff = json.loads((tmp_path / "wave-signoff.json").read_text())
+    assert signoff["approvalPolicy"] == "human_review_required"
+    assert signoff["waves"][0]["approvalStatus"] == "pending_review"
+    parity_evidence = signoff["waves"][0]["parityEvidence"]
+    assert parity_evidence
+    first_record = next(iter(parity_evidence.values()))
+    assert first_record["status"] in {"not_run", "passed", "failed", "not_applicable"}
+    security_evidence = signoff["waves"][0]["securityEvidence"]
+    assert security_evidence["status"] in {"blocked", "review_required", "not_recorded"}
+    assert security_evidence["effectiveAccess"] == "not_recorded"
+    evidence_manifest = json.loads((tmp_path / "evidence-manifest.json").read_text())
+    from bqtofabric.evidence_manifest import verify_evidence_manifest
+
+    assert verify_evidence_manifest(tmp_path, evidence_manifest) is True
+    (tmp_path / "wave-signoff.json").write_text(
+        (tmp_path / "wave-signoff.json").read_text() + "\n",
+        encoding="utf-8",
+    )
+    assert verify_evidence_manifest(tmp_path, evidence_manifest) is False
     connection_transcode = json.loads(
         (tmp_path / "connection-transcode.json").read_text()
     )
@@ -42,6 +67,7 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
         "projectId": "retail-analytics",
     }
     migration_plan = (tmp_path / "migration-plan.md").read_text()
+    assert "### Wave decision summary" in migration_plan
     assert "Evidence coverage:" in migration_plan
     assert "## Findings" in migration_plan
     assert "TYPE_REDESIGN" in migration_plan
@@ -62,6 +88,11 @@ def test_generate_writes_reviewable_dry_run_artifacts(tmp_path: Path) -> None:
     assert json.loads((tmp_path / "fabric" / "pipeline.json").read_text())["mode"] == "dry-run"
     validation = json.loads((tmp_path / "fabric" / "artifact-validation.json").read_text())
     assert validation["status"] == "failed"
+    airflow_validation = next(
+        artifact for artifact in validation["artifacts"]
+        if artifact["path"] == "airflow-compatibility.json"
+    )
+    assert airflow_validation["status"] == "passed"
     consistency = next(
         artifact for artifact in validation["artifacts"] if artifact["path"] == "manifest-consistency"
     )

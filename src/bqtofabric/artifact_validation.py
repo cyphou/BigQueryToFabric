@@ -11,6 +11,7 @@ from typing import Any
 import sqlglot
 from sqlglot.errors import SqlglotError
 
+from .evidence_manifest import verify_evidence_manifest
 from .security import CredentialScanner
 
 
@@ -271,6 +272,11 @@ def validate_artifact(path: Path) -> dict[str, Any]:
             elif path.suffix == ".ipynb":
                 _validate_notebook(value, result["errors"])
                 result["errors"].extend(NotebookValidator(value).validate().errors)
+            elif path.name == "airflow-compatibility.json":
+                result["errors"].extend(_validate_airflow_report(value))
+            elif path.name == "evidence-manifest.json":
+                if not verify_evidence_manifest(path.parent, value):
+                    result["errors"].append("evidence manifest integrity check failed")
             elif "properties" in value and "activities" in value.get("properties", {}):
                 result["errors"].extend(PipelineValidator(value).validate().errors)
             elif value.get("mode") == "dry-run" and not value.get("projectId", True):
@@ -283,6 +289,31 @@ def validate_artifact(path: Path) -> dict[str, Any]:
         result["errors"].append(str(error))
     result["status"] = "failed" if result["errors"] else "passed"
     return result
+
+
+def _validate_airflow_report(value: dict[str, Any]) -> list[str]:
+    """Validate the offline shape of the Composer/Airflow compatibility report."""
+    errors: list[str] = []
+    if value.get("mode") != "dry-run":
+        errors.append("Airflow report mode must be dry-run")
+    reports = value.get("reports")
+    if not isinstance(reports, list):
+        return ["Airflow report reports must be an array"]
+    required = {
+        "sourceId", "target", "operators", "unsupportedOperators", "providers", "sensors",
+        "pools", "connections", "sla", "retries", "retryDelay", "schedule", "customPlugins",
+        "actions", "status",
+    }
+    for index, report in enumerate(reports):
+        if not isinstance(report, dict):
+            errors.append(f"Airflow report entry {index} must be an object")
+            continue
+        missing = sorted(required - report.keys())
+        if missing:
+            errors.append(
+                f"Airflow report entry {index} is missing fields: {', '.join(missing)}"
+            )
+    return errors
 
 
 def validate_directory(root: Path) -> dict[str, Any]:
@@ -326,6 +357,7 @@ def _validate_manifest_consistency(root: Path) -> list[str]:
                 artifacts.setdefault(entry["sourceId"], []).append(entry)
 
     errors: list[str] = []
+    seen_paths: dict[str, str] = {}
     expected_categories = {
         "lakehouse_notebook": "notebooks",
         "warehouse_ddl": "warehouse",
@@ -354,7 +386,23 @@ def _validate_manifest_consistency(root: Path) -> list[str]:
             errors.append(f"target entry has no generated artifact: {source_id}")
             continue
         for artifact in matches:
-            artifact_path = root / "generated" / artifact.get("path", "")
+            relative_path = artifact.get("path", "")
+            if isinstance(relative_path, str) and relative_path:
+                previous_source = seen_paths.get(relative_path)
+                if previous_source is not None and previous_source != source_id:
+                    errors.append(
+                        f"duplicate generated artifact path: {relative_path} "
+                        f"for {previous_source} and {source_id}"
+                    )
+                else:
+                    seen_paths[relative_path] = source_id
+            generated_root = (root / "generated").resolve()
+            artifact_path = (generated_root / relative_path).resolve()
+            if not artifact_path.is_relative_to(generated_root):
+                errors.append(
+                    f"generated artifact path is outside generated directory: {relative_path}"
+                )
+                continue
             if not artifact_path.is_file():
                 errors.append(f"generated artifact path is missing: {artifact.get('path', '')}")
             if entry.get("manualReview") is False and artifact.get("valid") is False:

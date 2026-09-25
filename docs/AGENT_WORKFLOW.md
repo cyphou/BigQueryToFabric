@@ -47,4 +47,8 @@ flowchart TD
 - Implementation changes require focused tests, then a Documentation handoff.
 - Scope, ownership, and published-contract changes escalate to `TechLead`.
 
+The delivery phases and the accountable owner for each phase are maintained in the
+[agent execution roadmap](ROADMAP.md#agent-execution-roadmap--next-development-program). Agents
+should use that table to choose the next handoff instead of starting an unassigned parallel track.
+
 The editable diagram is [AGENT_WORKFLOW.excalidraw](AGENT_WORKFLOW.excalidraw).

@@ -40,6 +40,148 @@ python scripts/validate_agents.py
 Focused test-file pass counts are intentionally not documented per command. They drift on every
 change and were repeatedly wrong. Cite the command and state that it passes in CI instead.
 
+## Agent execution roadmap — next development program
+
+This section is the operating plan for all 13 agents. Version milestones below remain the historical
+record of implemented behavior; this table defines the next coordinated work. The objective is to
+move BQToFabric from a technically strong assessment engine to a migration decision package that a
+review board can approve, defer, or reject with explicit evidence.
+
+### Delivery rules
+
+- One phase has one accountable owner. Contributors may propose changes but do not edit another
+  owner's implementation path without an Orchestrator handoff.
+- Every phase follows: expected contract -> implementation -> focused tests -> Reviewer/Preceptor
+  check -> Documentation update -> TechLead sign-off.
+- `ready_for_review` means the local decision package is complete enough for human review. It never
+  means deployable, runtime-parity proven, or cloud-authorized.
+- No phase may weaken evidence gates to improve a score. Missing evidence remains `not_run`,
+  `unknown`, `manual_review`, or `FAIL`.
+- The next phase cannot start until its predecessor's exit gate is green, except for documentation
+  or fixture work explicitly authorized by TechLead.
+
+### Phase plan
+
+| Phase | Outcome | Accountable owner | Contributors | Primary deliverables | Exit gate |
+|---|---|---|---|---|---|
+| P0 Contract reset | Stable public contracts and clean baseline | TechLead | Orchestrator, Tester, Documentation, Preceptor | Versioned contract inventory, ownership map, baseline command results, open-risk register | Agent validation, static checks, full tests, and documented scope all agree |
+| P1 Assessment contract | Trustworthy evidence-backed readiness decision | Assessor | Extractor, Reviewer, Tester, Documentation | Versioned assessment schema, stable finding taxonomy, evidence coverage, blocker model, assessment summary | Same inventory produces deterministic assessment, summary, findings, and blockers with no message-text dependency |
+| P2 Migration decision pack | Turn assessment into actionable waves | Architect | Assessor, SqlConverter, ConnectivityEnabler, Orchestrator, Tester | `MigrationWave`, wave sign-off, approval policy, parity details, evidence integrity manifest | **Implemented locally.** A reviewer can select the next wave and explain why it is ready, blocked, or deferred |
+| P3 Evidence and parity package | Prove what is known and expose what is not | Assessor | Reviewer, Extractor, Architect, Tester, Documentation | Portable evidence package, provenance, parity payload contract, security evidence matrix, sign-off summary | **Active.** Every in-scope component has `passed`, `failed`, `not_run`, or `not_applicable`; no missing evidence renders success |
+| P4 Generation closure | Produce reviewable artifacts from an approved wave | FabricGenerator | SqlConverter, ConnectivityEnabler, Architect, Reviewer, Tester | Wave-scoped artifact bundle, artifact manifest, structural validation, connection transcode, review report | Artifacts are deterministic, secret-free, path-safe, structurally valid, and linked to the approved wave |
+| P5 Deployment readiness | Prepare the authenticated boundary without implicit mutation | Deployer | Orchestrator, ConnectivityEnabler, Reviewer, Tester, TechLead | Deployment plan, identity prerequisites, dry-run/apply separation, rollback and audit design | Isolated Fabric sandbox, explicit approval, approved credentials, and matching dry-run/apply manifests |
+
+### Agent workstream matrix
+
+| Agent | Current next responsibility | Handoff to |
+|---|---|---|
+| `TechLead` | Approve phase scope, public contract changes, ownership conflicts, and entry/exit gates | `Orchestrator` |
+| `Preceptor` | Review the method and evidence quality before implementation slices grow | `TechLead` or owning agent |
+| `Orchestrator` | Maintain phase sequencing, CLI/report integration, and handoff state | `Tester` and `Documentation` |
+| `Extractor` | Close canonical inventory and provenance gaps needed by assessment and waves | `Assessor` |
+| `Assessor` | Own assessment schema, evidence coverage, findings, blockers, and parity status derivation | `Architect` |
+| `Architect` | Own `MigrationWave`, target strategy, dependencies, owners, and readiness decisions | `FabricGenerator` |
+| `ConnectivityEnabler` | Produce safe, deterministic connection references and transcode findings for approved waves | `FabricGenerator` |
+| `SqlConverter` | Classify and translate SQL with explicit semantic risks and parity requirements | `Assessor` and `FabricGenerator` |
+| `FabricGenerator` | Generate deterministic artifacts only from an approved plan and evidence state | `Reviewer` |
+| `Reviewer` | Challenge fidelity, security, unsupported behavior, and evidence claims | `Tester` |
+| `Tester` | Add focused contract tests and run the complete quality gates | `Documentation` |
+| `Documentation` | Synchronize roadmap, runbook, README, architecture, and limitations | `TechLead` |
+| `Deployer` | Remain outside the default path until the authenticated sandbox and approval gates exist | `TechLead` |
+
+### Immediate implementation order
+
+1. **P0/P1:** Maintain the frozen assessment and evidence contracts; only change them through
+  TechLead-approved contract work.
+2. **P2:** Complete review-board usability: assign owners through an explicit human workflow and
+  calibrate effort bands against approved project data. Do not mutate approval in offline generate.
+3. **P3:** Add evidence provenance, freshness policy, security evidence matrix, and portable
+  evidence collection/verification. Runtime collection remains optional and evidence-driven.
+4. **P4:** Make generation wave-scoped. A component must not receive a production-looking artifact
+  when its wave is blocked or its evidence is incomplete.
+5. **P5:** Do not implement authenticated deployment until the external sandbox prerequisites in
+  the blocked-work table are satisfied.
+
+### Current agent board
+
+| Agent | Now | Next | Blocked / guardrail |
+|---|---|---|---|
+| `TechLead` | Approve P2-to-P3 handoff and public contract stability | Approve evidence schema and acceptance policy | No approval mutation without an explicit workflow |
+| `Preceptor` | Review the P3 method and evidence claims | Challenge provenance/freshness assumptions | Must keep `not_run` honest |
+| `Orchestrator` | Keep `wave-signoff.json` and `evidence-manifest.json` in the report flow | Coordinate evidence package CLI/report integration | No cloud calls in default path |
+| `Extractor` | Identify missing provenance and source evidence fields | Define source evidence adapters/payload contract | Live adapters require authorized GCP sandbox |
+| `Assessor` | Own parity status and evidence coverage semantics | Add provenance/freshness and security evidence rollups | Never infer runtime success |
+| `Architect` | Review wave blockers, target decisions, and entry/exit criteria | Define wave owner assignment and calibrated effort input | `unassigned` remains valid until human assignment |
+| `ConnectivityEnabler` | Maintain secret-free connection evidence | Add connection evidence provenance requirements | No live auth or raw credential output |
+| `SqlConverter` | Supply SQL risk and parity requirements to waves | Link converted SQL evidence to wave sign-off | Translation is not equivalence |
+| `FabricGenerator` | Keep artifact output deterministic and review-only | Gate generation on approved/unblocked waves | Official Fabric schemas remain open |
+| `Reviewer` | Review wave sign-off and evidence manifest claims | Define acceptance checklist and security matrix | Cannot approve without evidence |
+| `Tester` | Protect P2/P3 contracts with focused and full gates | Add portable evidence fixtures and tamper cases | No weakening tests to improve readiness |
+| `Documentation` | Keep roadmap/runbook aligned with actual status | Publish P3 evidence package guidance | Must record expected/implemented/validated/open |
+| `Deployer` | Stay outside default path and monitor prerequisites | Prepare deployment plan only after sandbox approval | Authenticated Fabric deployment is blocked |
+
+### P2 implementation status
+
+- **Implemented:** `MigrationWave` groups the existing dependency-ordered `PlanItem` records and
+  exposes source IDs, target counts, dependency waves, status, manual-review count, blockers,
+  entry/exit criteria, an explicit `unassigned` owner placeholder, and a deterministic `S/M/L/XL`
+  effort band. It also carries an explicit `approval_status`, initialized to `pending_review`; the
+  supported future review states are `approved`, `deferred`, and `rejected`. The plan does not
+  invent named owners, monetary cost, schedule duration, or runtime evidence.
+- **Implemented:** `migration-plan.json` now carries the machine-readable `waves` contract, while
+  `migration-plan.md` includes a wave decision summary for reviewers.
+- **Implemented:** The standard report flow now emits `wave-signoff.json`, a deterministic
+  `offline-review` package containing wave blockers, criteria, dependency waves, parity statuses,
+  owner placeholders, effort bands, and an explicit `human_review_required` approval policy.
+- **Implemented:** Sign-off parity evidence now includes each supplied check's recomputed status,
+  declared provenance, and collection timestamp when present. Missing provenance or freshness is
+  rendered as `not_recorded`, never inferred.
+- **Implemented:** Wave sign-off now includes a security evidence matrix with blocker/review codes,
+  affected components, known provenance, and explicit `not_recorded` values for effective access
+  and Fabric permission parity.
+- **Implemented:** The report flow now emits `evidence-manifest.json`, a deterministic offline
+  integrity manifest hashing the assessment, summary, migration plan, and wave sign-off files.
+  Verification detects tampering without cloud access.
+- **Validated:** `python -m pytest tests/test_assessment.py::test_plan_orders_view_after_its_table_dependency
+  tests/test_cli.py::test_generate_writes_reviewable_dry_run_artifacts` covers dependency ordering
+  and the generated report path.
+- **Open:** Named owner assignment, calibrated effort estimation, approval mutation workflow, runtime
+  parity, and executed-wave evidence remain open. The effort band is triage metadata, not a project
+  estimate. `pending_review` is the only generated approval state and `ready_for_review` is not
+  deployment approval.
+
+### P3 implementation status
+
+- **Implemented:** `wave-signoff.json` is a deterministic `offline-review` package with parity status,
+  per-check evidence details, declared provenance, collection timestamps, blockers, criteria, and
+  a `human_review_required` approval policy.
+- **Implemented:** `evidence-manifest.json` hashes the assessment, summary, migration plan, and
+  sign-off files and detects local tampering without cloud access.
+- **Implemented:** Artifact package validation now verifies `evidence-manifest.json` and fails closed
+  when its recorded hash or referenced evidence bytes do not match.
+- **Validated:** The standard CLI generation path, full test suite, Pyright, Ruff, and agent
+  validation pass for the current P3 slice.
+- **Open:** A formal evidence schema, freshness/expiry policy, external evidence ingestion, and
+  runtime parity collection remain to be implemented. Effective IAM and Fabric permission parity
+  are intentionally not inferred by the matrix.
+
+### Phase handoff record
+
+Each completed phase must leave a short record in the relevant documentation containing:
+
+```text
+Phase: Pn
+Owner: agent-name
+Expected: contract being protected
+Implemented: files and behavior changed
+Validated: exact commands and results
+Open: evidence, cloud, or schema limits remaining
+Next owner: agent-name
+```
+
+This record is the minimum coordination artifact between agents. It prevents a green unit-test
+result from being mistaken for a completed migration capability.
+
 ### Reference-fixture assessment output
 
 Deterministic output of `bqtofabric assess tests/fixtures/gcp_ecosystem_project.json` at this
@@ -785,9 +927,17 @@ result = converter.convert(bigquery_obj, TargetDialect.SPARK_SQL)
   established. `SparkConverter` performs no real Spark code transformation, and generated notebooks
   do not carry over source Dataproc/Spark logic.
 
-#### v0.3.2 — Composer/Airflow Compatibility *(planned)*
+#### v0.3.2 — Composer/Airflow Compatibility *(implemented; offline-validated)*
 
-- Produce Composer/Airflow compatibility reports for operators, providers, sensors, pools, connections, SLAs, and plugins.
+- **Implemented:** Composer compatibility reports now preserve operators, providers, sensors, pools,
+  connections, SLA metadata, retry settings, schedules, custom plugins, and unsupported operators.
+  Task-level Composer evidence is normalized deterministically; missing values remain absent rather
+  than being inferred.
+- **Validated:** `python -m pytest tests/test_airflow_compatibility.py tests/test_discovery.py`
+  covers operational report fields and Composer adapter compatibility.
+- **Open:** Fabric Airflow Job execution, provider availability, sensor behavior, SLA monitoring,
+  concurrency parity, and runtime scheduling still require official Fabric validation and runtime
+  evidence.
 
 **Exit gates (v0.3 completed)**
 
@@ -812,6 +962,35 @@ result = converter.convert(bigquery_obj, TargetDialect.SPARK_SQL)
 - **Open:** The generated dry-run Warehouse output still requires official Fabric schema and
   deployment validation; this test result does not establish that validation or deployment
   readiness.
+
+- **Implemented:** Warehouse generation now fails closed when a schema, object, or column name is
+  empty or contains control characters. The result remains a review-only invalid artifact rather
+  than emitting malformed executable T-SQL.
+- **Validated:** `python -m pytest tests/test_artifact_generation.py` covers the identifier guard
+  alongside existing Warehouse generation behavior.
+- **Open:** Official Fabric identifier rules and deployment validation remain outside the offline
+  structural contract.
+
+- **Implemented:** Package consistency validation now rejects two generated manifest entries that
+  resolve to the same relative artifact path for different source IDs.
+- **Validated:** `python -m pytest tests/test_artifact_validation.py` covers duplicate-path failure
+  alongside existing generated-package consistency checks.
+- **Open:** This detects local manifest collisions only; it does not validate official Fabric
+  package schemas or deployment behavior.
+
+- **Implemented:** Package consistency validation now rejects generated manifest paths that resolve
+  outside the `generated/` directory, including parent-directory traversal.
+- **Validated:** `python -m pytest tests/test_artifact_validation.py` covers path escape rejection
+  alongside duplicate-path and target consistency checks.
+- **Open:** This is local path confinement only; it does not replace official package validation.
+
+- **Implemented:** The generated `airflow-compatibility.json` report now has a structural offline
+  validator requiring the Composer/Airflow operational contract fields. Incomplete reports fail
+  closed before review packaging; complete reports remain dry-run evidence.
+- **Validated:** `python -m pytest tests/test_artifact_validation.py` covers incomplete and complete
+  Airflow report shapes.
+- **Open:** This validator does not validate Fabric Airflow Job schemas, provider installation,
+  scheduling behavior, or runtime execution.
 
 - Generate Lakehouse metadata and Delta DDL with Bronze/Silver/Gold layouts.
 - Generate Fabric notebooks with valid metadata, parameters, lakehouse bindings, outputs, and dependencies.

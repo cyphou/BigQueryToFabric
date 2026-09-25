@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from dataclasses import dataclass
 
 from .assessment import AssessmentReport
@@ -19,11 +20,30 @@ class PlanItem:
 
 
 @dataclass(frozen=True, slots=True)
+class MigrationWave:
+    """A reviewer-facing migration decision derived from ordered plan items."""
+
+    wave: int
+    source_ids: tuple[str, ...]
+    target_summary: tuple[tuple[str, int], ...]
+    dependency_waves: tuple[int, ...]
+    status: str
+    manual_review_count: int
+    approval_status: str = "pending_review"
+    owner: str = "unassigned"
+    effort_band: str = "S"
+    blockers: tuple[str, ...] = ()
+    entry_criteria: tuple[str, ...] = ()
+    exit_criteria: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class MigrationPlan:
     project_id: str
     architecture: str
     items: tuple[PlanItem, ...]
     unresolved_dependencies: tuple[str, ...]
+    waves: tuple[MigrationWave, ...] = ()
 
 
 def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> MigrationPlan:
@@ -156,9 +176,83 @@ def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> Mi
         remaining.difference_update(ready)
         wave += 1
 
-    return MigrationPlan(
+    plan_items_tuple = tuple(plan_items)
+    plan = MigrationPlan(
         inventory.project_id,
         assessment.strategy.architecture,
-        tuple(plan_items),
+        plan_items_tuple,
         tuple(sorted(unresolved)),
     )
+    return MigrationPlan(
+        plan.project_id,
+        plan.architecture,
+        plan.items,
+        plan.unresolved_dependencies,
+        build_migration_waves(plan, inventory),
+    )
+
+
+def build_migration_waves(
+    plan: MigrationPlan, inventory: BigQueryInventory
+) -> tuple[MigrationWave, ...]:
+    """Group plan items into deterministic, reviewer-facing migration waves."""
+    objects = {item.source_id: item for item in inventory.objects()}
+    item_by_source = {item.source_id: item for item in plan.items}
+    grouped: dict[int, list[PlanItem]] = {}
+    for item in plan.items:
+        grouped.setdefault(item.wave, []).append(item)
+
+    waves: list[MigrationWave] = []
+    for wave_number in sorted(grouped):
+        items = sorted(grouped[wave_number], key=lambda item: item.source_id)
+        source_ids = tuple(item.source_id for item in items)
+        target_counts = Counter(item.target.value for item in items)
+        dependency_waves = sorted({
+            item_by_source[dependency].wave
+            for item in items
+            for dependency in objects[item.source_id].dependencies
+            if dependency in item_by_source and item_by_source[dependency].wave < wave_number
+        })
+        blockers = sorted({
+            f"{item.source_id}:{reason}"
+            for item in items
+            for reason in item.manual_review_reasons
+        })
+        blockers.extend(sorted(
+            message for message in plan.unresolved_dependencies
+            if any(source_id in message for source_id in source_ids)
+        ))
+        blockers = sorted(set(blockers))
+        status = "blocked" if blockers else "ready_for_review"
+        waves.append(MigrationWave(
+            wave=wave_number,
+            source_ids=source_ids,
+            target_summary=tuple(sorted(target_counts.items())),
+            dependency_waves=tuple(dependency_waves),
+            status=status,
+            manual_review_count=sum(item.manual_review for item in items),
+            effort_band=_effort_band(items, blockers),
+            blockers=tuple(blockers),
+            entry_criteria=(
+                "All dependency waves are resolved before approval.",
+                "Required source evidence is present or explicitly marked for review.",
+            ),
+            exit_criteria=(
+                "All wave artifacts pass structural validation.",
+                "Parity evidence is supplied or explicitly accepted as not_applicable.",
+            ),
+        ))
+    return tuple(waves)
+
+
+def _effort_band(items: list[PlanItem], blockers: list[str]) -> str:
+    """Estimate a coarse review effort without pretending to measure delivery cost."""
+    score = len(items) + len(blockers)
+    score += sum(item.target.value in {"manual", "data_pipeline", "eventstream"} for item in items)
+    if score >= 12:
+        return "XL"
+    if score >= 7:
+        return "L"
+    if score >= 3:
+        return "M"
+    return "S"

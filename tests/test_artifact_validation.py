@@ -27,6 +27,97 @@ def test_validate_artifact_rejects_invalid_notebook(tmp_path: Path) -> None:
     assert result["errors"]
 
 
+def test_validate_airflow_compatibility_requires_operational_contract(tmp_path: Path) -> None:
+    path = tmp_path / "airflow-compatibility.json"
+    path.write_text(json.dumps({
+        "mode": "dry-run",
+        "reports": [{"sourceId": "demo.dag", "target": "airflow_job"}],
+    }), encoding="utf-8")
+
+    result = validate_artifact(path)
+
+    assert result["status"] == "failed"
+    assert any("airflow report" in error.lower() for error in result["errors"])
+
+
+def test_validate_airflow_compatibility_accepts_complete_report(tmp_path: Path) -> None:
+    path = tmp_path / "airflow-compatibility.json"
+    path.write_text(json.dumps({
+        "mode": "dry-run",
+        "reports": [{
+            "sourceId": "demo.dag",
+            "target": "airflow_job",
+            "operators": [],
+            "unsupportedOperators": [],
+            "providers": [],
+            "sensors": [],
+            "pools": [],
+            "connections": [],
+            "sla": None,
+            "retries": None,
+            "retryDelay": None,
+            "schedule": "@daily",
+            "customPlugins": False,
+            "actions": [],
+            "status": "review_required",
+        }],
+    }), encoding="utf-8")
+
+    assert validate_artifact(path)["status"] == "passed"
+
+
+def test_validate_artifact_checks_evidence_manifest_integrity(tmp_path: Path) -> None:
+    evidence = tmp_path / "evidence.json"
+    evidence.write_text("{}", encoding="utf-8")
+    manifest = {
+        "mode": "offline-evidence",
+        "manifestVersion": "1.0",
+        "payload": {
+            "projectId": "demo",
+            "files": {
+                "evidence.json": {
+                    "sha256": "invalid",
+                    "sizeBytes": evidence.stat().st_size,
+                }
+            },
+        },
+        "sha256": "invalid",
+    }
+    path = tmp_path / "evidence-manifest.json"
+    path.write_text(json.dumps(manifest), encoding="utf-8")
+
+    result = validate_artifact(path)
+
+    assert result["status"] == "failed"
+    assert "evidence manifest integrity check failed" in result["errors"]
+
+
+def test_validate_directory_rejects_duplicate_generated_manifest_paths(tmp_path: Path) -> None:
+    generated = tmp_path / "generated"
+    generated.mkdir()
+    (generated / "first.json").write_text("{}", encoding="utf-8")
+    (generated / "second.json").write_text("{}", encoding="utf-8")
+    (generated / "manifest.json").write_text(json.dumps({
+        "artifacts": {
+            "warehouse": [
+                {"sourceId": "project.first", "path": "first.json", "valid": True},
+                {"sourceId": "project.second", "path": "first.json", "valid": True},
+            ]
+        }
+    }), encoding="utf-8")
+    (tmp_path / "target-manifest.json").write_text(json.dumps({
+        "entries": [
+            {"sourceId": "project.first", "artifactKind": "warehouse_ddl", "manualReview": True},
+            {"sourceId": "project.second", "artifactKind": "warehouse_ddl", "manualReview": True},
+        ]
+    }), encoding="utf-8")
+
+    result = validate_directory(tmp_path)
+
+    assert result["status"] == "failed"
+    assert any("duplicate generated artifact path" in error.lower() for artifact in result["artifacts"] for error in artifact.get("errors", []))
+
+
 def test_kql_validator_rejects_invalid_syntax() -> None:
     """Invalid KQL must be deployment-blocking rather than emitted as executable code."""
     from bqtofabric.artifact_validation import KqlValidator
@@ -205,6 +296,26 @@ def test_validate_directory_checks_target_artifact_consistency(tmp_path: Path) -
     assert result["status"] == "failed"
     errors = [error for artifact in result["artifacts"] for error in artifact["errors"]]
     assert any("generated artifact path is missing" in error for error in errors)
+
+
+def test_validate_directory_rejects_artifact_path_escape(tmp_path: Path) -> None:
+    generated = tmp_path / "generated"
+    generated.mkdir()
+    (tmp_path / "outside.json").write_text("{}", encoding="utf-8")
+    (generated / "manifest.json").write_text(json.dumps({
+        "artifacts": {
+            "warehouse": [{"sourceId": "demo.orders", "path": "../outside.json", "valid": True}]
+        }
+    }), encoding="utf-8")
+    (tmp_path / "target-manifest.json").write_text(json.dumps({
+        "entries": [{"sourceId": "demo.orders", "artifactKind": "warehouse_ddl", "manualReview": True}]
+    }), encoding="utf-8")
+
+    result = validate_directory(tmp_path)
+
+    assert result["status"] == "failed"
+    errors = [error for artifact in result["artifacts"] for error in artifact["errors"]]
+    assert any("outside generated directory" in error for error in errors)
 
 
 def test_tsql_validator_rejects_hash_comment_marker() -> None:
