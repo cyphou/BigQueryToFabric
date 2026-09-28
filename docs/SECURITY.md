@@ -62,6 +62,12 @@
   review and test coverage before it can be considered protected.
 - `manual_review_reasons` make known assessment constraints explicit in dry-run output. They do
   not prove remediation, parity, effective access, or deployment readiness.
+- `wave-signoff.json` reports known security findings per migration wave. `effectiveAccess` and
+  `fabricPermissionParity` remain `not_recorded` unless an approved evidence source supplies them;
+  absence of a finding is not a security pass. The report is not an effective-IAM calculation.
+- `evidence-manifest.json` records SHA-256 hashes of local assessment and sign-off files. This detects
+  later byte changes, but is not a signature, trusted timestamp, source-authenticity proof, or runtime
+  parity result.
 - The repair loop is offline and opt-in. It works on defensive copies, records applied rule names,
   and revalidates before reporting `repaired`; it does not perform live healing, modify cloud state,
   or rewrite persisted input.

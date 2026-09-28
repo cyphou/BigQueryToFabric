@@ -131,8 +131,14 @@ The generated package contains:
 	including target type, compatibility, redaction status, and manual-review findings.
 - `migration-plan.md` and `migration-plan.json` — dependency-ordered migration waves, including
 	`manual_review` decisions and deterministic `manual_review_reasons` codes. The Markdown report
-	also includes a `Findings` section listing assessment findings by severity, code, category,
-	source, and message.
+	includes wave status, approval status, owner placeholder, effort band, blockers, and a `Findings`
+	section listing assessment findings by severity, code, category, source, and message.
+- `wave-signoff.json` — portable per-wave review package with blockers, entry/exit criteria, parity
+	evidence, and a security evidence matrix. Approval remains `pending_review`; it does not authorize
+	deployment or claim effective IAM/Fabric permission parity.
+- `evidence-manifest.json` — SHA-256 integrity manifest for the assessment, summary, migration plan,
+	and wave sign-off files. It detects local byte changes but does not establish source authenticity
+	or runtime parity.
 - `lineage.mmd` — Mermaid dependency graph.
 - `fabric/target-manifest.json` — target entries with `processingStage`, `wave`, source
 	`dependencies`, `manualReview`, and deterministic `manualReviewReasons`; its top-level
@@ -162,14 +168,14 @@ checklist based on the sanitized GCP ecosystem fixture.
 `validate_artifact` scans persisted `.json`, `.ipynb`, `.sql`, and `.kql` text with
 `CredentialScanner` before applying the format-specific checks. Credential failures report only
 the finding type and never the matched secret value. `validate_directory` applies this scan
-recursively across the generated package and its subdirectories, alongside notebook, JSON, SQL,
-KQL, and pipeline dependency checks. It also checks each target-manifest entry against the
-generated artifact manifest, verifies that referenced generated paths exist, and fails when a
-non-review target references an invalid artifact. Invalid artifacts intentionally marked for
-manual review remain allowed as review-only scaffolds.
+recursively across the directory being validated and its subdirectories, alongside notebook, JSON,
+SQL, KQL, pipeline, Airflow report, and evidence-manifest checks. It also checks each target-manifest
+entry against the generated artifact manifest, rejects duplicate or out-of-directory artifact paths,
+verifies referenced files exist, and fails when a non-review target references an invalid artifact.
+Invalid artifacts intentionally marked for manual review remain allowed as review-only scaffolds.
 
 This behavior is validated by `python -m pytest tests/test_artifact_validation.py
-tests/test_security.py`, which passes in CI. These are offline pattern and structural checks only;
+tests/test_security.py`, which passes in CI. These are offline pattern, integrity, and structural checks only;
 pattern scanning is not a substitute for official Fabric schema validation or deployment
 validation. Artifact validation now runs after every artifact is written, so `parity-evidence.json`
 and `deployment-manifest.json` are also covered by the credential scan and the structural checks.

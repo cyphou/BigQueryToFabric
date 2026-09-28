@@ -113,6 +113,8 @@ A generated package commonly contains:
 | `connection-transcode.json` | Secret-free, deterministic connection candidates and review findings |
 | `migration-plan.md` | Human-readable waves, findings, assessment summary, and manual-review reasons |
 | `migration-plan.json` | Machine-readable migration plan |
+| `wave-signoff.json` | Per-wave blockers, criteria, parity/security evidence, and human-review-only approval state |
+| `evidence-manifest.json` | SHA-256 integrity manifest for the assessment, summary, plan, and sign-off files |
 | `lineage.mmd` | Dependency graph for review |
 | `fabric/target-manifest.json` | Target entries, waves, stages, dependencies, and review flags |
 | `fabric/deployment-manifest.json` | Immutable dry-run payload with integrity hash |
@@ -127,6 +129,8 @@ Prioritize these fields during review:
 - `processingStage` and `stageReadiness`: stage-level migration prioritization.
 - `parity_summary`: `passed`, `failed`, `not_run`, or `not_applicable` evidence status.
 - `valid`: whether an individual generated artifact passed local structural checks.
+- `approvalStatus`: generated waves start as `pending_review`; offline output never records approval.
+- `securityEvidence`: known security findings and explicit unknowns; `not_recorded` is not a security pass.
 
 Connection candidates are review records only. `connection-transcode.json` never creates a Fabric
 connection, resolves an identity binding, or claims access. Embedded credential material and
@@ -136,6 +140,12 @@ The optional repair contract applies named deterministic rules to a defensive co
 the result. Current rules repair misplaced pipeline `triggers` and remove exact duplicate schema
 fields. Conflicting duplicate definitions remain manual review; no persisted source file is changed
 automatically.
+
+`wave-signoff.json` is a review aid, not a deployment authorization. Its security matrix does not
+calculate effective GCP IAM or Fabric permission parity. `evidence-manifest.json` detects changes to
+the listed local files; it does not establish who produced them, whether their source claims are
+true, or whether runtime parity has been achieved. When validating the full report directory,
+`validate_artifact` checks the evidence manifest and its referenced file hashes.
 
 ### Assessment report summary
 
