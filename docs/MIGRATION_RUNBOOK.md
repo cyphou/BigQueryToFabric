@@ -74,8 +74,10 @@ The offline connectivity contract maps canonical GCP connection metadata to a de
 reference candidate without creating a connection or persisting credentials. Embedded credential
 material and unsupported backends produce `manual_review`; only the finding type is retained.
 The normal report/generate flow writes these records to `connection-transcode.json` for review.
-The generic repair loop applies explicitly supplied `RepairRule` instances once, records the rules
-that changed the value, and revalidates the result. Domain rules move misplaced pipeline
+The generic repair loop applies explicitly supplied `RepairRule` instances once by default, records
+the rules that changed the value, and revalidates the result. With `max_passes > 1` it repeats the
+rules until a pass changes nothing; a value that has not converged by the last pass is
+`manual_review`. Domain rules move misplaced pipeline
 `triggers` to the resource level and remove only exact duplicate schema fields; conflicting
 duplicate definitions remain `manual_review`. A failed validator remains `manual_review`. Repairs are opt-in
 and operate on a defensive copy rather than silently rewriting a persisted artifact.

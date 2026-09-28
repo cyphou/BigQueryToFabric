@@ -14,9 +14,12 @@ Own direction and sequencing. The specialist agents decide *how*; you decide *wh
 
 - `.github/copilot-instructions.md`
 - `.github/agent-instructions.md`
+- `.github/review-verdict.schema.json`
 
 ## When work escalates to you
 
+- A reviewing agent returns `escalate`, or a slice reaches round 3 of the feedback loop
+  without being accepted.
 - Two agents need the same file, or a change crosses an ownership boundary.
 - A fix requires relaxing a project rule or a validator.
 - Scope is growing: a bug fix is turning into a refactor.

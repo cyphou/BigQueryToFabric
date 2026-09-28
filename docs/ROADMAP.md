@@ -59,6 +59,37 @@ review board can approve, defer, or reject with explicit evidence.
   `unknown`, `manual_review`, or `FAIL`.
 - The next phase cannot start until its predecessor's exit gate is green, except for documentation
   or fixture work explicitly authorized by TechLead.
+- A Reviewer or Tester rejection returns the slice to its owning agent through the feedback loop
+  below; it is never fixed in place by the reviewing agent.
+
+### Agent feedback loop
+
+- **Expected:** `Reviewer` and `Tester` emit a structured verdict (`accepted`, `changes_requested`,
+  `escalate`) with finding codes, affected files, and the owning agent. On `changes_requested`,
+  `Orchestrator` routes the slice back to that owner, who may self-heal and resubmits to the same
+  reviewer. The loop is bounded (two rework rounds); round 3 must accept or escalate to
+  `TechLead`. Recurring findings feed `Preceptor` failure modes or new tested `RepairRule`s.
+- **Implemented:** Verdict contract [.github/review-verdict.schema.json](../.github/review-verdict.schema.json)
+  (owned by `TechLead`); `## Feedback loop` sections in `reviewer`, `tester`, and `preceptor`
+  agents; `## Feedback routing` in `orchestrator`, whose agent list now includes `TechLead`,
+  `Preceptor`, and `ConnectivityEnabler`; return edges in [AGENT_WORKFLOW.md](AGENT_WORKFLOW.md#feedback-loop)
+  and the shared working loop. `repair_and_validate` gained `max_passes` for bounded fixed-point
+  self-healing; non-convergence fails closed to `manual_review`. `scripts/review_ledger.py`
+  validates verdicts against the schema (stdlib only), records them to an append-only ledger with
+  round sequencing, and reports recurring findings for `Preceptor`.
+- **Validated:** `scripts/validate_agents.py` rejects a missing or malformed verdict schema, a
+  reviewing agent without all three verdicts, and an Orchestrator that cannot reach an agent.
+  `python -m pytest tests/test_agent_contracts.py tests/test_repair_loop.py` covers the round-3
+  bound, gate-derived acceptance, the repair-block mirror of `RepairResult`, fixed-point repair,
+  and non-convergence.
+- **Open:** The ledger is local and git-ignored; it is not shared across machines or signed.
+  Recording depends on `Orchestrator` calling `review_ledger.py record`; nothing blocks an
+  unrecorded handoff. The schema checker supports only the JSON Schema keywords the verdict
+  schema uses.
+- **Validated (ledger):** `python -m pytest tests/test_review_ledger.py` covers schema rules
+  (gate-derived acceptance, blocking-finding requirement, round-3 bound, escalation target,
+  unknown fields, bool-as-integer), round sequencing per reviewer, closed threads, owner changes,
+  no write on invalid input, and recurrence across distinct slices.
 
 ### Phase plan
 
@@ -84,8 +115,8 @@ review board can approve, defer, or reject with explicit evidence.
 | `ConnectivityEnabler` | Produce safe, deterministic connection references and transcode findings for approved waves | `FabricGenerator` |
 | `SqlConverter` | Classify and translate SQL with explicit semantic risks and parity requirements | `Assessor` and `FabricGenerator` |
 | `FabricGenerator` | Generate deterministic artifacts only from an approved plan and evidence state | `Reviewer` |
-| `Reviewer` | Challenge fidelity, security, unsupported behavior, and evidence claims | `Tester` |
-| `Tester` | Add focused contract tests and run the complete quality gates | `Documentation` |
+| `Reviewer` | Challenge fidelity, security, unsupported behavior, and evidence claims | `Tester` on `accepted`; owning agent on `changes_requested`; `TechLead` on `escalate` |
+| `Tester` | Add focused contract tests and run the complete quality gates | `Documentation` on `accepted`; owning agent on `changes_requested` |
 | `Documentation` | Synchronize roadmap, runbook, README, architecture, and limitations | `TechLead` |
 | `Deployer` | Remain outside the default path until the authenticated sandbox and approval gates exist | `TechLead` |
 
@@ -446,6 +477,7 @@ execution, official Fabric schema validity, or deployment readiness.
 - **Implemented:** `repair.repair_and_validate` now applies ordered deterministic `RepairRule` instances to a defensive copy, records the rules that changed the value, and revalidates the final result. Domain rules now cover misplaced pipeline triggers and exact duplicate schema fields. Conflicting duplicate definitions remain unchanged for manual review. A valid repaired value is marked `repaired`; an invalid result or validator error is marked `manual_review` with no success claim.
 - **Validated:** `python -m pytest tests/test_repair_loop.py tests/test_artifact_validation.py tests/test_parity.py` covers recorded repairs, final validation, source immutability, the real pipeline validator, and the existing schema parity comparator.
 - **Open:** Domain-specific repair rules for generated artifact defects should be added only with focused tests and explicit ownership. The generic loop and domain rules are opt-in; they perform no silent normalization of persisted artifacts.
+- **Extended:** `max_passes` (default `1`, unchanged behavior) repeats rules to a fixed point; a value still changing on the last pass is `manual_review` with `repair did not converge`. The loop is the self-heal step in the [agent feedback loop](AGENT_WORKFLOW.md#feedback-loop); a repaired artifact is still re-reviewed.
 - **Hard guardrails:** No hidden cloud calls, no raw secret persistence, no deployment claims, and no parity success without evidence. Any unresolved repair stays `manual_review`, `not_run`, or `redesign`.
 
 ### Sub-path role: Connectivity Enabler

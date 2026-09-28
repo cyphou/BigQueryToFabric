@@ -1,5 +1,7 @@
 from pathlib import Path
 
+import pytest
+
 from scripts.validate_agents import AGENT_DIR, REQUIRED_COMMANDS, validate
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -54,6 +56,61 @@ def test_escalation_paths_are_documented() -> None:
     assert "Preceptor" in instructions
     assert "TechLead" in instructions
     assert "Escalation" in instructions
+
+
+def test_verdict_schema_bounds_the_feedback_loop() -> None:
+    """The loop must terminate, and acceptance must be derived from gates, not asserted."""
+    import json
+
+    schema = json.loads(
+        (ROOT / ".github" / "review-verdict.schema.json").read_text(encoding="utf-8")
+    )
+    rules = {json.dumps(rule["if"], sort_keys=True): rule["then"] for rule in schema["allOf"]}
+
+    round_three = rules[json.dumps({"properties": {"round": {"const": 3}}}, sort_keys=True)]
+    assert round_three["properties"]["verdict"]["enum"] == ["accepted", "escalate"]
+    assert schema["properties"]["round"]["maximum"] == 3
+
+    accepted = rules[json.dumps({"properties": {"verdict": {"const": "accepted"}}}, sort_keys=True)]
+    gates = accepted["properties"]["gates"]["properties"]
+    assert set(gates) == set(schema["$defs"]["gates"]["required"])
+    assert all(gate == {"const": "passed"} for gate in gates.values())
+
+    escalate = rules[json.dumps({"properties": {"verdict": {"const": "escalate"}}}, sort_keys=True)]
+    assert escalate == {"required": ["escalate_to"]}
+
+
+def test_repair_summary_in_verdict_mirrors_repair_result() -> None:
+    import json
+    from dataclasses import fields
+
+    from bqtofabric.repair import RepairResult
+
+    schema = json.loads(
+        (ROOT / ".github" / "review-verdict.schema.json").read_text(encoding="utf-8")
+    )
+    repair = schema["$defs"]["repair"]["properties"]
+
+    assert set(repair) <= {field.name for field in fields(RepairResult)}
+    assert set(repair["status"]["enum"]) == {"passed", "repaired", "manual_review"}
+
+
+def test_validator_rejects_a_verdict_schema_without_a_return_path(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import json
+
+    from scripts import validate_agents
+
+    broken = tmp_path / "review-verdict.schema.json"
+    broken.write_text(
+        json.dumps({"properties": {"verdict": {"enum": ["accepted"]}}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(validate_agents, "VERDICT_SCHEMA", broken)
+
+    errors = validate_agents.validate()
+
+    assert any("verdicts" in error for error in errors)
 
 
 def test_deep_dive_report_is_current() -> None:

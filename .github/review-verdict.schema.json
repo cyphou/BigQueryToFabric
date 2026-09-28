@@ -1,0 +1,91 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "bqtofabric/review-verdict/1.0",
+  "title": "BQToFabric review verdict",
+  "description": "Structured result a reviewing agent returns so Orchestrator can route the slice. See docs/AGENT_WORKFLOW.md#feedback-loop.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "slice", "reviewer", "owner", "round", "verdict", "findings", "gates"],
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "slice": {"type": "string", "minLength": 1, "description": "Stable identifier of the change under review."},
+    "reviewer": {"enum": ["Reviewer", "Tester", "Preceptor"]},
+    "owner": {"type": "string", "minLength": 1, "description": "Owning agent that receives changes_requested."},
+    "round": {"type": "integer", "minimum": 1, "maximum": 3, "description": "Review round; round 3 may not request changes."},
+    "verdict": {"enum": ["accepted", "changes_requested", "escalate"]},
+    "escalate_to": {"enum": ["TechLead", "Preceptor"]},
+    "findings": {"type": "array", "items": {"$ref": "#/$defs/finding"}},
+    "gates": {"$ref": "#/$defs/gates"},
+    "repair": {"$ref": "#/$defs/repair"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"verdict": {"const": "changes_requested"}}},
+      "then": {"properties": {"findings": {"minItems": 1, "contains": {"properties": {"blocking": {"const": true}}}}}}
+    },
+    {
+      "if": {"properties": {"verdict": {"const": "escalate"}}},
+      "then": {"required": ["escalate_to"]}
+    },
+    {
+      "if": {"properties": {"verdict": {"const": "accepted"}}},
+      "then": {
+        "properties": {
+          "findings": {"items": {"properties": {"blocking": {"const": false}}}},
+          "gates": {
+            "properties": {
+              "pytest": {"const": "passed"},
+              "ruff": {"const": "passed"},
+              "pyright": {"const": "passed"},
+              "validate_agents": {"const": "passed"}
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {"properties": {"round": {"const": 3}}},
+      "then": {"properties": {"verdict": {"enum": ["accepted", "escalate"]}}}
+    }
+  ],
+  "$defs": {
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "severity", "blocking", "file", "summary"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[A-Z][A-Z0-9_]+$", "description": "Assessment finding code or review code such as TEST_ASSERTS_BUG."},
+        "severity": {"enum": ["FAIL", "WARN", "INFO"]},
+        "blocking": {"type": "boolean"},
+        "file": {"type": "string", "minLength": 1, "description": "Workspace-relative path."},
+        "line": {"type": "integer", "minimum": 1},
+        "summary": {"type": "string", "minLength": 1},
+        "failure_mode": {"type": "string", "description": "Preceptor failure-mode heading this finding matches, if any."},
+        "repair_rule": {"type": "string", "description": "Existing RepairRule name the owner may apply before resubmitting."}
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pytest", "ruff", "pyright", "validate_agents"],
+      "properties": {
+        "pytest": {"$ref": "#/$defs/gate"},
+        "ruff": {"$ref": "#/$defs/gate"},
+        "pyright": {"$ref": "#/$defs/gate"},
+        "validate_agents": {"$ref": "#/$defs/gate"}
+      }
+    },
+    "gate": {"enum": ["passed", "failed", "not_run"]},
+    "repair": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "applied_rules", "passes"],
+      "description": "Mirror of bqtofabric.repair.RepairResult when the owner self-healed before resubmitting.",
+      "properties": {
+        "status": {"enum": ["passed", "repaired", "manual_review"]},
+        "applied_rules": {"type": "array", "items": {"type": "string"}},
+        "passes": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

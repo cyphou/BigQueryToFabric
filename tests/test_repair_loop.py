@@ -117,3 +117,52 @@ def test_schema_repair_can_clear_duplicate_field_parity_failure() -> None:
 
     assert result.status == "repaired"
     assert result.valid is True
+
+
+def test_repair_loop_reaches_fixed_point_when_a_later_rule_enables_an_earlier_one() -> None:
+    # Unwrapping exposes misplaced triggers only after the trigger rule has already run.
+    def unwrap(value: dict) -> tuple[dict, bool]:
+        if "wrapped" not in value:
+            return value, False
+        return value["wrapped"], True
+
+    rules = (
+        RepairRule("move_pipeline_triggers", repair_pipeline_triggers),
+        RepairRule("unwrap", unwrap),
+    )
+    wrapped = {"wrapped": {"properties": {"activities": [], "triggers": [{"name": "daily"}]}}}
+
+    def validator(value: dict) -> bool:
+        return "wrapped" not in value and "triggers" not in value.get("properties", {})
+
+    single = repair_and_validate(wrapped, rules=rules, validator=validator)
+    multi = repair_and_validate(wrapped, rules=rules, validator=validator, max_passes=3)
+
+    assert single.status == "manual_review"
+    assert multi.status == "repaired"
+    assert multi.passes == 3
+    assert multi.applied_rules == ("unwrap", "move_pipeline_triggers")
+
+
+def test_repair_loop_fails_closed_when_rules_do_not_converge() -> None:
+    def toggle(value: dict) -> tuple[dict, bool]:
+        return {"flag": not value["flag"]}, True
+
+    result = repair_and_validate(
+        {"flag": True},
+        rules=(RepairRule("toggle", toggle),),
+        validator=lambda _value: True,
+        max_passes=4,
+    )
+
+    assert result.status == "manual_review"
+    assert result.valid is False
+    assert result.errors == ("repair did not converge",)
+    assert result.passes == 4
+
+
+def test_repair_loop_rejects_non_positive_pass_budget() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        repair_and_validate({}, validator=lambda _value: True, max_passes=0)

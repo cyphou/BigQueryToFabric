@@ -46,7 +46,13 @@
     {"type":"arrow","id":"a15","x":1570,"y":812,"width":-40,"height":0,"strokeColor":"#495057","strokeWidth":2,"points":[[0,0],[-40,0]],"endArrowhead":"arrow"},
     {"type":"arrow","id":"a16","x":1270,"y":865,"width":-170,"height":65,"strokeColor":"#495057","strokeWidth":2,"points":[[0,0],[-170,65]],"endArrowhead":"arrow"},
     {"type":"arrow","id":"a17","x":1100,"y":260,"width":550,"height":300,"strokeColor":"#5C2D91","strokeWidth":2,"strokeStyle":"dashed","points":[[0,0],[550,300]],"endArrowhead":"arrow"},
-    {"type":"text","id":"legend","x":70,"y":1080,"width":1600,"height":80,"text":"Solid arrows = delivery handoff     Dashed arrows = governance, review, or escalation     Red = future deployment boundary","fontSize":15,"fontFamily":2,"strokeColor":"#000000","textAlign":"left","verticalAlign":"top"}
+    {"type":"arrow","id":"fb1","x":1700,"y":560,"width":-300,"height":-60,"strokeColor":"#D13438","strokeWidth":2,"strokeStyle":"dashed","points":[[0,0],[0,-60],[-300,-60],[-300,0]],"endArrowhead":"arrow"},
+    {"type":"text","id":"fb1-t","x":1420,"y":470,"width":420,"height":22,"text":"changes_requested -> owner, self-heal, resubmit","fontSize":14,"fontFamily":2,"strokeColor":"#D13438","textAlign":"left","verticalAlign":"top"},
+    {"type":"arrow","id":"fb2","x":1830,"y":812,"width":60,"height":-312,"strokeColor":"#D13438","strokeWidth":2,"strokeStyle":"dashed","points":[[0,0],[60,0],[60,-312],[-130,-312]],"endArrowhead":"arrow"},
+    {"type":"arrow","id":"fb3","x":1570,"y":640,"width":-1130,"height":-205,"strokeColor":"#F7630C","strokeWidth":2,"strokeStyle":"dotted","points":[[0,0],[-1130,-205]],"endArrowhead":"arrow"},
+    {"type":"text","id":"fb3-t","x":470,"y":450,"width":260,"height":22,"text":"recurring finding -> Preceptor","fontSize":14,"fontFamily":2,"strokeColor":"#F7630C","textAlign":"left","verticalAlign":"top"},
+    {"type":"text","id":"fb-note","x":1270,"y":400,"width":600,"height":45,"text":"Verdicts: accepted | changes_requested | escalate\nMax 2 rework rounds; round 3 accepts or escalates to TechLead","fontSize":14,"fontFamily":2,"strokeColor":"#000000","textAlign":"left","verticalAlign":"top"},
+    {"type":"text","id":"legend","x":70,"y":1080,"width":1600,"height":80,"text":"Solid arrows = delivery handoff     Dashed arrows = governance, review, or escalation     Red dashed = feedback loop return     Red box = future deployment boundary","fontSize":15,"fontFamily":2,"strokeColor":"#000000","textAlign":"left","verticalAlign":"top"}
   ],
   "appState": {"viewBackgroundColor":"#ffffff","gridSize":20},
   "files": {}

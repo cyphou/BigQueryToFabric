@@ -86,6 +86,15 @@ of the test below it.
 - Separate blocking defects from preferences, and say which is which.
 - Confirm what is already right; silence teaches nothing.
 
+## Feedback loop
+
+You may review in the loop (`reviewer: Preceptor`) and you receive `escalate_to: Preceptor`
+verdicts. When the same finding `code` or `failure_mode` is returned on two different slices:
+
+- Add or sharpen the matching entry under *Failure modes* so it is caught before review.
+- If the defect is mechanical and deterministic, propose a `RepairRule` to the owning agent
+  through `TechLead`; the rule ships only with a focused test in `tests/test_repair_loop.py`.
+
 ## Constraints
 
 - Review method and evidence; do not rewrite the implementation yourself.

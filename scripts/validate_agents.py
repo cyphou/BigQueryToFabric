@@ -2,15 +2,20 @@
 
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 AGENT_DIR = ROOT / ".github" / "agents"
 SKILL_DIR = ROOT / ".github" / "skills"
+VERDICT_SCHEMA = ROOT / ".github" / "review-verdict.schema.json"
 PRIMARY_SKILL = "bigquery-to-fabric"
 REQUIRED_COMMANDS = {"discover", "inventory", "assess", "map", "plan", "generate", "validate"}
 DOCUMENTATION_AGENT = "Documentation"
+VERDICTS = {"accepted", "changes_requested", "escalate"}
+REVIEWING_AGENTS = ("reviewer.agent.md", "tester.agent.md")
+ROUTING_AGENT = "orchestrator.agent.md"
 
 
 def validate() -> list[str]:
@@ -51,6 +56,42 @@ def validate() -> list[str]:
 
     errors.extend(_validate_skills())
     errors.extend(_validate_roster(names))
+    errors.extend(_validate_feedback_loop(names))
+    return errors
+
+
+def _validate_feedback_loop(names: set[str]) -> list[str]:
+    """Every reviewing agent must have a return path, and the router must reach every agent."""
+    if not VERDICT_SCHEMA.exists():
+        return [".github/review-verdict.schema.json is missing"]
+    try:
+        schema = json.loads(VERDICT_SCHEMA.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        return [f"review-verdict.schema.json is not valid JSON: {error.msg}"]
+
+    errors: list[str] = []
+    declared = set(schema.get("properties", {}).get("verdict", {}).get("enum", []))
+    if declared != VERDICTS:
+        errors.append(f"review-verdict.schema.json verdicts {sorted(declared)} != {sorted(VERDICTS)}")
+    for reviewer in schema.get("properties", {}).get("reviewer", {}).get("enum", []):
+        if reviewer not in names:
+            errors.append(f"review-verdict.schema.json names unknown reviewer: {reviewer}")
+
+    for filename in REVIEWING_AGENTS:
+        text = (AGENT_DIR / filename).read_text(encoding="utf-8")
+        if "## Feedback loop" not in text:
+            errors.append(f"{filename}: missing '## Feedback loop' section")
+        missing = sorted(verdict for verdict in VERDICTS if f"`{verdict}`" not in text)
+        if missing:
+            errors.append(f"{filename}: feedback loop omits verdicts: {', '.join(missing)}")
+
+    router = (AGENT_DIR / ROUTING_AGENT).read_text(encoding="utf-8")
+    if "## Feedback routing" not in router:
+        errors.append(f"{ROUTING_AGENT}: missing '## Feedback routing' section")
+    listed = re.search(r"^agents: \[(.+)\]$", router, re.MULTILINE)
+    reachable = {item.strip() for item in listed.group(1).split(",")} if listed else set()
+    for unreachable in sorted(names - reachable - {"Orchestrator"}):
+        errors.append(f"{ROUTING_AGENT}: cannot route feedback to {unreachable}")
     return errors
 
 

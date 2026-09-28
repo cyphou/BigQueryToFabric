@@ -29,6 +29,7 @@ class RepairResult:
     valid: bool
     applied_rules: tuple[str, ...] = ()
     errors: tuple[str, ...] = ()
+    passes: int = 1
 
 
 def repair_pipeline_triggers(value: Any) -> tuple[Any, bool]:
@@ -73,14 +74,38 @@ def repair_and_validate(
     *,
     rules: tuple[RepairRule, ...] = (),
     validator: Validator,
+    max_passes: int = 1,
 ) -> RepairResult:
-    """Apply ordered repairs once, then fail closed if validation still fails."""
+    """Apply ordered repairs until a pass changes nothing (bounded), then validate fail-closed.
+
+    With ``max_passes > 1`` a value still changing on the final pass has not converged and is
+    returned as ``manual_review`` regardless of the validator.
+    """
+    if max_passes < 1:
+        raise ValueError("max_passes must be at least 1")
     current = deepcopy(value)
     applied: list[str] = []
-    for rule in rules:
-        current, changed = rule.apply(current)
-        if changed:
-            applied.append(rule.name)
+    passes = 0
+    changed_in_pass = False
+    for _ in range(max_passes):
+        passes += 1
+        changed_in_pass = False
+        for rule in rules:
+            current, changed = rule.apply(current)
+            if changed:
+                applied.append(rule.name)
+                changed_in_pass = True
+        if not changed_in_pass:
+            break
+    if max_passes > 1 and changed_in_pass:
+        return RepairResult(
+            value=current,
+            status="manual_review",
+            valid=False,
+            applied_rules=tuple(applied),
+            errors=("repair did not converge",),
+            passes=passes,
+        )
     try:
         valid = bool(validator(current))
     except Exception as error:  # noqa: BLE001 - a repair gate must fail closed
@@ -90,6 +115,7 @@ def repair_and_validate(
             valid=False,
             applied_rules=tuple(applied),
             errors=(f"validator error: {type(error).__name__}",),
+            passes=passes,
         )
     return RepairResult(
         value=current,
@@ -97,4 +123,5 @@ def repair_and_validate(
         valid=valid,
         applied_rules=tuple(applied),
         errors=() if valid else ("validation failed after repair",),
+        passes=passes,
     )

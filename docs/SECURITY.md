@@ -69,8 +69,9 @@
   later byte changes, but is not a signature, trusted timestamp, source-authenticity proof, or runtime
   parity result.
 - The repair loop is offline and opt-in. It works on defensive copies, records applied rule names,
-  and revalidates before reporting `repaired`; it does not perform live healing, modify cloud state,
-  or rewrite persisted input.
+  runs a bounded number of passes (non-convergence fails closed to `manual_review`), and
+  revalidates before reporting `repaired`; it does not perform live healing, modify cloud state,
+  or rewrite persisted input. A repaired artifact still goes through agent review.
 - Generated `Findings` are review evidence for migration planning. They do not prove remediation,
   security parity, effective access, or deployment readiness.
 - Preserve redaction boundaries: inventories and generated artifacts may include only logical,

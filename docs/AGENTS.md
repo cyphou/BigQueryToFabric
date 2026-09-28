@@ -54,4 +54,13 @@ flowchart TD
 `Preceptor` reviews method while the work is in progress; `Reviewer` judges the finished
 artifact. Neither may weaken a gate to let a change land.
 
+## Feedback loop
+
+`Reviewer` and `Tester` return a structured verdict (`accepted`, `changes_requested`,
+`escalate`) defined by [.github/review-verdict.schema.json](../.github/review-verdict.schema.json).
+`Orchestrator` sends `changes_requested` back to the owning agent, which may self-heal with
+existing `RepairRule`s before resubmitting. Two rework rounds at most; the third review must
+accept or escalate to `TechLead`. Recurring findings go to `Preceptor`. Details:
+[AGENT_WORKFLOW.md](AGENT_WORKFLOW.md#feedback-loop).
+
 Each implementation path has one owner. Shared changes must be coordinated by Orchestrator.
