@@ -96,6 +96,31 @@ _SEMANTIC_RISKS: tuple[tuple[str, str, Compatibility], ...] = (
         "INTERVAL arithmetic differs between GoogleSQL and the target dialect.",
         Compatibility.TRANSFORM,
     ),
+    (
+        r"(?i)\bLANGUAGE\s+js\b",
+        "JavaScript UDFs have no SQL target; rewrite them in a notebook and add parity tests.",
+        Compatibility.REDESIGN,
+    ),
+    (
+        r"(?i)\bREMOTE\s+WITH\s+CONNECTION\b",
+        "Remote functions call an external endpoint; redesign as a pipeline or notebook call.",
+        Compatibility.REDESIGN,
+    ),
+    (
+        r"(?i)\bEXECUTE\s+IMMEDIATE\b",
+        "Dynamic SQL cannot be translated statically; redesign and validate each generated query.",
+        Compatibility.REDESIGN,
+    ),
+    (
+        r"(?i)\bQUALIFY\b",
+        "QUALIFY is rewritten as a filtered subquery; verify window ordering and ties.",
+        Compatibility.TRANSFORM,
+    ),
+    (
+        r"(?i)\bFOR\s+SYSTEM_TIME\s+AS\s+OF\b",
+        "Time travel retention and syntax differ between BigQuery and Fabric.",
+        Compatibility.TRANSFORM,
+    ),
 )
 
 

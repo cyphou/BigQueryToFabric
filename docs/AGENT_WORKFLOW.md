@@ -37,7 +37,7 @@ flowchart TD
 | `Architect` | Mapping, strategy, planning, type mapping | Chooses explainable Fabric targets and migration waves. |
 | `ConnectivityEnabler` | Connection metadata normalization and transcode policy | Maps GCP auth and connection semantics to safe Fabric connection references while blocking secret-bearing output. |
 | `SqlConverter` | SQL assessment and compatibility reference | Classifies and translates GoogleSQL constructs. |
-| `FabricGenerator` | Generators and templates | Produces deterministic, reviewable, dry-run Fabric artifacts. |
+| `FabricGenerator` | `generator/` and `fabric_artifacts.py` | Produces deterministic, reviewable, dry-run Fabric artifacts. |
 | `Reviewer` | Security and known limitations | Reviews fidelity, security, lineage, unsupported features, and evidence. |
 | `Tester` | Tests and agent validator | Protects behavior with focused offline tests and quality gates. |
 | `Documentation` | README and migration documentation | Synchronizes expected behavior with validated implementation. |

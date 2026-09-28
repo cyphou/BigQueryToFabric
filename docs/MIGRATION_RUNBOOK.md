@@ -203,6 +203,38 @@ applicable check with missing or malformed evidence emits `PARITY_NOT_RUN`. No s
 query is executed, so `passed` means the supplied evidence agrees — never that the data matches at
 runtime.
 
+### Collect parity evidence with the parity kit
+
+```powershell
+bqtofabric parity-pack inventory.json --output artifacts/parity
+# Run parity-source.sql in BigQuery and parity-target.sql in Fabric, then save results.json:
+# {"pack_id": "<from parity-pack.json>", "results": [
+#   {"query_id": "<id>", "source": [{...row...}], "target": [{...row...}], "collected_at": "..."}]}
+bqtofabric parity-ingest inventory.json --pack artifacts/parity/parity-pack.json `
+  --results results.json --output inventory-with-parity.json
+bqtofabric assess inventory-with-parity.json
+```
+
+**What the pack contains:**
+
+- **Checks generated:** `row_count` for every data-bearing component. For flat columns it adds
+  `null_distribution`, and for integer and decimal columns it adds `aggregate`
+  (`SUM`/`MIN`/`MAX`).
+- **Checks not generated:** `schema`, `checksum`, `sample`, and `sql_result`. The pack explains
+  why under `not_generated`.
+- **Unsafe names:** components whose identifiers fail a strict allowlist are skipped rather than
+  interpolated.
+
+**How ingestion behaves:**
+
+- **Tampering and mismatches:** it rejects a modified pack, results for a different `pack_id`, and
+  unknown query IDs.
+- **One-sided results:** a result that is missing either side leaves the check `not_run`.
+- **No status is written:** only payloads are attached, and `assess` recomputes each status.
+
+The target table name is the proposed `schema.table` name (`[dataset].[name]` for Warehouse,
+`` `dataset`.`name` `` for Lakehouse). Edit `parity-target.sql` if the deployed names differ.
+
 ### Review the readiness score
 
 The readiness score is computed per component, scaled by evidence coverage, and forced to zero for

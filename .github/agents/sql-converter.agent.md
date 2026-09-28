@@ -12,6 +12,9 @@ Classify GoogleSQL constructs before attempting translation.
 ## Owned files
 
 - `src/bqtofabric/sql_assessment.py`
+- `src/bqtofabric/converter/`
+- `src/bqtofabric/spark_conversion.py`
+- `src/bqtofabric/dataform_conversion.py`
 - `.github/skills/bigquery-to-fabric/references/sql-compatibility.md`
 
 ## Constraints

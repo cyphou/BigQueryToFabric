@@ -317,13 +317,22 @@ class PySpark_PatternMatcher:
             sql_arg = match.group(1)
             line_no = code[:match.start()].count('\n') + 1
             
-            # Check for f-string or format() usage
-            if 'f"' in sql_arg or "f'" in sql_arg or '.format(' in sql_arg:
+            # A variable, concatenation, or %-formatting hides the SQL as surely as an f-string.
+            stripped = sql_arg.strip()
+            is_literal = re.match(r'^[rRuU]?("""|\'\'\'|"|\')', stripped) is not None
+            concatenated = re.search(r'["\']\s*[+%]|[+%]\s*["\']', stripped) is not None
+            if (
+                'f"' in sql_arg
+                or "f'" in sql_arg
+                or '.format(' in sql_arg
+                or not is_literal
+                or concatenated
+            ):
                 dynamic_patterns.append({
                     'line': line_no,
                     'type': 'dynamic_sql',
-                    'snippet': sql_arg.strip(),
-                    'warning': 'Dynamic SQL (f-string or format) detected; manual review required.',
+                    'snippet': stripped,
+                    'warning': 'Dynamic SQL (interpolated, concatenated, or variable) detected; manual review required.',
                 })
         
         return dynamic_patterns

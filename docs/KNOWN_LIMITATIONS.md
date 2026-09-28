@@ -37,13 +37,15 @@
 - Generated Fabric artifacts are skeletons and are not production deployment payloads. An artifact
   `valid: true` flag now comes from a real structural validator rather than a generator assertion,
   but a structurally valid skeleton is still a skeleton.
-- **`SparkConverter` performs no real Spark code transformation.** It produces review records with
-  GCS path mapping, credential redaction, and language/runtime evidence. Generated notebooks do
-  **not** carry over the source Dataproc or Spark logic; the transformation body must be written by
-  hand. Treat a generated notebook as a scaffold with metadata, not as a converted job.
-- The `converter/` package is now reachable production code: `sql_assessment` delegates to
-  `SqlConverter`, so SQL conversion has a single implementation. This removes a dead-code path; it
-  does not improve Spark conversion, which remains unimplemented as described above.
+- **`SparkConverter` applies only mechanical Spark rewrites.** When the inventory carries the job
+  body in `properties.code`, it rewrites mapped GCS paths to OneLake, replaces `SparkSession` and
+  `SparkContext` construction with the Fabric-provided session, and redacts credentials; Scala gets
+  the same mechanical rewrites but still requires manual translation to Python. Business logic is
+  carried over, not verified. Without `properties.code` the notebook is a scaffold that loads
+  `INPUT_PATH` and says the original job must be reimplemented.
+- The `converter/` package is reachable production code: `sql_assessment` delegates to
+  `SqlConverter`, so SQL conversion has a single implementation. Converted Spark and SQL remain
+  review-only; neither is equivalence-tested.
 - Generated operational pipeline activities use deterministic retry and secure-policy defaults,
   but retry behavior still requires validation against the official Fabric/ADF schema and runtime;
   the defaults do not establish deployment readiness or execution parity.
@@ -84,8 +86,45 @@
   open for authoring and review.
 - The self-healing loop is deliberately narrow and opt-in. It repairs only misplaced pipeline
   `triggers` and exact duplicate schema fields; conflicting duplicate definitions and unsupported
-  artifact defects remain manual review. It does not execute workloads, call cloud services, or
-  rewrite persisted inventory files.
+  artifact defects remain manual review. With `max_passes > 1` a value still changing on the last
+  pass is `manual_review` (`repair did not converge`). It does not execute workloads, call cloud
+  services, or rewrite persisted inventory files, and a repaired artifact is still re-reviewed.
+- The agent feedback loop is a process contract, not an enforced control. The review ledger
+  (`artifacts/review-ledger.jsonl`) is local, git-ignored, and unsigned, and nothing blocks a
+  handoff that was never recorded. CI runs `review_ledger.py verify` on verdicts committed under
+  `.github/reviews/`, but committing a verdict is not yet required. `review_ledger.py` checks
+  verdicts with a stdlib subset of JSON Schema that covers only the keywords the verdict schema
+  uses.
+- Agent ownership is enforced for `src/` only. Documentation, scripts, and skills are checked for
+  existence and single ownership, not for complete coverage.
+- The parity kit only generates SQL; it never runs a query or connects to either platform.
+  - **Checks covered:** `row_count`, `null_distribution`, and `aggregate` (integer and decimal
+    columns only; floats are excluded because summation order changes their totals).
+  - **Checks not covered:** `schema`, `checksum`, `sample`, and `sql_result` are not generated.
+  - **Target names:** target table names are proposals and must match what was actually deployed.
+  - **What `passed` means:** ingested results show that the two supplied result sets agree. They
+    are not proof of end-to-end data parity.
+- Review-board decisions in `wave-decisions.json` are trusted as authored. The file is hashed but
+  not signed, and the tool does not verify who the reviewer is.
+- The SQL corpus (`tests/fixtures/sql_corpus.json`) protects one case per documented construct.
+  Detection of semantic risk is pattern-based, so a construct written in an unusual form can still
+  be under-rated.
+- Spark conversion flags dynamic SQL when `spark.sql()` receives anything other than a plain
+  string literal. Queries built elsewhere and passed through helper functions are not traced.
+- `import-export` reads only the fields each GCP list method returns. Subscriptions, triggers, data
+  formats, Looker measures and joins, Vertex models and endpoints, and Spanner replication stay
+  `EVIDENCE_MISSING` until they are supplied from a verified source.
+- `security-proposals.json` names a candidate Fabric control for each policy.
+  - **RLS templates:** the Warehouse row-level-security template is deny-all (`WHERE 1 = 0`) and
+    disabled (`STATE = OFF`). The source filter must be translated by hand.
+  - **Unmapped policy types:** they are `unsupported`.
+  - **Effective access:** effective access and permission parity stay `not_recorded`.
+- LookML-to-DAX conversion covers only `count`, `sum`, `average`, `min`, `max`, and
+  `count_distinct` over a single column. Filtered measures, SQL expressions, and other types are
+  listed as unconverted. Data Science scaffolds suggest a starting library only, and
+  `modelParity` is always `not_run`.
+- `inventory_drift` compares two inventories structurally. It is groundwork for the P14 sandbox run
+  and has not been run against live discovery output.
 - Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have **no** live
   adapter and are limited to offline payload normalization and assessment. Conversion and deployment
   remain outside every adapter's behavior.

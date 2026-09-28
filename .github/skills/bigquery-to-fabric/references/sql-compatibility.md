@@ -34,6 +34,18 @@ and downgrade compatibility:
 | `NOT IN` | Yields no rows when the list contains NULL. |
 | `MERGE INTO` | Matched-row handling differs. |
 | `TABLESAMPLE`, `INTERVAL` | Sampling and interval arithmetic differ. |
+| `QUALIFY` | Rewritten as a filtered subquery; verify window ordering and ties. |
+| `FOR SYSTEM_TIME AS OF` | Time-travel retention and syntax differ. |
+| JavaScript UDFs (`LANGUAGE js`) | No SQL target; rewrite in a notebook (redesign). |
+| Remote functions (`REMOTE WITH CONNECTION`) | External endpoint call; redesign (redesign). |
+| `EXECUTE IMMEDIATE` | Dynamic SQL cannot be translated statically (redesign). |
+| Scripting (`DECLARE`, `SET`, `IF`, `LOOP`, `WHILE`) | Procedural control flow; redesign. |
+| `BEGIN ... EXCEPTION WHEN ERROR` | Error handling semantics differ; redesign. |
+
+Every construct in this table has at least one case in `tests/fixtures/sql_corpus.json`.
+The corpus records the most favourable level each construct may receive, taken from
+GoogleSQL semantics; `tests/test_sql_corpus.py` fails if the assessment rates it better
+on either target.
 
 ## Generated Warehouse views
 

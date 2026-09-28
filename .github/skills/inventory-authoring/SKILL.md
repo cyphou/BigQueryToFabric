@@ -101,12 +101,20 @@ If `discovered_from` is `external_payload`, they produce
 | `vertex_ai_pipeline` | `pipeline_steps`, `models`, `endpoints` |
 | `cloud_sql_database` | `engine`, `version`, `replication` |
 | `spanner_database` | `dialect`, `replication`, `change_streams` |
+| `workflow` | `source_contents`, `triggers` |
+| `pubsub_topic` | `message_retention`, `subscriptions` |
+| `gcs_source` | `location`, `storage_class`, `data_format` |
+| `dataplex_asset` | `resource_type`, `zone` |
 | `security_policy` | `policy_type` |
 | `connection` | `connection_type`, `location` |
 
-No contract is defined for `scheduled_query`, `bigquery_job`, `stream`, `workflow`,
-`pubsub_topic`, `gcs_source`, or `dataplex_asset`. Those kinds report 100% coverage by
-default — treat that as "not yet contracted", not as "verified".
+No contract is defined for `scheduled_query`, `bigquery_job`, or `stream`. Those kinds
+report 100% coverage by default — treat that as "not yet contracted", not as "verified".
+
+For Pub/Sub, Workflows, Cloud Storage, Dataplex, Vertex AI, Cloud SQL, Spanner, and
+Looker, `bqtofabric import-export <inventory> --service <name> --payload <list.json>
+--output <out>` fills these properties from a saved API list response. Fields the list
+method cannot return stay missing; supply them by hand only from a verified source.
 
 ## Evidence rules that trip people up
 

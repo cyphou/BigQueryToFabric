@@ -13,6 +13,8 @@ Evaluate migration readiness from evidence produced by Extractor and Architect.
 
 - `src/bqtofabric/assessment.py`
 - `src/bqtofabric/parity.py`
+- `src/bqtofabric/parity_pack.py`
+- `src/bqtofabric/airflow_compatibility.py`
 
 ## Constraints
 

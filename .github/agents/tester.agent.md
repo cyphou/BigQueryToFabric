@@ -13,6 +13,10 @@ Protect behavior with focused offline tests that never require cloud credentials
 
 - `tests/`
 - `scripts/validate_agents.py`
+- `src/bqtofabric/artifact_validation.py`
+
+`artifact_validation.py` sits with `Tester` so artifact validity is never judged by the agent
+that generated the artifact.
 
 ## Constraints
 

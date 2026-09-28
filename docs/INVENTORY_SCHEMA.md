@@ -188,13 +188,24 @@ object fields.
 | `connection` | `connection_type`, `location` |
 | `cloud_sql_database` | `engine`, `version`, `replication` |
 | `spanner_database` | `dialect`, `replication`, `change_streams` |
+| `workflow` | `source_contents`, `triggers` |
+| `pubsub_topic` | `message_retention`, `subscriptions` |
+| `gcs_source` | `location`, `storage_class`, `data_format` |
+| `dataplex_asset` | `resource_type`, `zone` |
 
 This table is enforced: `tests/test_assessment.py` fails if it does not match
 `_required_evidence`.
 
-Kinds not listed — `scheduled_query`, `bigquery_job`, `stream`, `workflow`, `pubsub_topic`,
-`gcs_source`, `dataplex_asset` — have no required-evidence contract today. Their absence from this
-table is a gap in the evidence model, not a statement that they are fully evidenced.
+Kinds not listed — `scheduled_query`, `bigquery_job`, `stream` — have no required-evidence
+contract today. Their absence from this table is a gap in the evidence model, not a statement that
+they are fully evidenced.
+
+For the eight non-BigQuery services, `bqtofabric import-export` builds these properties from a
+saved API list response (Pub/Sub `topics.list`, Workflows `workflows.list`, Cloud Storage
+`buckets.list`, Dataplex `assets.list`, Vertex AI `pipelineJobs.list`, Cloud SQL `instances.list`,
+Spanner `databases.list`, Looker `all_lookml_models`). Fields a list method does not return —
+for example Pub/Sub `subscriptions`, Workflows `triggers`, Cloud Storage `data_format` — stay
+absent and surface as `EVIDENCE_MISSING`.
 
 ### How evidence presence is decided
 

@@ -34,8 +34,10 @@ from .dataproc_discovery import (
 from .deployment_manifest import verify_manifest
 from .deployment_readiness import check_deployment_readiness
 from .discovery import DiscoveryError, GoogleCloudInventoryProvider, create_rest_client
+from .exported_metadata import SERVICES, merge_export
 from .inventory import JsonInventoryProvider
-from .planner import build_plan
+from .parity_pack import build_parity_pack, ingest_parity_results, render_sql
+from .planner import apply_wave_decisions, build_plan, load_wave_decisions
 from .reporting import write_reports
 
 
@@ -57,6 +59,7 @@ def build_parser() -> argparse.ArgumentParser:
         child = subparsers.add_parser(command)
         child.add_argument("inventory", type=Path)
         child.add_argument("--output", "-o", type=Path, required=True)
+        child.add_argument("--decisions", type=Path, default=None)
     discover = subparsers.add_parser("discover")
     discover.add_argument("project")
     discover.add_argument("--output", "-o", type=Path, required=True)
@@ -69,6 +72,19 @@ def build_parser() -> argparse.ArgumentParser:
     manifest.add_argument("manifest", type=Path)
     readiness = subparsers.add_parser("deployment-check")
     readiness.add_argument("artifacts", type=Path)
+    pack = subparsers.add_parser("parity-pack")
+    pack.add_argument("inventory", type=Path)
+    pack.add_argument("--output", "-o", type=Path, required=True)
+    ingest = subparsers.add_parser("parity-ingest")
+    ingest.add_argument("inventory", type=Path)
+    ingest.add_argument("--pack", type=Path, required=True)
+    ingest.add_argument("--results", type=Path, required=True)
+    ingest.add_argument("--output", "-o", type=Path, required=True)
+    export = subparsers.add_parser("import-export")
+    export.add_argument("inventory", type=Path)
+    export.add_argument("--service", choices=sorted(SERVICES), required=True)
+    export.add_argument("--payload", type=Path, required=True)
+    export.add_argument("--output", "-o", type=Path, required=True)
     return parser
 
 
@@ -111,8 +127,47 @@ def _discover(
     return ExitCode.SUCCESS
 
 
+def _parity_ingest(inventory_path: Path, pack_path: Path, results_path: Path, output: Path) -> int:
+    try:
+        inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+        pack = json.loads(pack_path.read_text(encoding="utf-8"))
+        results = json.loads(results_path.read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        print(error)
+        return ExitCode.FILE_NOT_FOUND
+    except json.JSONDecodeError as error:
+        print(f"Invalid JSON: {error}")
+        return ExitCode.VALIDATION_FAILED
+    updated, errors = ingest_parity_results(inventory, pack, results)
+    for error in errors:
+        print(f"FAIL: {error}")
+    if errors:
+        return ExitCode.VALIDATION_FAILED
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(updated, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    print(f"Wrote parity evidence into {output}; run assess to recompute status")
+    return ExitCode.SUCCESS
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "parity-ingest":
+        return _parity_ingest(args.inventory, args.pack, args.results, args.output)
+    if args.command == "import-export":
+        try:
+            inventory = json.loads(args.inventory.read_text(encoding="utf-8"))
+            payload = json.loads(args.payload.read_text(encoding="utf-8"))
+            merged = merge_export(inventory, args.service, payload)
+        except FileNotFoundError as error:
+            print(error)
+            return ExitCode.FILE_NOT_FOUND
+        except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
+            print(f"Invalid export: {error}")
+            return ExitCode.VALIDATION_FAILED
+        args.output.parent.mkdir(parents=True, exist_ok=True)
+        args.output.write_text(json.dumps(merged, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"Merged {args.service} export into {args.output}")
+        return ExitCode.SUCCESS
     if args.command == "discover":
         return _discover(
             args.project,
@@ -162,13 +217,40 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(json.dumps([asdict(item) for item in assessment.decisions], indent=2, sort_keys=True))
     elif args.command == "validate":
         print(f"PASS: {inventory.project_id} ({len(inventory.objects())} objects)")
+    elif args.command == "parity-pack":
+        pack = build_parity_pack(inventory, assessment)
+        args.output.mkdir(parents=True, exist_ok=True)
+        (args.output / "parity-pack.json").write_text(
+            json.dumps(pack, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        for side in ("source", "target"):
+            (args.output / f"parity-{side}.sql").write_text(render_sql(pack, side), encoding="utf-8")
+        print(f"Generated {len(pack['checks'])} parity queries ({pack['pack_id']}) in {args.output}")
     else:
+        decisions = ()
+        if args.decisions is not None:
+            try:
+                raw = json.loads(args.decisions.read_text(encoding="utf-8"))
+            except FileNotFoundError as error:
+                print(error)
+                return ExitCode.FILE_NOT_FOUND
+            except json.JSONDecodeError as error:
+                print(f"Invalid decisions: {error}")
+                return ExitCode.VALIDATION_FAILED
+            decisions, errors = load_wave_decisions(raw if isinstance(raw, dict) else {})
+            if not errors:
+                plan, errors = apply_wave_decisions(plan, decisions)
+            if errors:
+                for error in errors:
+                    print(f"FAIL: {error}")
+                return ExitCode.VALIDATION_FAILED
         paths = write_reports(
             args.output,
             inventory,
             assessment,
             plan,
             include_fabric_artifacts=args.command == "generate",
+            decisions=decisions,
         )
         print(f"Generated {len(paths)} files in {args.output}")
     return ExitCode.SUCCESS

@@ -1,0 +1,58 @@
+{
+  "pubsub": {
+    "reference": "https://cloud.google.com/pubsub/docs/reference/rest/v1/projects.topics/list",
+    "payload": {"topics": [
+      {"name": "projects/demo-project/topics/orders", "labels": {"team": "sales"},
+       "messageRetentionDuration": "604800s", "kmsKeyName": "projects/demo-project/locations/us/keyRings/r/cryptoKeys/k"}
+    ]}
+  },
+  "workflows": {
+    "reference": "https://cloud.google.com/workflows/docs/reference/rest/v1/projects.locations.workflows/list",
+    "payload": {"workflows": [
+      {"name": "projects/demo-project/locations/us-central1/workflows/notify", "state": "ACTIVE",
+       "revisionId": "000001-abc", "serviceAccount": "projects/demo-project/serviceAccounts/wf@demo-project.iam.gserviceaccount.com",
+       "sourceContents": "main:\n  steps:\n    - done:\n        return: ok\n"}
+    ]}
+  },
+  "gcs": {
+    "reference": "https://cloud.google.com/storage/docs/json_api/v1/buckets/list",
+    "payload": {"kind": "storage#buckets", "items": [
+      {"kind": "storage#bucket", "name": "demo-raw", "location": "US", "storageClass": "STANDARD"}
+    ]}
+  },
+  "dataplex": {
+    "reference": "https://cloud.google.com/dataplex/docs/reference/rest/v1/projects.locations.lakes.zones.assets/list",
+    "payload": {"assets": [
+      {"name": "projects/demo-project/locations/us-central1/lakes/core/zones/raw/assets/landing",
+       "resourceSpec": {"type": "STORAGE_BUCKET", "name": "projects/demo-project/buckets/demo-raw"}}
+    ]}
+  },
+  "vertex": {
+    "reference": "https://cloud.google.com/vertex-ai/docs/reference/rest/v1/projects.locations.pipelineJobs/list",
+    "payload": {"pipelineJobs": [
+      {"name": "projects/123/locations/us-central1/pipelineJobs/churn-20260901", "displayName": "churn",
+       "state": "PIPELINE_STATE_SUCCEEDED",
+       "pipelineSpec": {"root": {"dag": {"tasks": {"train": {}, "evaluate": {}, "deploy": {}}}}}}
+    ]}
+  },
+  "cloudsql": {
+    "reference": "https://cloud.google.com/sql/docs/mysql/admin-api/rest/v1/instances/list",
+    "payload": {"items": [
+      {"name": "orders-db", "databaseVersion": "POSTGRES_15", "region": "us-central1",
+       "replicaNames": ["orders-db-replica"]}
+    ]}
+  },
+  "spanner": {
+    "reference": "https://cloud.google.com/spanner/docs/reference/rest/v1/projects.instances.databases/list",
+    "payload": {"databases": [
+      {"name": "projects/demo-project/instances/global/databases/inventory",
+       "state": "READY", "databaseDialect": "GOOGLE_STANDARD_SQL"}
+    ]}
+  },
+  "looker": {
+    "reference": "https://cloud.google.com/looker/docs/reference/looker-api/latest/methods/LookmlModel/all_lookml_models",
+    "payload": [
+      {"name": "commerce", "project_name": "commerce", "explores": [{"name": "orders"}, {"name": "customers"}]}
+    ]
+  }
+}

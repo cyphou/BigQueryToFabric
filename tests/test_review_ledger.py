@@ -127,3 +127,41 @@ def test_cli_check_reports_errors(tmp_path: Path, capsys: pytest.CaptureFixture[
 
     assert main(["check", str(verdict)]) == 1
     assert "$.round: above 3" in capsys.readouterr().err
+
+
+def test_verify_replays_committed_verdicts_in_round_order(tmp_path: Path) -> None:
+    import json
+
+    from scripts.review_ledger import verify_directory
+
+    # Filenames sort opposite to round order; replay must follow rounds, not names.
+    (tmp_path / "a.json").write_text(
+        json.dumps(_verdict(round=2, verdict="accepted", findings=[])), encoding="utf-8"
+    )
+    (tmp_path / "b.json").write_text(json.dumps(_verdict()), encoding="utf-8")
+
+    assert verify_directory(tmp_path) == (2, [])
+    assert verify_directory(tmp_path / "missing") == (0, [])
+
+
+def test_verify_reports_bad_json_schema_and_sequence(tmp_path: Path) -> None:
+    import json
+
+    from scripts.review_ledger import verify_directory
+
+    (tmp_path / "bad.json").write_text("{", encoding="utf-8")
+    (tmp_path / "schema.json").write_text(json.dumps(_verdict(verdict="approved")), encoding="utf-8")
+    (tmp_path / "gap.json").write_text(json.dumps(_verdict(slice="x", round=2)), encoding="utf-8")
+
+    count, errors = verify_directory(tmp_path)
+
+    assert count == 1
+    assert any(error.startswith("bad.json: invalid JSON") for error in errors)
+    assert any(error.startswith("schema.json: $.verdict") for error in errors)
+    assert "gap.json: first verdict for this slice must be round 1" in errors
+
+
+def test_committed_reviews_are_valid() -> None:
+    from scripts.review_ledger import COMMITTED_REVIEWS, verify_directory
+
+    assert verify_directory(COMMITTED_REVIEWS)[1] == []

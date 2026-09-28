@@ -20,7 +20,8 @@ from .fabric_artifacts import build_specialized_artifacts
 from .generator.artifact_generator import generate_artifacts
 from .mapping import FabricTarget, MappingDecision
 from .models import BigQueryInventory
-from .planner import MigrationPlan, PlanItem
+from .planner import MigrationPlan, PlanItem, WaveDecision
+from .security_mapping import propose_security_control
 from .spark_conversion import convert_spark_job
 
 
@@ -34,6 +35,7 @@ def write_reports(
     assessment: AssessmentReport,
     plan: MigrationPlan,
     include_fabric_artifacts: bool = False,
+    decisions: tuple[WaveDecision, ...] = (),
 ) -> tuple[Path, ...]:
     root = Path(output_dir)
     root.mkdir(parents=True, exist_ok=True)
@@ -52,11 +54,19 @@ def write_reports(
     written.append(plan_path)
 
     signoff_path = root / "wave-signoff.json"
-    _write_json(signoff_path, _wave_signoff(plan, assessment))
+    _write_json(signoff_path, _wave_signoff(plan, assessment, decisions))
     written.append(signoff_path)
 
     evidence_manifest_path = root / "evidence-manifest.json"
-    evidence_paths = (assessment_path, summary_path, plan_path, signoff_path)
+    evidence_paths: tuple[Path, ...] = (assessment_path, summary_path, plan_path, signoff_path)
+    if decisions:
+        decisions_path = root / "wave-decisions.json"
+        _write_json(decisions_path, {
+            "schema_version": "1.0",
+            "decisions": [asdict(decision) for decision in decisions],
+        })
+        written.append(decisions_path)
+        evidence_paths = (*evidence_paths, decisions_path)
     _write_json(evidence_manifest_path, build_evidence_manifest(root, evidence_paths))
     written.append(evidence_manifest_path)
 
@@ -90,6 +100,18 @@ def write_reports(
         ],
     })
     written.append(connection_transcode_path)
+
+    security_path = root / "security-proposals.json"
+    _write_json(security_path, {
+        "mode": "dry-run",
+        "projectId": inventory.project_id,
+        "proposals": [
+            propose_security_control(item)
+            for item in sorted(inventory.objects(), key=lambda value: value.source_id)
+            if item.kind.value == "security_policy"
+        ],
+    })
+    written.append(security_path)
 
     markdown_path = root / "migration-plan.md"
     lines = [
@@ -297,8 +319,13 @@ def _assessment_summary(
     }
 
 
-def _wave_signoff(plan: MigrationPlan, assessment: AssessmentReport) -> dict[str, Any]:
-    """Build a deterministic, non-approving wave sign-off package."""
+def _wave_signoff(
+    plan: MigrationPlan,
+    assessment: AssessmentReport,
+    decisions: tuple[WaveDecision, ...] = (),
+) -> dict[str, Any]:
+    """Build a deterministic sign-off package; decisions appear only when a human supplied them."""
+    by_wave = {decision.wave: decision for decision in decisions}
     return {
         "mode": "offline-review",
         "projectId": plan.project_id,
@@ -306,6 +333,11 @@ def _wave_signoff(plan: MigrationPlan, assessment: AssessmentReport) -> dict[str
         "approvalPolicy": "human_review_required",
         "waves": [
             {
+                **({"decision": {
+                    "reviewer": by_wave[wave.wave].reviewer,
+                    "rationale": by_wave[wave.wave].rationale,
+                    "decidedAt": by_wave[wave.wave].decided_at or "not_recorded",
+                }} if wave.wave in by_wave else {}),
                 "wave": wave.wave,
                 "status": wave.status,
                 "approvalStatus": wave.approval_status,

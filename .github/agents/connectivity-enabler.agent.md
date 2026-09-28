@@ -11,9 +11,8 @@ Normalize GCP connection metadata and produce a safe, deterministic mapping mode
 
 ## Owned files
 
-- `src/bqtofabric/discovery/`
-- `src/bqtofabric/generators/connection_*.py`
-- `src/bqtofabric/security/`
+- `src/bqtofabric/security.py`
+- `src/bqtofabric/security_mapping.py`
 - `src/bqtofabric/connectivity.py`
 
 ## Constraints

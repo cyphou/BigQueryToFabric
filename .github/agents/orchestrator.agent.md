@@ -15,7 +15,12 @@ Coordinate the offline BigQuery-to-Fabric workflow and delegate domain decisions
 - `src/bqtofabric/cli.py`
 - `src/bqtofabric/reporting.py`
 - `src/bqtofabric/__main__.py`
+- `src/bqtofabric/__init__.py`
+- `src/bqtofabric/evidence_manifest.py`
+- `src/bqtofabric/repair.py`
 - `scripts/review_ledger.py`
+- `scripts/refresh_deep_dive_report.py`
+- `scripts/smoke_test.ps1`
 
 ## Handoff workflow
 

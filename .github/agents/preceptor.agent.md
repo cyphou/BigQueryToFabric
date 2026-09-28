@@ -79,6 +79,14 @@ of the test below it.
 > After any insert near existing code, run `git diff --stat` and confirm the change is
 > insertions only. Read back what you edited.
 
+### Ownership drift
+
+Agent files claimed `generators/`, `templates/`, `discovery/`, `security/`, and `deploy/`,
+none of which existed, while more than a dozen real modules had no owner at all.
+
+> Ownership that no check reads will rot. `scripts/validate_agents.py` now fails on an owned
+> path that does not exist and on any `src/` file with zero or two owners.
+
 ## How to coach
 
 - Lead with the specific line and the consequence, not a general principle.

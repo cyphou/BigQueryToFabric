@@ -116,6 +116,14 @@ bqtofabric plan tests/fixtures/gcp_ecosystem_project.json --output artifacts/gcp
 bqtofabric generate tests/fixtures/gcp_ecosystem_project.json --output artifacts/gcp-project
 bqtofabric manifest-verify artifacts/gcp-project/fabric/deployment-manifest.json
 bqtofabric deployment-check artifacts/gcp-project/fabric
+
+# Parity kit: generate paired queries, run them yourself, ingest the results
+bqtofabric parity-pack tests/fixtures/gcp_ecosystem_project.json --output artifacts/parity
+bqtofabric parity-ingest inventory.json --pack artifacts/parity/parity-pack.json --results results.json --output inventory-with-parity.json
+
+# Review-board decisions (human-authored) and exported GCP metadata
+bqtofabric plan inventory.json --output artifacts/plan --decisions wave-decisions.json
+bqtofabric import-export inventory.json --service pubsub --payload topics.json --output merged.json
 ```
 
 The generated package contains:

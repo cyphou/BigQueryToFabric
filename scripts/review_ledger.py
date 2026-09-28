@@ -13,6 +13,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / ".github" / "review-verdict.schema.json"
 DEFAULT_LEDGER = ROOT / "artifacts" / "review-ledger.jsonl"
+COMMITTED_REVIEWS = ROOT / ".github" / "reviews"
 RECURRENCE_THRESHOLD = 2
 _TYPES: dict[str, tuple[type, ...]] = {
     "object": (dict,),
@@ -127,6 +128,34 @@ def record(path: Path, verdict: dict[str, Any]) -> list[str]:
     return []
 
 
+def verify_directory(directory: Path) -> tuple[int, list[str]]:
+    """Check every committed verdict and replay them in round order as one ledger."""
+    if not directory.exists():
+        return 0, []
+    errors: list[str] = []
+    verdicts: list[tuple[Path, dict[str, Any]]] = []
+    for path in sorted(directory.rglob("*.json")):
+        try:
+            verdict = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as error:
+            errors.append(f"{path.name}: invalid JSON: {error.msg}")
+            continue
+        problems = check_verdict(verdict)
+        errors.extend(f"{path.name}: {problem}" for problem in problems)
+        if not problems:
+            verdicts.append((path, verdict))
+
+    ledger: list[dict[str, Any]] = []
+    for path, verdict in sorted(
+        verdicts, key=lambda item: (item[1]["slice"], item[1]["reviewer"], item[1]["round"])
+    ):
+        problems = check_sequence(ledger, verdict)
+        errors.extend(f"{path.name}: {problem}" for problem in problems)
+        if not problems:
+            ledger.append(verdict)
+    return len(verdicts), errors
+
+
 def recurring(ledger: list[dict[str, Any]], threshold: int = RECURRENCE_THRESHOLD) -> dict[str, list[str]]:
     """Blocking finding codes and failure modes seen on at least ``threshold`` distinct slices."""
     slices: dict[str, set[str]] = defaultdict(set)
@@ -150,8 +179,16 @@ def main(argv: list[str] | None = None) -> int:
     add.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
     recur = commands.add_parser("recurring", help="list findings that recur across slices")
     recur.add_argument("--ledger", type=Path, default=DEFAULT_LEDGER)
+    verify = commands.add_parser("verify", help="check committed verdicts (CI)")
+    verify.add_argument("directory", type=Path, nargs="?", default=COMMITTED_REVIEWS)
     args = parser.parse_args(argv)
 
+    if args.command == "verify":
+        count, errors = verify_directory(args.directory)
+        for error in errors:
+            print(error, file=sys.stderr)
+        print(f"Verified {count} committed verdicts")
+        return 1 if errors else 0
     if args.command == "recurring":
         print(json.dumps(recurring(read_ledger(args.ledger)), indent=2))
         return 0

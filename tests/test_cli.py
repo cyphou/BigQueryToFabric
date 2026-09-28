@@ -194,7 +194,8 @@ def test_generate_exposes_the_end_to_end_processing_chain(tmp_path: Path) -> Non
         "transform": 1,
         "redesign": 0,
         "unsupported": 1,
-        "manualReview": 1,
+        # The Dataplex asset now has a required-evidence contract and the fixture omits it.
+        "manualReview": 2,
         "readiness": 40,
     }
 

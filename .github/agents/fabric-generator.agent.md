@@ -11,8 +11,8 @@ Generate reviewable Fabric definitions from approved mapping decisions.
 
 ## Owned files
 
-- `src/bqtofabric/generators/`
-- `src/bqtofabric/templates/`
+- `src/bqtofabric/generator/`
+- `src/bqtofabric/fabric_artifacts.py`
 
 ## Constraints
 

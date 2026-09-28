@@ -389,6 +389,10 @@ def _required_evidence(kind: ObjectKind) -> tuple[str, ...]:
         ObjectKind.CONNECTION: ("connection_type", "location"),
         ObjectKind.CLOUD_SQL_DATABASE: ("engine", "version", "replication"),
         ObjectKind.SPANNER_DATABASE: ("dialect", "replication", "change_streams"),
+        ObjectKind.WORKFLOW: ("source_contents", "triggers"),
+        ObjectKind.PUBSUB_TOPIC: ("message_retention", "subscriptions"),
+        ObjectKind.GCS_SOURCE: ("location", "storage_class", "data_format"),
+        ObjectKind.DATAPLEX_ASSET: ("resource_type", "zone"),
     }
     return required.get(kind, ())
 

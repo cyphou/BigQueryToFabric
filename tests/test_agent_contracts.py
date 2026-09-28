@@ -11,6 +11,24 @@ def test_agent_and_skill_contracts_are_valid() -> None:
     assert validate() == []
 
 
+def test_ownership_coverage_rejects_drift() -> None:
+    """Owned paths that don't exist and unowned modules were both shipped once."""
+    from scripts.validate_agents import _validate_ownership_coverage
+
+    owned = {
+        "src/bqtofabric/": "Orchestrator",
+        "src/bqtofabric/cli.py": "Architect",
+        "src/bqtofabric/generators/": "FabricGenerator",
+    }
+    errors = _validate_ownership_coverage(owned)
+
+    assert "src/bqtofabric/generators/: owned by FabricGenerator but does not exist" in errors
+    assert "src/bqtofabric/cli.py: owned by Architect and Orchestrator" in errors
+    assert "src/bqtofabric/repair.py: no owning agent" in _validate_ownership_coverage(
+        {"src/bqtofabric/cli.py": "Orchestrator"}
+    )
+
+
 def test_skill_documents_the_public_cli_surface() -> None:
     assert REQUIRED_COMMANDS == {
         "discover",

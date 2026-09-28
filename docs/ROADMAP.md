@@ -15,7 +15,7 @@ validation commands.
 |---|---|
 | Supported source taxonomy | 26 `ObjectKind` members |
 | Fabric decision surface | 15 primary/supporting target roles |
-| Public CLI | 9 commands: `assess`, `deployment-check`, `discover`, `generate`, `inventory`, `manifest-verify`, `map`, `plan`, `validate` |
+| Public CLI | 12 commands: `assess`, `deployment-check`, `discover`, `generate`, `import-export`, `inventory`, `manifest-verify`, `map`, `parity-ingest`, `parity-pack`, `plan`, `validate` |
 | Live discovery adapters | BigQuery (core) plus opt-in BigQuery-adjacent adapters for Dataflow, Dataproc, Dataform, and Composer |
 | Reference portfolio | 28 assessed components (`tests/fixtures/gcp_ecosystem_project.json`) |
 | Reference recommendation | Lakehouse primary · hybrid architecture · Airflow retained |
@@ -24,9 +24,9 @@ validation commands.
 | Manual-review reason codes | 13 stable codes |
 | Parity check types | 7: `schema`, `row_count`, `checksum`, `aggregate`, `null_distribution`, `sample`, `sql_result` |
 | Test suite | passes in CI (`python -m pytest`) |
-| Coverage | 89% |
+| Coverage | 91% |
 | Static quality | Ruff clean · Pyright clean |
-| Agent contracts | 13 agents · exclusive ownership · documentation handoff · 5 skills validated |
+| Agent contracts | 13 agents · exclusive ownership of every `src/` module · feedback-loop verdicts · documentation handoff · 5 skills validated |
 
 Reproduce with:
 
@@ -132,14 +132,16 @@ review board can approve, defer, or reject with explicit evidence.
   when its wave is blocked or its evidence is incomplete.
 5. **P5:** Do not implement authenticated deployment until the external sandbox prerequisites in
   the blocked-work table are satisfied.
+6. **P6:** Start now, in parallel with the phases above. It fixes ownership drift and enforces the
+  feedback loop in CI; see [the next program](#next-program--phases-p6-to-p15).
 
 ### Current agent board
 
 | Agent | Now | Next | Blocked / guardrail |
 |---|---|---|---|
-| `TechLead` | Approve P2-to-P3 handoff and public contract stability | Approve evidence schema and acceptance policy | No approval mutation without an explicit workflow |
+| `TechLead` | Approve P2-to-P3 handoff, public contract stability, and the P6 module assignments | Approve evidence schema and acceptance policy | No approval mutation without an explicit workflow |
 | `Preceptor` | Review the P3 method and evidence claims | Challenge provenance/freshness assumptions | Must keep `not_run` honest |
-| `Orchestrator` | Keep `wave-signoff.json` and `evidence-manifest.json` in the report flow | Coordinate evidence package CLI/report integration | No cloud calls in default path |
+| `Orchestrator` | Keep `wave-signoff.json` and `evidence-manifest.json` in the report flow | Add the P6 CI verdict check; coordinate evidence package CLI/report integration | No cloud calls in default path |
 | `Extractor` | Identify missing provenance and source evidence fields | Define source evidence adapters/payload contract | Live adapters require authorized GCP sandbox |
 | `Assessor` | Own parity status and evidence coverage semantics | Add provenance/freshness and security evidence rollups | Never infer runtime success |
 | `Architect` | Review wave blockers, target decisions, and entry/exit criteria | Define wave owner assignment and calibrated effort input | `unassigned` remains valid until human assignment |
@@ -196,6 +198,270 @@ review board can approve, defer, or reject with explicit evidence.
   runtime parity collection remain to be implemented. Effective IAM and Fabric permission parity
   are intentionally not inferred by the matrix.
 
+### Next program — phases P6 to P15
+
+P0–P5 remain the current program. The ten phases below follow it. Each one has one accountable
+owner, a goal stated as an observable outcome, a target per agent, and an exit gate that can be
+checked. Every phase runs the [feedback loop](AGENT_WORKFLOW.md#feedback-loop): slices are
+recorded in the review ledger and close only on an `accepted` verdict from `Reviewer` and `Tester`.
+
+#### Sequencing
+
+```mermaid
+flowchart LR
+    P6[P6 Ownership and loop enforcement] --> P7[P7 Parity execution kit]
+    P6 --> P8[P8 Review-board decisions]
+    P6 --> P9[P9 SQL fidelity]
+    P9 --> P10[P10 Spark and Dataform conversion]
+    P6 --> P11[P11 Offline adapter breadth]
+    P11 --> P12[P12 Governance and identity mapping]
+    P11 --> P13[P13 Semantic and AI workloads]
+    P7 --> P14[P14 Live discovery verification]
+    P11 --> P14
+    P8 --> P15[P15 Authenticated deployment pilot]
+    P14 --> P15
+```
+
+- **P6 starts now.** It is governance-only, so it doesn't wait for P3–P5.
+- **P7–P13** start when P3 (evidence) and P4 (wave-scoped generation) are green. P7, P8, P9, and P11
+  can run in parallel because their owners and files don't overlap.
+- **P14 and P15 are externally blocked.** They need the GCP and Fabric sandboxes listed in the
+  blocked-work table and P5's exit gate. Until then, only their offline preparation is allowed.
+
+#### Phase summary
+
+| Phase | Goal | Accountable | Exit gate | Status |
+|---|---|---|---|---|
+| P6 Ownership and loop enforcement | Every source file has exactly one real owner, and no slice lands without a recorded verdict | TechLead | `validate_agents.py` fails on unowned or nonexistent owned paths; CI checks committed verdicts | **Implemented**; assignments await TechLead approval |
+| P7 Parity execution kit | Turn `not_run` parity into a runnable, reviewable query pack and a results-ingestion path | Assessor | Every `not_run` component in the reference fixture gets a paired query pack; ingested results recompute status | **Implemented** |
+| P8 Review-board decisions | Approvals, owners, and effort come from an explicit human decision file, never from generation | Architect | Plan approval changes only through `wave-decisions.json`; missing decisions stay `pending_review` | **Implemented** |
+| P9 SQL fidelity | Procedural and complex GoogleSQL is classified per construct, with a versioned corpus | SqlConverter | Every construct in the SQL compatibility reference has a corpus case; none defaults to `direct` | **Implemented**; finding-code mapping open |
+| P10 Spark and Dataform conversion | Dataproc jobs and Dataform SQLX become reviewable Fabric notebooks and SQL with explicit gaps | SqlConverter | Converted notebooks pass `NotebookValidator`; each unconverted pattern carries a stable reason code | **Spark implemented**; Dataform open |
+| P11 Offline adapter breadth | Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner ingest from exported metadata | Extractor | Each source has a fixture traced to its documented API shape and evidence rules in assessment | **Implemented** |
+| P12 Governance and identity mapping | Policy tags, row access, authorized views, and IAM become reviewed Fabric security proposals | ConnectivityEnabler | Every security object has a mapping and compatibility; effective access stays `not_recorded` | **Implemented**; Reviewer checklist open |
+| P13 Semantic and AI workloads | LookML, BQML, and Vertex AI produce semantic-model and Data Science scaffolds | FabricGenerator | Semantic models validate structurally; DAX appears only in measures; ML scaffolds are review-only | **Implemented** in specs; generated notebooks open |
+| P14 Live discovery verification | The five live adapters are verified read-only against an authorized GCP sandbox | Extractor | Sandbox run recorded as evidence; drift against offline fixtures is reported, not silently absorbed | Blocked: GCP sandbox. Drift report ready |
+| P15 Authenticated deployment pilot | One approved wave is deployed to an isolated Fabric workspace and rolled back | Deployer | Dry-run and apply manifests match; rollback and audit log verified; workspace torn down | Blocked: Fabric sandbox, P5 |
+
+#### Agent × phase responsibility
+
+`A` = accountable, `C` = contributes an implementation slice, `R` = issues a verdict, blank = not
+involved. `Documentation` updates the roadmap and runbook at the end of every phase.
+
+| Agent | P6 | P7 | P8 | P9 | P10 | P11 | P12 | P13 | P14 | P15 |
+|---|---|---|---|---|---|---|---|---|---|---|
+| `TechLead` | A | | C | | | | | | C | C |
+| `Preceptor` | R | R | | R | R | R | | | R | |
+| `Orchestrator` | C | C | C | | | | | | C | C |
+| `Extractor` | | C | | | | A | C | C | A | |
+| `Assessor` | | A | C | C | | C | C | | C | |
+| `Architect` | | | A | | C | C | C | C | | C |
+| `ConnectivityEnabler` | | | | | | | A | | C | C |
+| `SqlConverter` | | C | | A | A | | | | | |
+| `FabricGenerator` | | | | C | C | | C | A | | C |
+| `Deployer` | | | | | | | | | | A |
+| `Reviewer` | R | R | R | R | R | R | R | R | R | R |
+| `Tester` | C | R | R | R | R | R | R | R | R | R |
+| `Documentation` | C | C | C | C | C | C | C | C | C | C |
+
+#### P6 — Ownership and loop enforcement
+
+- **Goal:** Ownership stops being prose. Every file under `src/` has one owner that actually
+  exists on disk, and no slice merges without a recorded `accepted` verdict.
+- **Why now:** Several owned paths in the agent files point to directories that don't exist
+  (`generators/`, `templates/`, `discovery/`, `security/`, `deploy/`, `generators/connection_*.py`),
+  while the real modules have no owner. The real modules are `converter/`, `generator/`,
+  `security.py`, `repair.py`, `artifact_validation.py`, `evidence_manifest.py`,
+  `fabric_artifacts.py`, `spark_conversion.py`, `dataform_conversion.py`,
+  `airflow_compatibility.py`, and the four `*_discovery.py` adapters.
+- **Targets by agent:**
+  - `TechLead`: assign each unowned module and resolve the `discovery` overlap between
+    `Extractor` and `ConnectivityEnabler`.
+  - `Tester`: extend `validate_agents.py` to fail when a `src/` file is unowned, when an owned path
+    doesn't exist, or when two agents own the same file through a directory.
+  - `Orchestrator`: add a CI step that runs `review_ledger.py check` on any verdict committed under
+    `.github/reviews/`.
+  - `Preceptor`: add "ownership drift" as a failure mode.
+  - `Reviewer`: confirm that no reassignment moves security-sensitive code away from a reviewed
+    owner.
+- **Exit gate:** Zero unowned `src/` modules, and zero nonexistent owned paths. CI goes red when
+  either regresses.
+- **Implemented:** Stale paths removed. Unowned modules assigned as follows:
+  - `FabricGenerator`: `generator/`, `fabric_artifacts.py`
+  - `SqlConverter`: `converter/`, `spark_conversion.py`, `dataform_conversion.py`
+  - `ConnectivityEnabler`: `security.py` (it no longer claims discovery)
+  - `Extractor`: the four `*_discovery.py` adapters
+  - `Assessor`: `airflow_compatibility.py`
+  - `Orchestrator`: `repair.py`, `evidence_manifest.py`, `__init__.py`, the report scripts
+  - `Tester`: `artifact_validation.py`, so artifact validity is never judged by the generating agent
+
+  `validate_agents.py` now fails on an owned path that does not exist and on any `src/` file with
+  zero or two owners. `Preceptor` lists ownership drift as a failure mode.
+- **Validated:** `python scripts/validate_agents.py` and
+  `python -m pytest tests/test_agent_contracts.py` (including a negative drift test) pass.
+- **Open:** The `Reviewer` sign-off on moving `security.py` and `artifact_validation.py`. The
+  assignments are proposals until `TechLead` approves them. CI now runs
+  `python scripts/review_ledger.py verify` on verdicts committed under `.github/reviews/`, but
+  committing a verdict per slice is not yet required.
+
+#### P7 — Parity execution kit
+
+- **Goal:** A user can run parity without writing SQL. The tool emits paired source and target
+  queries for the seven check types. The user runs them, and the tool ingests the results and
+  recomputes the status.
+- **Targets by agent:**
+  - `Assessor`: own the pack contract and results ingestion. Status is still recomputed from
+    payloads; a declared status is never trusted.
+  - `SqlConverter`: generate the Fabric side (Warehouse T-SQL or Spark SQL) of each check.
+  - `Extractor`: generate the BigQuery GoogleSQL side from the inventory.
+  - `Orchestrator`: add `parity-pack` and `parity-ingest` CLI commands (offline).
+  - `Preceptor`: align the `parity-evidence` skill with the pack format.
+  - `Reviewer`: reject any result missing either side.
+- **Exit gate:** For the reference fixture, every `not_run` component gets a pack. Ingesting the
+  fixture results moves components to `passed` or `failed` only. A results file with one side
+  missing stays `not_run`.
+
+#### P8 — Review-board decisions
+
+- **Goal:** The board's decisions are data. A human-authored `wave-decisions.json` supplies the
+  owner, the `approved`/`deferred`/`rejected` decision, the rationale, the reviewer, and an optional
+  calibrated effort. Planning applies it deterministically.
+- **Targets by agent:**
+  - `Architect`: define the decision contract and how it applies to `MigrationWave`.
+  - `Assessor`: block `approved` when the wave still has a `FAIL` blocker.
+  - `Orchestrator`: add a `--decisions` input to `plan`/`generate`, and add the decisions file to
+    `evidence-manifest.json`.
+  - `TechLead`: approve the decision fields as a published contract.
+  - `Reviewer`: check that no generated path can write an approval.
+- **Exit gate:** Without the decisions file, the output stays byte-identical to today. With it,
+  only the listed waves change. An approval over a `FAIL` blocker is rejected.
+
+#### P9 — SQL fidelity
+
+- **Goal:** Procedural and complex GoogleSQL gets a verdict for each construct, and a corpus
+  protects every verdict. Constructs in scope:
+  - scripting (`DECLARE`, `IF`, `LOOP`, `EXCEPTION`)
+  - `MERGE`, `QUALIFY`, `UNNEST` of `ARRAY<STRUCT>`
+  - JavaScript UDFs and remote functions
+  - time-travel (`FOR SYSTEM_TIME AS OF`)
+- **Targets by agent:**
+  - `SqlConverter`: build a versioned corpus of input, target, expected verdict, and semantic risk.
+  - `Assessor`: map corpus risks to finding codes.
+  - `FabricGenerator`: carry per-statement verdicts into the Warehouse and notebook artifacts.
+  - `Preceptor`: check that corpus cases come from real GoogleSQL semantics, not from the
+    converter's current output.
+  - `Tester`: run the corpus as parametrized tests.
+- **Exit gate:** Every construct listed in the SQL compatibility reference has at least one case.
+  Unknown constructs resolve to `manual_review`, never to `direct`.
+
+#### P10 — Spark and Dataform conversion
+
+- **Goal:** Dataproc PySpark and Scala jobs become Fabric notebooks. The conversion covers:
+  - OneLake paths
+  - `notebookutils` in place of Hadoop and GCS clients
+  - the Spark runtime version
+
+  Dataform SQLX becomes Warehouse or Spark SQL with its dependency graph kept.
+- **Targets by agent:**
+  - `SqlConverter` (owner of `converter/`): extend the Spark and Dataform conversion.
+  - `Architect`: route each job to a Lakehouse notebook or a Spark Job Definition.
+  - `FabricGenerator`: emit the notebooks and SQL.
+  - `Preceptor`: check that the pattern fixtures are taken from real job code.
+- **Exit gate:** Every converted notebook passes `NotebookValidator`. Every unconverted pattern
+  carries a stable reason code and appears in manual review.
+
+#### P11 — Offline adapter breadth
+
+- **Goal:** Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner become
+  evidence sources, ingested from exported API metadata files. No live call is involved; provenance
+  is recorded as `exported`.
+- **Targets by agent:**
+  - `Extractor`: add one normalizer per source, into canonical `ObjectKind`s.
+  - `Assessor`: add evidence rules so missing fields produce `EVIDENCE_MISSING`, not silence.
+  - `Architect`: add the target mapping for each new kind.
+  - `Preceptor`: require each fixture to cite the documented API resource shape.
+- **Exit gate:** Each source has a fixture traced to its API reference, an evidence rule, and a
+  mapping with compatibility. Coverage of the reference fixture is reported, not inflated.
+
+#### P12 — Governance and identity mapping
+
+- **Goal:** BigQuery policy tags, row access policies, authorized views, and dataset IAM become
+  reviewed proposals for:
+  - OneLake security roles
+  - Warehouse row-level and column-level security
+  - Purview sensitivity labels
+- **Targets by agent:**
+  - `ConnectivityEnabler` (owner of `security.py`): build the proposals, keeping principals
+    pseudonymized.
+  - `Architect`: pick the target control per object.
+  - `Assessor`: roll the proposals into the security evidence matrix.
+  - `FabricGenerator`: emit dry-run T-SQL security predicates.
+  - `Reviewer`: own the acceptance checklist in `SECURITY.md`.
+- **Exit gate:** Every security object has a mapping and a compatibility. Effective access and
+  permission parity stay `not_recorded`. No principal identifier appears in clear.
+
+#### P13 — Semantic and AI workloads
+
+- **Goal:** Three sources get Fabric scaffolds:
+  - LookML explores and measures become semantic-model tables and measures, with DAX only for
+    measures.
+  - BQML models become Data Science notebook scaffolds.
+  - Vertex AI assets become experiment and model placeholders.
+- **Targets by agent:**
+  - `FabricGenerator`: build the generators.
+  - `Architect`: map LookML constructs and BQML model types.
+  - `Extractor`: provide the LookML and BQML evidence from P11.
+  - `Reviewer`: reject DAX used for ETL.
+- **Exit gate:** Semantic models pass the existing structural and empty-schema guards. Each LookML
+  construct that can't be converted is listed. ML scaffolds are marked review-only and never claim
+  model parity.
+
+#### P14 — Live discovery verification (blocked)
+
+- **Goal:** The BigQuery, Dataflow, Dataproc, Dataform, and Composer adapters are verified
+  read-only against an authorized GCP sandbox, and the result is kept as evidence.
+- **Targets by agent:**
+  - `Extractor`: run the sandbox and diff its output against the offline fixtures.
+  - `ConnectivityEnabler`: confirm redaction on real responses.
+  - `Assessor`: ingest the recorded evidence with `live` provenance.
+  - `TechLead`: approve the sandbox scope.
+  - `Orchestrator`: keep live runs behind `BQTOFABRIC_LIVE_GCP=1`.
+- **Offline prep allowed now:** a sandbox runbook and the drift-report format.
+- **Exit gate:** A recorded run per adapter, drift reported as findings, and no credential in any
+  output.
+
+#### P15 — Authenticated deployment pilot (blocked)
+
+- **Goal:** One `approved` wave from P8 is deployed to an isolated Fabric workspace, verified, and
+  rolled back.
+- **Targets by agent:**
+  - `Deployer`: separate apply from dry-run, and own rollback and the audit log.
+  - `ConnectivityEnabler`: bind connections by reference only.
+  - `FabricGenerator`: supply the approved wave bundle.
+  - `Orchestrator`: add an explicit `deploy --apply` path that is off by default.
+  - `TechLead`: give per-run approval.
+  - `Architect`: confirm the wave is the approved one.
+- **Offline prep allowed now:** the deployment-plan and audit-log contracts.
+- **Exit gate:** Dry-run and apply manifests match, rollback leaves the workspace empty, the audit
+  log is complete, and the pilot runs only with explicit approval.
+
+#### P7–P14 implementation record
+
+| Phase | Implemented | Validated by | Open |
+|---|---|---|---|
+| P7 | `parity_pack.py` (Assessor). `parity-pack` and `parity-ingest` CLI. Pack ID is a hash of the pack, and tampering is rejected. Unsafe identifiers are skipped. No status is ever written | `tests/test_parity_pack.py`, which includes checking every reference `not_run` component | `schema`, `checksum`, `sample`, and `sql_result` packs; target names are proposals |
+| P8 | `WaveDecision`, `load_wave_decisions`, and `apply_wave_decisions` in `planner.py`. `--decisions` on `plan` and `generate`. `wave-decisions.json` is written and hashed. Decisions apply all-or-nothing | `tests/test_wave_decisions.py` | Reviewer identity is unverified; decisions are not signed |
+| P9 | `tests/fixtures/sql_corpus.json` (one case per documented construct). New risks: JS UDF, remote function, `EXECUTE IMMEDIATE`, `QUALIFY`, time travel. The first three were rated `direct` before this phase | `tests/test_sql_corpus.py` on both targets | Mapping corpus risks to finding codes; per-statement verdicts in artifacts |
+| P10 | `spark-conversions.json` carries `reasonCodes` from a closed set and the converter verdict. Dynamic-SQL detection now also catches variables, concatenation, and `%`-formatting | `tests/test_spark_reason_codes.py` | Dataform SQLX dependency-graph conversion |
+| P11 | `exported_metadata.py` and `import-export` for eight services. New evidence contracts for `workflow`, `pubsub_topic`, `gcs_source`, and `dataplex_asset` | `tests/test_exported_metadata.py` and fixtures traced to API references | The reference score moved from 39 to 27 (see below) |
+| P12 | `security_mapping.py` (ConnectivityEnabler) and `security-proposals.json`. The RLS template is deny-all and disabled | `tests/test_security_mapping.py` | Reviewer acceptance checklist in `SECURITY.md` |
+| P13 | LookML aggregate-to-DAX measures, an unconverted list with reasons, and a Data Science scaffold with `modelParity: not_run` | `tests/test_semantic_ai_scaffolds.py` | Generated semantic-model measures and ML notebooks |
+| P14 prep | `inventory_drift.py` (Extractor) | `tests/test_inventory_drift.py` | The sandbox run itself |
+
+Every row passes the full gates: `pytest`, `ruff`, `pyright`, `validate_agents.py`, and
+`review_ledger.py verify`. None of these slices has a recorded `Reviewer` verdict yet. Each one
+should go through the feedback loop before `TechLead` sign-off.
+
 ### Phase handoff record
 
 Each completed phase must leave a short record in the relevant documentation containing:
@@ -220,20 +486,23 @@ release:
 
 | Field | Value |
 |---|---|
-| `score` | 39 |
-| `evidenceCoverage` | 58 |
+| `score` | 27 |
+| `evidenceCoverage` | 43 |
 | `componentCount` | 28 |
-| `manualReviewCount` | 17 |
+| `manualReviewCount` | 21 |
 | `status` | `blocked` |
-| `findingCounts` | `FAIL: 1`, `WARN: 80` |
+| `findingCounts` | `FAIL: 1`, `WARN: 89` |
 | `paritySummary` | `not_applicable: 24`, `not_run: 4` |
-| `manualReviewReasons` | `incompatible_mapping: 10`, `missing_required_evidence: 13`, `sql_incompatibility: 3`, `streaming_downstream_review: 1` |
+| `manualReviewReasons` | `incompatible_mapping: 10`, `missing_required_evidence: 17`, `sql_incompatibility: 3`, `streaming_downstream_review: 1` |
 
-The reference score moved from `70` to `39` in this release. This is an intended correction, not a
-regression in the fixture: scoring is now computed per component, scaled by evidence coverage, and
-forced to zero for any component carrying a `FAIL` blocker. The previous score was inflated because
-type and SQL risks were aggregated separately from the components that owned them, schema width
-contributed to the score, and missing required evidence did not reduce it. Treat `39` as the honest
+The reference score moved from `39` to `27` in P11. Workflows, Pub/Sub topics, Cloud Storage
+sources, and Dataplex assets now have required-evidence contracts. The fixture records none of
+those fields, so four components that used to report full coverage by default now report
+`EVIDENCE_MISSING`. This is the intended correction: those kinds were never evidenced, only
+uncontracted.
+
+Earlier, the score moved from `70` to `39` when scoring became per component, scaled by evidence
+coverage, and forced to zero for any component carrying a `FAIL` blocker. Treat `27` as the honest
 readiness of a fixture that deliberately contains incomplete evidence.
 
 ## Correctness release — behavior changes

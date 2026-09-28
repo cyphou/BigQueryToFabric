@@ -57,6 +57,30 @@ def validate() -> list[str]:
     errors.extend(_validate_skills())
     errors.extend(_validate_roster(names))
     errors.extend(_validate_feedback_loop(names))
+    errors.extend(_validate_ownership_coverage(owned))
+    return errors
+
+
+def _validate_ownership_coverage(owned: dict[str, str]) -> list[str]:
+    """Owned paths must exist, and every source file needs exactly one owner."""
+    errors = [
+        f"{path}: owned by {agent} but does not exist"
+        for path, agent in sorted(owned.items())
+        if not (ROOT / path).exists()
+    ]
+    for source in sorted((ROOT / "src" / "bqtofabric").rglob("*.py")):
+        relative = source.relative_to(ROOT).as_posix()
+        owners = sorted(
+            {
+                agent
+                for path, agent in owned.items()
+                if relative == path or (path.endswith("/") and relative.startswith(path))
+            }
+        )
+        if not owners:
+            errors.append(f"{relative}: no owning agent")
+        elif len(owners) > 1:
+            errors.append(f"{relative}: owned by {' and '.join(owners)}")
     return errors
 
 

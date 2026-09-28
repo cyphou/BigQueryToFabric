@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, replace
+from typing import Any
 
 from .assessment import AssessmentReport
 from .mapping import FabricTarget
@@ -44,6 +46,114 @@ class MigrationPlan:
     items: tuple[PlanItem, ...]
     unresolved_dependencies: tuple[str, ...]
     waves: tuple[MigrationWave, ...] = ()
+
+
+WAVE_DECISIONS = ("approved", "deferred", "rejected")
+EFFORT_BANDS = ("S", "M", "L", "XL")
+
+
+@dataclass(frozen=True, slots=True)
+class WaveDecision:
+    """A review-board decision authored by a human; generation never creates one."""
+
+    wave: int
+    decision: str
+    owner: str
+    reviewer: str
+    rationale: str
+    decided_at: str = ""
+    effort_band: str | None = None
+
+
+def load_wave_decisions(raw: Mapping[str, Any]) -> tuple[tuple[WaveDecision, ...], list[str]]:
+    """Parse a ``wave-decisions.json`` document, reporting every invalid entry."""
+    if raw.get("schema_version") != "1.0":
+        return (), ["schema_version must be '1.0'"]
+    entries = raw.get("decisions")
+    if not isinstance(entries, list):
+        return (), ["decisions must be a list"]
+    decisions: list[WaveDecision] = []
+    errors: list[str] = []
+    for index, entry in enumerate(entries):
+        where = f"decisions[{index}]"
+        if not isinstance(entry, Mapping):
+            errors.append(f"{where}: must be an object")
+            continue
+        wave = entry.get("wave")
+        if not isinstance(wave, int) or isinstance(wave, bool) or wave < 1:
+            errors.append(f"{where}: wave must be a positive integer")
+            continue
+        if entry.get("decision") not in WAVE_DECISIONS:
+            errors.append(f"{where}: decision must be one of {', '.join(WAVE_DECISIONS)}")
+        missing = [
+            name for name in ("owner", "reviewer", "rationale")
+            if not isinstance(entry.get(name), str) or not entry[name].strip()
+        ]
+        if missing:
+            errors.append(f"{where}: missing {', '.join(missing)}")
+        effort = entry.get("effort_band")
+        if effort is not None and effort not in EFFORT_BANDS:
+            errors.append(f"{where}: effort_band must be one of {', '.join(EFFORT_BANDS)}")
+        if errors and errors[-1].startswith(f"{where}:"):
+            continue
+        decisions.append(WaveDecision(
+            wave=wave,
+            decision=str(entry["decision"]),
+            owner=str(entry["owner"]).strip(),
+            reviewer=str(entry["reviewer"]).strip(),
+            rationale=str(entry["rationale"]).strip(),
+            decided_at=str(entry.get("decided_at", "")),
+            effort_band=effort,
+        ))
+    return tuple(sorted(decisions, key=lambda item: item.wave)), errors
+
+
+def apply_wave_decisions(
+    plan: MigrationPlan, decisions: tuple[WaveDecision, ...]
+) -> tuple[MigrationPlan, list[str]]:
+    """Apply decisions all-or-nothing; any invalid decision leaves the plan unchanged."""
+    waves = {wave.wave: wave for wave in plan.waves}
+    by_wave: dict[int, WaveDecision] = {}
+    errors: list[str] = []
+    for decision in decisions:
+        if decision.wave in by_wave:
+            errors.append(f"wave {decision.wave}: more than one decision")
+        by_wave[decision.wave] = decision
+    approved: set[int] = set()
+    for number, decision in sorted(by_wave.items()):
+        wave = waves.get(number)
+        if wave is None:
+            errors.append(f"wave {number}: not in the plan")
+            continue
+        if decision.decision != "approved":
+            continue
+        valid = True
+        if wave.status != "ready_for_review":
+            errors.append(f"wave {number}: cannot approve a {wave.status} wave")
+            valid = False
+        # Dependencies precede their dependents, so only validly approved waves count.
+        unapproved = [dependency for dependency in wave.dependency_waves if dependency not in approved]
+        if unapproved:
+            errors.append(
+                f"wave {number}: dependency waves {unapproved} are not approved"
+            )
+            valid = False
+        if valid:
+            approved.add(number)
+    if errors:
+        return plan, errors
+    updated = tuple(
+        replace(
+            wave,
+            approval_status=by_wave[wave.wave].decision,
+            owner=by_wave[wave.wave].owner,
+            effort_band=by_wave[wave.wave].effort_band or wave.effort_band,
+        )
+        if wave.wave in by_wave
+        else wave
+        for wave in plan.waves
+    )
+    return replace(plan, waves=updated), []
 
 
 def build_plan(inventory: BigQueryInventory, assessment: AssessmentReport) -> MigrationPlan:

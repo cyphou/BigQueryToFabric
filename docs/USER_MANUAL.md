@@ -92,6 +92,30 @@ The script expects the `bqtofabric` command to be installed with `python -m pip 
 | `discover` | GCP project + `--output` | Canonical inventory JSON | Read-only metadata discovery |
 | `manifest-verify` | Deployment manifest | PASS/FAIL text | Check manifest integrity |
 | `deployment-check` | Artifact directory | Readiness JSON | Run offline pre-deployment checks |
+| `parity-pack` | Inventory JSON + `--output` | `parity-pack.json`, `parity-source.sql`, `parity-target.sql` | Generate paired parity queries to run yourself |
+| `parity-ingest` | Inventory + `--pack` + `--results` + `--output` | Inventory JSON with parity evidence | Attach query results; `assess` recomputes status |
+| `import-export` | Inventory + `--service` + `--payload` + `--output` | Merged inventory JSON | Add components from a saved GCP API list response |
+
+`plan` and `generate` also accept `--decisions wave-decisions.json`, a human-authored file:
+
+```json
+{"schema_version": "1.0", "decisions": [
+  {"wave": 1, "decision": "deferred", "owner": "team-data", "reviewer": "board",
+   "rationale": "Security review pending.", "decided_at": "2026-09-28", "effort_band": "M"}
+]}
+```
+
+- **Decisions:** `approved`, `deferred`, or `rejected`.
+- **What approval requires:** the wave must be `ready_for_review`, and every one of its dependency
+  waves must also be approved in the same file.
+- **All or nothing:** one invalid decision fails the command and writes no output.
+- **Where decisions are recorded:** applied decisions are copied to `wave-decisions.json` and
+  hashed in `evidence-manifest.json`.
+- **Without the flag:** the plan output is unchanged.
+
+`import-export` supports `pubsub`, `workflows`, `gcs`, `dataplex`, `vertex`, `cloudsql`, `spanner`,
+and `looker`. Components are recorded with `external_payload` provenance, and fields the list
+method cannot return stay absent.
 
 All commands are deterministic for the same inputs and configuration. No command performs a
 Fabric apply operation.
@@ -242,7 +266,7 @@ BQToFabric uses four compatibility levels:
 
 Treat `WARN` and `FAIL` findings as review work. In particular, do not promote an object because its mapping is `transform` if required evidence, credentials, schema, or runtime parity is missing.
 
-For the complete list of the 16 assessment finding codes with their severity, trigger, and the
+For the complete list of the assessment finding codes with their severity, trigger, and the
 reviewer action each one expects, see the
 [finding-code reference](MAPPING_REFERENCE.md#assessment-finding-codes).
 
