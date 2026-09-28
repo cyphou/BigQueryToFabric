@@ -34,7 +34,7 @@ from .dataproc_discovery import (
 from .deployment_manifest import verify_manifest
 from .deployment_readiness import check_deployment_readiness
 from .discovery import DiscoveryError, GoogleCloudInventoryProvider, create_rest_client
-from .exported_metadata import SERVICES, merge_export
+from .exported_metadata import EXPORT_SERVICES, merge_export
 from .inventory import JsonInventoryProvider
 from .parity_pack import build_parity_pack, ingest_parity_results, render_sql
 from .planner import apply_wave_decisions, build_plan, load_wave_decisions
@@ -82,7 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--output", "-o", type=Path, required=True)
     export = subparsers.add_parser("import-export")
     export.add_argument("inventory", type=Path)
-    export.add_argument("--service", choices=sorted(SERVICES), required=True)
+    export.add_argument("--service", choices=EXPORT_SERVICES, required=True)
     export.add_argument("--payload", type=Path, required=True)
     export.add_argument("--output", "-o", type=Path, required=True)
     return parser

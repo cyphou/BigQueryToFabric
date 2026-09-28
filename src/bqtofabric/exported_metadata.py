@@ -11,6 +11,7 @@ from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
+from .dbt_manifest import normalize_dbt_manifest
 from .discovery import redact_mapping
 from .models import BigQueryObject, ObjectKind
 
@@ -100,10 +101,14 @@ SERVICES: dict[str, tuple[str | None, ObjectKind, Callable[[dict[str, Any]], dic
     "spanner": ("databases", ObjectKind.SPANNER_DATABASE, _spanner),
     "looker": (None, ObjectKind.LOOKER_ASSET, _looker),
 }
+# A dbt manifest is one document describing one project, not a list response.
+EXPORT_SERVICES = (*sorted(SERVICES), "dbt")
 
 
 def normalize_export(project_id: str, service: str, payload: Any) -> tuple[BigQueryObject, ...]:
     """Convert one saved list response into deterministic, redacted canonical components."""
+    if service == "dbt":
+        return (normalize_dbt_manifest(project_id, _dict(payload)),)
     if service not in SERVICES:
         raise ValueError(f"Unsupported export service: {service}")
     key, kind, extract = SERVICES[service]

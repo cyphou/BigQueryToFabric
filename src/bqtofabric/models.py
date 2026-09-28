@@ -34,6 +34,7 @@ class ObjectKind(StrEnum):
     VERTEX_AI_PIPELINE = "vertex_ai_pipeline"
     CLOUD_SQL_DATABASE = "cloud_sql_database"
     SPANNER_DATABASE = "spanner_database"
+    DBT_PROJECT = "dbt_project"
 
 
 @dataclass(frozen=True, slots=True)

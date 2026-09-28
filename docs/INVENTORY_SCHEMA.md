@@ -142,13 +142,13 @@ reserved for evidence read from a source system.
 
 ## `kind` Values
 
-The canonical model supports 26 `ObjectKind` members covering BigQuery and surrounding GCP
+The canonical model supports 27 `ObjectKind` members covering BigQuery and surrounding GCP
 workloads:
 
 - Storage and SQL: `table`, `view`, `materialized_view`, `external_table`, `routine`, `procedure`,
   `scheduled_query`, `sql_script`
 - Compute and orchestration: `bigquery_job`, `spark_job`, `dataproc_job`, `dataflow_job`,
-  `dataform_workflow`, `composer_dag`, `workflow`
+  `dataform_workflow`, `dbt_project`, `composer_dag`, `workflow`
 - Streaming and integration: `stream`, `pubsub_topic`, `gcs_source`
 - Analytics and governance: `looker_asset`, `bqml_model`, `vertex_ai_pipeline`, `dataplex_asset`,
   `security_policy`, `connection`
@@ -192,6 +192,7 @@ object fields.
 | `pubsub_topic` | `message_retention`, `subscriptions` |
 | `gcs_source` | `location`, `storage_class`, `data_format` |
 | `dataplex_asset` | `resource_type`, `zone` |
+| `dbt_project` | `adapter`, `models` |
 
 This table is enforced: `tests/test_assessment.py` fails if it does not match
 `_required_evidence`.

@@ -21,6 +21,7 @@ Build complete, traceable BigQuery inventories without changing the source.
 - `src/bqtofabric/gcp_components.py`
 - `src/bqtofabric/exported_metadata.py`
 - `src/bqtofabric/inventory_drift.py`
+- `src/bqtofabric/dbt_manifest.py`
 
 ## Constraints
 

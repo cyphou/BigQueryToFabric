@@ -43,7 +43,7 @@ assessed identically.
 |---|---|---|
 | `source_id` | yes | Globally unique. Duplicates are rejected before model coercion. |
 | `name` | yes | Non-empty string. |
-| `kind` | yes | One of the 26 `ObjectKind` values. |
+| `kind` | yes | One of the 27 `ObjectKind` values. |
 | `dataset` | no | Free-form; used as the Warehouse schema name. |
 | `sql` | depends on kind | GoogleSQL body. |
 | `columns` | depends on kind | Nested `fields` supported for STRUCT. |
@@ -105,6 +105,7 @@ If `discovered_from` is `external_payload`, they produce
 | `pubsub_topic` | `message_retention`, `subscriptions` |
 | `gcs_source` | `location`, `storage_class`, `data_format` |
 | `dataplex_asset` | `resource_type`, `zone` |
+| `dbt_project` | `adapter`, `models` |
 | `security_policy` | `policy_type` |
 | `connection` | `connection_type`, `location` |
 

@@ -13,8 +13,8 @@ def test_inventory_parses_examples_for_every_supported_source_kind() -> None:
     inventory = JsonInventoryProvider(FIXTURE).load()
 
     assert inventory.schema_version == "1.1"
-    assert len(inventory.components) == 18
-    assert len(inventory.objects()) == 28
+    assert len(inventory.components) == 19
+    assert len(inventory.objects()) == 29
     assert {item.kind for item in inventory.objects()} == set(ObjectKind)
 
 

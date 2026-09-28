@@ -24,6 +24,7 @@ class FabricTarget(StrEnum):
     POWER_BI_REPORT = "power_bi_report"
     DATA_SCIENCE = "data_science"
     PURVIEW = "purview"
+    DBT_JOB = "dbt_job"
     MANUAL = "manual"
 
 
@@ -330,6 +331,38 @@ def map_component(
             "GCP Workflows map to parameterized Fabric Data Pipelines.",
             (FabricTarget.NOTEBOOK,),
             ("Translate branching, retries, callbacks, and identity boundaries.",),
+        )
+    if item.kind is ObjectKind.DBT_PROJECT:
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.DBT_JOB,
+            Compatibility.TRANSFORM,
+            (
+                "An existing dbt project keeps its graph, tests, and materializations; only the "
+                "adapter and the GoogleSQL inside the models change. Fabric dbt job is in preview."
+            ),
+            (FabricTarget.WAREHOUSE, FabricTarget.DATA_PIPELINE),
+            (
+                "Switch the adapter to Fabric Data Warehouse and convert each model body from GoogleSQL.",
+                "Review every BigQuery-specific macro; only ref, source, and config are translated.",
+            ),
+        )
+    if item.kind is ObjectKind.DATAFORM_WORKFLOW and preferences.get("transformation_framework") == "dbt":
+        return MappingDecision(
+            item.source_id,
+            item.kind,
+            FabricTarget.DBT_JOB,
+            Compatibility.TRANSFORM,
+            (
+                "The team asked for dbt; a Dataform SQLX graph maps to dbt models, refs, tests, and "
+                "incremental materializations. Fabric dbt job is in preview."
+            ),
+            (FabricTarget.WAREHOUSE, FabricTarget.DATA_PIPELINE),
+            (
+                "Translate assertions into dbt tests and review incremental unique keys.",
+                "Keep Warehouse SQL plus Pipelines as the fallback if the dbt job preview is not approved.",
+            ),
         )
     if item.kind is ObjectKind.DATAFORM_WORKFLOW:
         target = FabricTarget.LAKEHOUSE if prefer_lakehouse else FabricTarget.WAREHOUSE

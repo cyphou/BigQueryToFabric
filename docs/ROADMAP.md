@@ -13,14 +13,14 @@ validation commands.
 
 | Signal | Verified value |
 |---|---|
-| Supported source taxonomy | 26 `ObjectKind` members |
-| Fabric decision surface | 15 primary/supporting target roles |
+| Supported source taxonomy | 27 `ObjectKind` members |
+| Fabric decision surface | 16 primary/supporting target roles |
 | Public CLI | 12 commands: `assess`, `deployment-check`, `discover`, `generate`, `import-export`, `inventory`, `manifest-verify`, `map`, `parity-ingest`, `parity-pack`, `plan`, `validate` |
 | Live discovery adapters | BigQuery (core) plus opt-in BigQuery-adjacent adapters for Dataflow, Dataproc, Dataform, and Composer |
-| Reference portfolio | 28 assessed components (`tests/fixtures/gcp_ecosystem_project.json`) |
+| Reference portfolio | 29 assessed components (`tests/fixtures/gcp_ecosystem_project.json`) |
 | Reference recommendation | Lakehouse primary · hybrid architecture · Airflow retained |
 | Generated package | 9 deterministic dry-run artifacts |
-| Assessment finding codes | 18 stable codes (see [mapping reference](MAPPING_REFERENCE.md#assessment-finding-codes)) |
+| Assessment finding codes | 19 stable codes (see [mapping reference](MAPPING_REFERENCE.md#assessment-finding-codes)) |
 | Manual-review reason codes | 13 stable codes |
 | Parity check types | 7: `schema`, `row_count`, `checksum`, `aggregate`, `null_distribution`, `sample`, `sql_result` |
 | Test suite | passes in CI (`python -m pytest`) |
@@ -220,6 +220,8 @@ flowchart LR
     P11 --> P14
     P8 --> P15[P15 Authenticated deployment pilot]
     P14 --> P15
+    P9 --> P16[P16 dbt target]
+    P10 --> P16
 ```
 
 - **P6 starts now.** It is governance-only, so it doesn't wait for P3–P5.
@@ -242,6 +244,7 @@ flowchart LR
 | P13 Semantic and AI workloads | LookML, BQML, and Vertex AI produce semantic-model and Data Science scaffolds | FabricGenerator | Semantic models validate structurally; DAX appears only in measures; ML scaffolds are review-only | **Implemented** in specs; generated notebooks open |
 | P14 Live discovery verification | The five live adapters are verified read-only against an authorized GCP sandbox | Extractor | Sandbox run recorded as evidence; drift against offline fixtures is reported, not silently absorbed | Blocked: GCP sandbox. Drift report ready |
 | P15 Authenticated deployment pilot | One approved wave is deployed to an isolated Fabric workspace and rolled back | Deployer | Dry-run and apply manifests match; rollback and audit log verified; workspace torn down | Blocked: Fabric sandbox, P5 |
+| P16 dbt target | Dataform workflows and existing dbt-on-BigQuery projects become Fabric dbt job projects | Architect | Generated dbt project compiles offline; every model, test, and incremental config is traced to a source object | **Implemented**; runtime needs P15 sandbox |
 
 #### Agent × phase responsibility
 
@@ -445,7 +448,49 @@ involved. `Documentation` updates the roadmap and runbook at the end of every ph
 - **Exit gate:** Dry-run and apply manifests match, rollback leaves the workspace empty, the audit
   log is complete, and the pilot runs only with explicit approval.
 
-#### P7–P14 implementation record
+#### P16 — dbt target
+
+- **Goal:** SQL-first transformation graphs land as a dbt project that runs in a Fabric
+  [dbt job](https://learn.microsoft.com/fabric/data-factory/dbt-job-overview) (preview), or with
+  the `dbt-fabric` adapter under Airflow. Today they become generic Warehouse SQL plus Pipelines.
+- **Why dbt fits:**
+  - **Dataform:** Dataform SQLX already *is* a dbt-shaped graph:
+    - `${ref()}` becomes `{{ ref() }}`
+    - `config { type: "incremental" }` becomes `materialized='incremental'`
+    - assertions become dbt tests
+    - `pre_operations` become hooks
+  - **Existing dbt projects:** teams already running dbt on BigQuery keep their project. Only the
+    adapter and the GoogleSQL inside the models change.
+  - **Supported adapters:** Fabric's dbt job supports the Fabric Data Warehouse and Fabric
+    Lakehouse adapters with Microsoft Entra authentication, so no credential is generated.
+- **Targets by agent:**
+  - `TechLead`: approve adding `FabricTarget.DBT_JOB`. It is a published-contract change, and
+    the baseline goes from 15 to 16 target roles.
+  - `Architect`: map `dataform_workflow`, and optionally SQL-only view or scheduled-query chains,
+    to `dbt_job` when evidence shows a SQL-only DAG. Keep `warehouse` as the fallback while the
+    dbt job is in preview, and give a rationale for each decision.
+  - `SqlConverter`: rewrite SQLX to dbt Jinja (`ref`, `source`, `config`, assertions to tests),
+    then run each model body through the existing GoogleSQL to T-SQL converter. The corpus gains
+    SQLX cases.
+  - `Extractor`: add a `dbt_project` source kind read from a dbt `manifest.json` (models, sources,
+    tests, materializations), with `external_payload` provenance.
+  - `FabricGenerator`: emit `dbt_project.yml` and `models/`, `tests/`, and `sources.yml` files.
+    Emit `profiles.yml` with a connection *reference* only (adapter type, schema), never
+    credentials.
+  - `Assessor`: add evidence rules for `dbt_project` (models, materializations, tests) and add
+    the dbt job's preview status as a WARN finding.
+  - `Tester`: parse the generated project offline to check `ref` resolution, no cycles, and that
+    every model has a source object.
+  - `Reviewer`: check that no generated `profiles.yml` contains a secret or tenant identifier.
+- **Exit gate:**
+  - The generated project is deterministic, secret-free, and passes an offline structural check:
+    all refs resolve, the graph has no cycles, and every model and test traces to a source object.
+  - Anything that doesn't translate appears in manual review with a stable reason code.
+  - Nothing is run against Fabric.
+- **Open:** Runtime execution in a Fabric dbt job requires the P15 sandbox. dbt macros written for
+  the BigQuery adapter need per-macro review.
+
+#### P7–P16 implementation record
 
 | Phase | Implemented | Validated by | Open |
 |---|---|---|---|
@@ -457,6 +502,7 @@ involved. `Documentation` updates the roadmap and runbook at the end of every ph
 | P12 | `security_mapping.py` (ConnectivityEnabler) and `security-proposals.json`. The RLS template is deny-all and disabled | `tests/test_security_mapping.py` | Reviewer acceptance checklist in `SECURITY.md` |
 | P13 | LookML aggregate-to-DAX measures, an unconverted list with reasons, and a Data Science scaffold with `modelParity: not_run` | `tests/test_semantic_ai_scaffolds.py` | Generated semantic-model measures and ML notebooks |
 | P14 prep | `inventory_drift.py` (Extractor) | `tests/test_inventory_drift.py` | The sandbox run itself |
+| P16 | `FabricTarget.DBT_JOB`, `ObjectKind.DBT_PROJECT`, `DBT_JOB_PREVIEW` finding. `dbt_manifest.py` (Extractor) and `import-export --service dbt`. `generator/dbt_generator.py` (FabricGenerator) writes `fabric/dbt/<project>/` plus `dbt-conversion.json`. `validate_dbt_project` (Tester) checks refs, cycles, and secrets. The T-SQL converter now rewrites `DATE(x)` and ordinal `GROUP BY`, which it passed through unchanged before and which Fabric Warehouse rejects | `tests/test_dbt_target.py` | `{% if is_incremental() %}` and custom macros are flagged, not translated. Tests other than `unique` and `not_null` are listed, not generated. Nothing runs in Fabric |
 
 Every row passes the full gates: `pytest`, `ruff`, `pyright`, `validate_agents.py`, and
 `review_ledger.py verify`. None of these slices has a recorded `Reviewer` verdict yet. Each one
@@ -486,13 +532,13 @@ release:
 
 | Field | Value |
 |---|---|
-| `score` | 27 |
-| `evidenceCoverage` | 43 |
-| `componentCount` | 28 |
+| `score` | 29 |
+| `evidenceCoverage` | 45 |
+| `componentCount` | 29 |
 | `manualReviewCount` | 21 |
 | `status` | `blocked` |
-| `findingCounts` | `FAIL: 1`, `WARN: 89` |
-| `paritySummary` | `not_applicable: 24`, `not_run: 4` |
+| `findingCounts` | `FAIL: 1`, `WARN: 92` |
+| `paritySummary` | `not_applicable: 25`, `not_run: 4` |
 | `manualReviewReasons` | `incompatible_mapping: 10`, `missing_required_evidence: 17`, `sql_incompatibility: 3`, `streaming_downstream_review: 1` |
 
 The reference score moved from `39` to `27` in P11. Workflows, Pub/Sub topics, Cloud Storage
@@ -502,8 +548,9 @@ those fields, so four components that used to report full coverage by default no
 uncontracted.
 
 Earlier, the score moved from `70` to `39` when scoring became per component, scaled by evidence
-coverage, and forced to zero for any component carrying a `FAIL` blocker. Treat `27` as the honest
-readiness of a fixture that deliberately contains incomplete evidence.
+coverage, and forced to zero for any component carrying a `FAIL` blocker. In P16 the fixture gained
+a fully evidenced `dbt_project` component, so the portfolio is 29 components and the score is `29`.
+Treat that as the honest readiness of a fixture that deliberately contains incomplete evidence.
 
 ## Correctness release — behavior changes
 

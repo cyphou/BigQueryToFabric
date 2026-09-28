@@ -23,7 +23,7 @@
 |---|---|
 | 🔍 **Discovery** | Read-only BigQuery metadata, plus opt-in read-only adapters for Dataflow, Dataproc, Dataform, and Composer · credentials redacted by construction · principals pseudonymized |
 | 🧭 **Assessment** | 26 source kinds · per-component, evidence-scaled readiness score · 18 explainable finding codes |
-| 🏗️ **Fabric routing** | 15 target roles · compatibility-weighted strategy selection · workload overrides |
+| 🏗️ **Fabric routing** | 16 target roles (including a Fabric dbt job) · compatibility-weighted strategy selection · workload overrides |
 | 🧪 **Quality** | Ruff and Pyright clean (`python -m pyright`; `python -m ruff check src tests`) |
 | 🤖 **Agent model** | 13 specialist agents · exclusive ownership and documentation handoff validated |
 | 🔒 **Safety** | Deterministic output · no credentials · no cloud mutation |

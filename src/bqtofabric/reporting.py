@@ -18,6 +18,7 @@ from .deployment_manifest import build_manifest
 from .evidence_manifest import build_evidence_manifest
 from .fabric_artifacts import build_specialized_artifacts
 from .generator.artifact_generator import generate_artifacts
+from .generator.dbt_generator import build_dbt_projects
 from .mapping import FabricTarget, MappingDecision
 from .models import BigQueryInventory
 from .planner import MigrationPlan, PlanItem, WaveDecision
@@ -540,6 +541,17 @@ def _write_fabric_artifacts(
     _write_json(dataform_conversions_path, dataform_conversions)
     written.append(dataform_conversions_path)
 
+    dbt_files, dbt_report = build_dbt_projects(inventory, assessment)
+    for relative, content in sorted(dbt_files.items()):
+        dbt_path = root / relative
+        dbt_path.parent.mkdir(parents=True, exist_ok=True)
+        dbt_path.write_text(content, encoding="utf-8")
+        written.append(dbt_path)
+    if dbt_report["projects"]:
+        dbt_report_path = root / "dbt-conversion.json"
+        _write_json(dbt_report_path, dbt_report)
+        written.append(dbt_report_path)
+
     airflow_compatibility = {
         "mode": "dry-run",
         "reports": [
@@ -645,6 +657,7 @@ def _artifact_kind(target: FabricTarget) -> str:
         FabricTarget.LAKEHOUSE: "lakehouse_notebook",
         FabricTarget.NOTEBOOK: "fabric_notebook",
         FabricTarget.POWER_BI_REPORT: "power_bi_report_spec",
+        FabricTarget.DBT_JOB: "dbt_project",
         FabricTarget.MANUAL: "manual_migration_record",
     }
     return artifact_kinds[target]
@@ -664,6 +677,7 @@ def _processing_stage(source_kind: str) -> str:
         "spark_job": "transformation",
         "dataproc_job": "transformation",
         "dataform_workflow": "transformation",
+        "dbt_project": "transformation",
         "routine": "transformation",
         "procedure": "transformation",
         "scheduled_query": "orchestration",

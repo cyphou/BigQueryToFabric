@@ -283,7 +283,7 @@ def validate_artifact(path: Path) -> dict[str, Any]:
                 result["errors"].append("dry-run artifact is missing projectId")
         elif path.suffix == ".kql":
             result["errors"].extend(KqlValidator(text).validate().errors)
-        elif path.suffix == ".sql":
+        elif path.suffix == ".sql" and not _inside_dbt_project(path):
             result["errors"].extend(TsqlValidator(text).validate().errors)
     except (OSError, json.JSONDecodeError) as error:
         result["errors"].append(str(error))
@@ -322,6 +322,13 @@ def validate_directory(root: Path) -> dict[str, Any]:
         for path in sorted(root.rglob("*"))
         if path.is_file() and path.suffix in {".json", ".ipynb", ".sql", ".kql"}
     ]
+    for project_file in sorted(root.rglob("dbt_project.yml")):
+        errors = validate_dbt_project(project_file.parent)
+        results.append({
+            "path": f"dbt:{project_file.parent.name}",
+            "status": "failed" if errors else "passed",
+            "errors": errors,
+        })
     consistency_errors = _validate_manifest_consistency(root)
     if consistency_errors:
         results.append({
@@ -334,6 +341,58 @@ def validate_directory(root: Path) -> dict[str, Any]:
         "status": "failed" if any(item["status"] == "failed" for item in results) else "passed",
         "artifacts": results,
     }
+
+
+def _inside_dbt_project(path: Path) -> bool:
+    """dbt models are Jinja templates, not T-SQL; they are validated as a project instead."""
+    return any((parent / "dbt_project.yml").is_file() for parent in path.parents)
+
+
+_DBT_REF = re.compile(r"\{\{\s*ref\(\s*'([^']+)'\s*\)\s*\}\}")
+_YAML_SECRET_KEY = re.compile(r"(?im)^\s*(password|secret|client_secret|token|access_token)\s*:")
+
+
+def validate_dbt_project(root: Path) -> list[str]:
+    """Check a generated dbt project offline: refs resolve, no cycles, no secrets."""
+    errors: list[str] = []
+    if not (root / "dbt_project.yml").is_file():
+        return ["dbt_project.yml is missing"]
+    models = {path.stem: path for path in sorted((root / "models").rglob("*.sql"))}
+    graph: dict[str, set[str]] = {}
+    for name, path in models.items():
+        refs = set(_DBT_REF.findall(_strip_sql_comments(path.read_text(encoding="utf-8"))))
+        errors.extend(f"{name}: ref('{missing}') has no model" for missing in sorted(refs - models.keys()))
+        graph[name] = refs & models.keys()
+    errors.extend(_dbt_cycles(graph))
+    for path in sorted(root.rglob("*.yml")):
+        text = path.read_text(encoding="utf-8")
+        if _YAML_SECRET_KEY.search(text):
+            errors.append(f"{path.name}: secret-bearing key")
+        errors.extend(
+            f"{path.name}: credential detected: {finding.finding_type}"
+            for finding in CredentialScanner().scan(text)
+        )
+    return errors
+
+
+def _dbt_cycles(graph: dict[str, set[str]]) -> list[str]:
+    state: dict[str, str] = {}
+    errors: list[str] = []
+
+    def visit(node: str, trail: list[str]) -> None:
+        state[node] = "visiting"
+        for upstream in sorted(graph[node]):
+            if state.get(upstream) == "visiting":
+                cycle = [*trail[trail.index(upstream):], upstream]
+                errors.append("ref cycle: " + " -> ".join(cycle))
+            elif upstream not in state:
+                visit(upstream, [*trail, upstream])
+        state[node] = "done"
+
+    for node in sorted(graph):
+        if node not in state:
+            visit(node, [node])
+    return errors
 
 
 def _validate_manifest_consistency(root: Path) -> list[str]:

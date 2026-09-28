@@ -125,6 +125,19 @@
   `modelParity` is always `not_run`.
 - `inventory_drift` compares two inventories structurally. It is groundwork for the P14 sandbox run
   and has not been run against live discovery output.
+- The dbt target is offline and review-only.
+  - **Jinja:** only `ref`, `source`, and `config` are translated. Blocks such as
+    `{% if is_incremental() %}`, and any other macro, leave the model body commented out with
+    `jinja_macro_review`.
+  - **Tests:** only `unique` and `not_null` become dbt tests; other tests and Dataform assertions
+    are listed for manual translation.
+  - **Incremental models:** incremental models without a `unique_key` are flagged.
+  - **Profile:** `profiles.yml` is a placeholder reference, and a Fabric dbt job sets the
+    connection in its own UI.
+  - **Preview:** the Fabric dbt job is a preview feature (`DBT_JOB_PREVIEW`).
+- The T-SQL converter rewrites GoogleSQL `DATE(x)` to `CAST(x AS DATE)` and ordinal `GROUP BY n`
+  to the projected expression. Other GoogleSQL functions that sqlglot passes through unchanged may
+  still be invalid in Fabric Warehouse, so structural validation is not proof of executability.
 - Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have **no** live
   adapter and are limited to offline payload normalization and assessment. Conversion and deployment
   remain outside every adapter's behavior.

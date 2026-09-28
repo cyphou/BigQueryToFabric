@@ -114,8 +114,9 @@ The script expects the `bqtofabric` command to be installed with `python -m pip 
 - **Without the flag:** the plan output is unchanged.
 
 `import-export` supports `pubsub`, `workflows`, `gcs`, `dataplex`, `vertex`, `cloudsql`, `spanner`,
-and `looker`. Components are recorded with `external_payload` provenance, and fields the list
-method cannot return stay absent.
+`looker`, and `dbt`. For `dbt`, pass a dbt `manifest.json`; it becomes one `dbt_project`
+component that targets a Fabric dbt job. Components are recorded with `external_payload`
+provenance, and fields the list method cannot return stay absent.
 
 All commands are deterministic for the same inputs and configuration. No command performs a
 Fabric apply operation.

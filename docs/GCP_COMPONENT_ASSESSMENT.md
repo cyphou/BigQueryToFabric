@@ -29,3 +29,7 @@ BI semantic modeling, machine-learning lifecycle requirements, or security block
 
 `preserve_airflow=true` makes an existing Composer DAG a Fabric Airflow Job candidate. Migration
 still requires provider/operator compatibility and a redesign of GCP connections and secrets.
+
+`transformation_framework=dbt` routes Dataform workflows to a Fabric dbt job (preview) instead of
+Warehouse SQL plus Pipelines. A `dbt_project` component (from `import-export --service dbt` with a
+dbt `manifest.json`) always targets a dbt job. Both emit `DBT_JOB_PREVIEW`.

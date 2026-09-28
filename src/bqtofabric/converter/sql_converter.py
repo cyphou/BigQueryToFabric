@@ -6,6 +6,7 @@ from dataclasses import dataclass, replace
 from typing import Any, cast
 
 import sqlglot
+from sqlglot import exp
 from sqlglot.errors import ParseError
 from sqlglot.expressions import (
     Expression,
@@ -21,6 +22,30 @@ from .models import (
     TargetDialect,
 )
 from .target_routing import route_to_dialect
+
+
+def _rewrite_for_tsql(stmt: Expression) -> Expression:
+    """Rewrite GoogleSQL constructs sqlglot passes through unchanged but T-SQL rejects."""
+    rewritten = stmt.copy()
+    for node in list(rewritten.find_all(exp.Date)):
+        # Only the one-argument cast form; DATE(y, m, d) already becomes DATEFROMPARTS.
+        if node.this is not None and not node.args.get("zone") and len(node.expressions) == 0:
+            node.replace(exp.Cast(this=node.this.copy(), to=exp.DataType.build("DATE")))
+    for select in rewritten.find_all(exp.Select):
+        group = select.args.get("group")
+        if group is None:
+            continue
+        projections = select.expressions
+        resolved = []
+        for item in group.expressions:
+            if isinstance(item, exp.Literal) and item.is_int and 0 < int(item.this) <= len(projections):
+                projection = projections[int(item.this) - 1]
+                source = projection.this if isinstance(projection, exp.Alias) else projection
+                resolved.append(source.copy())
+            else:
+                resolved.append(item)
+        group.set("expressions", resolved)
+    return rewritten
 
 
 @dataclass(frozen=True, slots=True)
@@ -585,6 +610,8 @@ class SqlConverter:
     def _transpile_statement(self, stmt: Expression, target: TargetDialect) -> str:
         """Transpile parsed statement to target dialect."""
         target_dialect_name = self.dialect_map[target]
+        if target == TargetDialect.TSQL:
+            stmt = _rewrite_for_tsql(stmt)
         transpiled = stmt.sql(dialect=target_dialect_name)
         return transpiled or ""
 

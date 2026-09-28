@@ -221,6 +221,24 @@
       "source_id": "gcp-data-platform.spanner.global_inventory",
       "name": "global_inventory",
       "kind": "spanner_database"
+    },
+    {
+      "source_id": "gcp-data-platform.dbt.analytics",
+      "name": "analytics",
+      "kind": "dbt_project",
+      "properties": {
+        "adapter": "bigquery",
+        "models": [
+          {"name": "stg_events", "schema": "analytics", "materialized": "view", "refs": [], "sources": [["analytics", "events"]], "macros": [],
+           "sql": "SELECT event_id, event_type, event_ts FROM {{ source('analytics', 'events') }} WHERE event_type IS NOT NULL"},
+          {"name": "fct_daily_events", "schema": "analytics", "materialized": "incremental", "unique_key": "event_date", "refs": ["stg_events"], "sources": [], "macros": [],
+           "sql": "SELECT DATE(event_ts) AS event_date, COUNT(*) AS events FROM {{ ref('stg_events') }} GROUP BY 1"}
+        ],
+        "tests": [
+          {"name": "not_null", "models": ["stg_events"], "column": "event_id"},
+          {"name": "unique", "models": ["fct_daily_events"], "column": "event_date"}
+        ]
+      }
     }
   ]
 }

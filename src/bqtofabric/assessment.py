@@ -7,7 +7,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import cast
 
-from .mapping import MappingDecision, map_component
+from .mapping import FabricTarget, MappingDecision, map_component
 from .models import BigQueryInventory, BigQueryObject, Column, ObjectKind
 from .parity import assess_parity
 from .sql_assessment import SqlAssessment, assess_sql
@@ -83,6 +83,15 @@ def run_assessment(inventory: BigQueryInventory) -> AssessmentReport:
         for action in decision.actions:
             findings.append(AssessmentFinding(
                 "WARN", decision.source_id, action, "ACTION_REQUIRED", "mapping"
+            ))
+        if decision.target is FabricTarget.DBT_JOB:
+            findings.append(AssessmentFinding(
+                "WARN",
+                decision.source_id,
+                "Fabric dbt job is a preview feature; confirm it is approved for this tenant "
+                "or keep the Warehouse fallback.",
+                "DBT_JOB_PREVIEW",
+                "mapping",
             ))
         if decision.source_id in streaming_consumers:
             findings.append(AssessmentFinding(
@@ -393,6 +402,7 @@ def _required_evidence(kind: ObjectKind) -> tuple[str, ...]:
         ObjectKind.PUBSUB_TOPIC: ("message_retention", "subscriptions"),
         ObjectKind.GCS_SOURCE: ("location", "storage_class", "data_format"),
         ObjectKind.DATAPLEX_ASSET: ("resource_type", "zone"),
+        ObjectKind.DBT_PROJECT: ("adapter", "models"),
     }
     return required.get(kind, ())
 

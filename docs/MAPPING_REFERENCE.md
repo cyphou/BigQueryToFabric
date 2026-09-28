@@ -15,6 +15,8 @@
 | JavaScript UDF | Notebook | Requires redesign and parity tests |
 | Policy tags | Purview and Fabric permissions | Manual governance review required |
 | Row access policy | Workspace/item permissions and RLS | No automatic 1:1 security translation |
+| Dataform workflow (`transformation_framework=dbt`) | Fabric dbt job (preview) | SQLX graph becomes dbt models, refs, and tests; Warehouse SQL plus Pipelines stays the fallback |
+| Existing dbt project (`dbt_project`) | Fabric dbt job (preview) | Keep the project; switch the adapter to Fabric and convert GoogleSQL in each model |
 
 ## Connections
 
@@ -39,7 +41,7 @@ backend list above is not exhaustive and newer BigQuery backends will take that 
 
 ## Assessment finding codes
 
-Assessment emits 18 stable finding codes. Codes are the review contract; message text is not.
+Assessment emits 19 stable finding codes. Codes are the review contract; message text is not.
 Every `FAIL` blocks reliance on the affected recommendation until it is resolved or explicitly
 accepted. Every `WARN` requires documented design or manual review.
 
@@ -47,6 +49,7 @@ accepted. Every `WARN` requires documented design or manual review.
 |---|---|---|---|---|
 | `ACTION_REQUIRED` | WARN | mapping | The selected mapping records concrete follow-up actions before the target can be built. | Work through the recorded actions in the component mapping and mark each resolved or accepted. |
 | `DATAFORM_COMPILATION_DETAILS_UNAVAILABLE` | FAIL | adapter | A Dataform compilation-result detail request failed, so the workflow's lineage graph is unavailable. | Restore Dataform API access, re-run discovery, and re-assess. Do not rely on lineage-dependent waves. |
+| `DBT_JOB_PREVIEW` | WARN | mapping | The component is mapped to a Fabric dbt job, which is a preview feature. | Confirm the preview is approved for the tenant, or keep the Warehouse SQL plus Pipelines fallback. |
 | `EVIDENCE_MISSING` | WARN | evidence | A required evidence field for the object's kind is absent. See the [required-evidence matrix](INVENTORY_SCHEMA.md#required-evidence-by-kind). | Supply the missing field in the inventory or re-discover the object, then re-assess. |
 | `EXTERNAL_PAYLOAD_INCOMPLETE_ADAPTER` | FAIL | adapter | A `discovered_from: external_payload` component lacks the offline evidence its kind requires, and no live adapter covers that service. | Complete the offline evidence for the component before relying on its target or wave. |
 | `ASSISTED_EVIDENCE_INCOMPLETE` | FAIL | provenance | A `discovered_from: assisted` component still lacks the evidence its kind requires. | Inference did not close the gap; capture the evidence from the source system. |
