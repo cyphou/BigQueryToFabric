@@ -4,6 +4,11 @@ These are public, checked-in inputs, not live Looker discovery. The copied upstr
 unchanged; nine files in total, including both licenses, were hash-verified against the original
 downloads.
 
+These examples cover the saved dashboard API path and a manually assisted inventory. For the
+separate versioned, pre-parsed LookML JSON import and its unresolved-context visual gate, see
+the [LookML contract](../../docs/MIGRATION_RUNBOOK.md#offline-lookml-derived-metadata-normalizer).
+It does not parse the raw LookML files included here.
+
 ## Provenance and evidence
 
 * `looker-cli/Dashboard_17_FAA_KPIs.json`: [looker-open-source/looker-cli](https://github.com/looker-open-source/looker-cli/blob/b8a506bea2d31bbf3e5f90d544f1fdf5bb3b4292/examples/Dashboard_17_FAA_KPIs.json),

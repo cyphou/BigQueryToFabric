@@ -21,6 +21,10 @@ level, rationale, actions, dependency wave, and manual-review flag.
 | Cloud SQL/Spanner | SQL Database for OLTP; Lakehouse/Warehouse for analytics | Transactions, constraints, indexes, concurrency and cutover |
 | IAM/policy tags/row policies | Purview, Fabric permissions and RLS | Effective-access parity; always manual review |
 
+For Looker, the semantic-model recommendation is separate from the bounded, offline Power BI
+review generator. Its supported inputs and unverified security, parity and deployment boundaries
+are described in the [runbook](MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
+
 ## Preference policy
 
 `data_target=lakehouse` and `compute_target=notebook` influence compatible analytical workloads.

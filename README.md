@@ -22,7 +22,7 @@
 | | At a glance |
 |---|---|
 | 🔍 **Discovery** | Read-only BigQuery metadata, plus opt-in read-only adapters for Dataflow, Dataproc, Dataform, and Composer · credentials redacted by construction · principals pseudonymized |
-| 🧭 **Assessment** | 26 source kinds · per-component, evidence-scaled readiness score · 18 explainable finding codes |
+| 🧭 **Assessment** | Per-component, evidence-scaled readiness score and explainable findings |
 | 🏗️ **Fabric routing** | 16 target roles (including a Fabric dbt job) · compatibility-weighted strategy selection · workload overrides |
 | 🧪 **Quality** | Ruff and Pyright clean (`python -m pyright`; `python -m ruff check src tests`) |
 | 🤖 **Agent model** | 13 specialist agents · exclusive ownership and documentation handoff validated |
@@ -87,7 +87,10 @@ deterministic dry-run artifacts. The deployment arrow is intentionally outside t
   Accepts only `bqtofabric.looker-lookml-export/1.0` pre-parsed offline JSON with a matching
   `project_id`. It deterministically appends one `external_payload` Looker asset, never overwrites
   output or mutates inputs, and does not parse raw LookML or call cloud APIs. Saved API response
-  import remains the separate `bqtofabric import-looker-api` command.
+  import remains the separate `bqtofabric import-looker-api` command. The LookML normalizer
+  retains unresolved security and model-context markers, so the generator suppresses its visuals;
+  supported fields may still produce a review-only model. Inspect the LookML ingestion report in
+  the imported inventory as well as the generation review.
 - **Validated:** The targeted Looker suite passed 203 tests with no skips; Ruff and Pyright passed.
 	An offline synthetic envelope produced three visuals with checked role/reference bindings and
 	byte-identical repeat output. TableauToPowerBI's static structure/openability checks passed
@@ -102,9 +105,11 @@ deterministic dry-run artifacts. The deployment arrow is intentionally outside t
 	no Desktop opening, runtime or refresh tests, deployed-security checks, real-data or visual
 	parity checks, deployment or cloud calls were performed.
 
-For public sample provenance, reproducible offline commands and measured limitations, see
-[the Looker examples](examples/looker/README.md). For a synthetic API envelope and review steps,
-see [the Looker runbook](docs/MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
+For input contracts, commands and review steps, see the runbook for
+[pre-parsed LookML](docs/MIGRATION_RUNBOOK.md#offline-lookml-derived-metadata-normalizer) and
+[saved API responses](docs/MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
+The [mapping reference](docs/MAPPING_REFERENCE.md#looker-to-power-bi-review-mapping) describes
+the conversion boundary; [public examples](examples/looker/README.md) record measured outcomes.
 
 ## 🧩 The Canonical Inventory
 
@@ -203,6 +208,8 @@ The generated package contains:
 
 For the complete installation guide, command reference, offline and read-only discovery workflows,
 artifact interpretation, security rules, and troubleshooting, see [docs/USER_MANUAL.md](docs/USER_MANUAL.md).
+For the detailed offline Looker import contracts and Power BI generation steps, use the
+[Looker runbook](docs/MIGRATION_RUNBOOK.md#offline-lookml-derived-metadata-normalizer).
 
 For a one-command PowerShell fixture walkthrough, run `./scripts/smoke_test.ps1` after installing
 the development package.
@@ -765,6 +772,12 @@ includes a rationale plus concrete follow-up actions. GoogleSQL is parsed as an 
 | `bqtofabric map` | Print component-level Fabric decisions |
 | `bqtofabric plan` | Generate dependency-ordered migration waves |
 | `bqtofabric generate` | Produce the complete dry-run assessment package |
+| `bqtofabric import-looker-api` | Normalize saved Explore and dashboard responses into an inventory |
+| `bqtofabric import-looker-lookml` | Normalize versioned, pre-parsed LookML-derived JSON into an inventory |
+| `bqtofabric generate-looker-powerbi` | Generate a bounded, review-only Power BI project from one Looker asset |
+| `bqtofabric import-export` | Add saved service list metadata to an inventory |
+| `bqtofabric parity-pack` | Prepare paired queries for separately collected parity evidence |
+| `bqtofabric parity-ingest` | Attach supplied parity results to an inventory |
 | `bqtofabric manifest-verify` | Verify the deployment-manifest integrity hash |
 | `bqtofabric deployment-check` | Run the offline readiness gates; never applies changes |
 
@@ -806,7 +819,7 @@ items that remain blocked on cloud access.
 | [Mapping reference](docs/MAPPING_REFERENCE.md) | Review source-to-Fabric mapping rules, the [finding-code table](docs/MAPPING_REFERENCE.md#assessment-finding-codes), and manual-review reasons |
 | [Target decision guide](docs/TARGET_DECISION_GUIDE.md) | Choose Lakehouse, Warehouse, Eventhouse, or hybrid, and see how strategy is weighted |
 | [GCP component assessment](docs/GCP_COMPONENT_ASSESSMENT.md) | Review supported source families and the evidence each needs |
-| [Migration runbook](docs/MIGRATION_RUNBOOK.md) | Execute a repeatable assessment and review process |
+| [Migration runbook](docs/MIGRATION_RUNBOOK.md) | Execute a repeatable assessment and review process, including both offline Looker inputs |
 | [Known limitations](docs/KNOWN_LIMITATIONS.md) | Understand the explicit V1 boundaries |
 | [Security](docs/SECURITY.md) | Apply credential, scope, and access-evidence rules |
 | [Agents](docs/AGENTS.md) | Work within the specialist-agent ownership model |
@@ -814,9 +827,10 @@ items that remain blocked on cloud access.
 
 ## Public Reference Examples
 
-Tests use synthetic, sanitized fixtures for deterministic offline testing. The links below are
-public upstream examples to study; no external source code is vendored. Public links may evolve,
-and the test suite remains independent of them.
+Tests use synthetic fixtures and checked-in public Looker samples for offline testing. The
+[Looker examples](examples/looker/README.md) document their provenance and measured outcomes.
+The links below are public upstream examples to study; public links may evolve and need not be
+accessed by the test suite.
 
 | Source family | Public examples |
 |---|---|

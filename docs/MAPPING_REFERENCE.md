@@ -18,6 +18,27 @@
 | Dataform workflow (`transformation_framework=dbt`) | Fabric dbt job (preview) | SQLX graph becomes dbt models, refs, and tests; Warehouse SQL plus Pipelines stays the fallback |
 | Existing dbt project (`dbt_project`) | Fabric dbt job (preview) | Keep the project; switch the adapter to Fabric and convert GoogleSQL in each model |
 
+## Looker to Power BI review mapping
+
+**Expected:** A reviewable semantic model and report with explicit gaps, not automatic parity.
+**Implemented:** A separate offline generator maps a bounded `looker_asset` to a PBIP project;
+this is distinct from assessment's semantic-model recommendation. Direct-column dimensions and
+simple unfiltered measures are candidates, subject to declared types and bindings. Exact API
+visual mappings and field limits are listed in the [runbook](MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
+Pages use a fixed six-visual grid rather than source layout.
+
+Unresolved model or security context suppresses affected visuals instead of dropping constraints.
+The versioned [pre-parsed LookML normalizer](MIGRATION_RUNBOOK.md#offline-lookml-derived-metadata-normalizer)
+always marks that context unresolved, so its assets do not generate visuals. It can still retain
+supported fields for a review model. Raw LookML, joins/relationships, filters, calculations,
+access controls, source layout and interactions are not migrated. Source binding is disabled and
+partitions deliberately fail refresh; never interpret a static scaffold as secure or deployable.
+
+**Validated:** Existing offline synthetic and public-sample evidence is recorded in the
+[roadmap](ROADMAP.md#follow-on--looker-to-power-bi-bounded-offline-slice-implemented) and
+[examples](../examples/looker/README.md). **Open:** Desktop, runtime, refresh, deployed security,
+data/visual parity and deployment remain unverified.
+
 ## Connections
 
 A BigQuery connection carries exactly one backend block, and each maps to a different
@@ -329,7 +350,8 @@ request the `https://www.googleapis.com/auth/cloud-platform.read-only` scope, wh
 the BigQuery path's `bigquery.readonly`. None of them has been validated against an authorized GCP
 sandbox: the adapter exists, the sandbox verification does not. Workflows, Pub/Sub, GCS, Looker,
 Vertex AI, Dataplex, Cloud SQL, and Spanner have no live adapter and remain canonical/offline
-assessment inputs until their adapters and permission contracts exist.
+assessment inputs until their adapters and permission contracts exist. Looker additionally has
+the bounded offline review generator described above.
 
 Dataform discovery aggregates successful compilation results into canonical `models`, `assertions`,
 and `incremental` evidence on the repository and workflow records. `models` contains sorted

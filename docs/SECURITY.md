@@ -29,8 +29,16 @@
   path's `bigquery.readonly`. A security administrator must review and approve that scope before
   first use. None of the adapters has been validated against an authorized GCP sandbox.
 - Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have no live
-  adapter and are limited to offline payload normalization and assessment. Their payloads do not
-  establish live service state, trusted execution, or effective access.
+  adapter; their adapter inputs use offline payload normalization and assessment. Their payloads
+  do not establish live service state, trusted execution, or effective access.
+- The separate offline Looker-to-Power BI generator creates review-only output, not deployed
+  security. Neither saved API responses nor pre-parsed LookML exports establish effective access
+  or equivalent access filters/RLS. Unresolved model or security context suppresses affected
+  visuals; the LookML normalizer always marks that context unresolved. Source binding is disabled
+  and generated partitions deliberately fail refresh. Review source inputs and output for secrets:
+  identifier and credential-pattern checks are heuristic, not a complete secret audit. Desktop,
+  runtime, security equivalence, parity and deployment remain unverified. See the
+  [runbook](MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
 - Dataset access evidence pseudonymizes principal identities as stable, non-reversible
   `principal:<12 hex>` values. Pseudonymization protects the generated artifact; it does not make
   the evidence an effective-access calculation.

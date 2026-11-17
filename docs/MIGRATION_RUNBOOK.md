@@ -16,7 +16,21 @@ bqtofabric import-looker-lookml INVENTORY --payload VERSIONED_EXPORT --output NE
 The payload must be accepted `bqtofabric.looker-lookml-export/1.0` offline JSON, and its
 `project_id` must match the canonical inventory. The command deterministically appends one Looker
 asset with `external_payload` provenance. It never overwrites the output or mutates either input;
-use a new output path.
+use a new output path. Its asset ID is `PROJECT_ID.looker_lookml_export`, where `PROJECT_ID`
+is the matching inventory project ID.
+
+After importing, validate and assess the new inventory. With the separately installed backend
+described in the [API workflow](#offline-looker-api-to-power-bi-review-project), generate into a
+new or empty directory:
+
+```text
+bqtofabric validate NEW_INVENTORY
+bqtofabric assess NEW_INVENTORY
+bqtofabric generate-looker-powerbi NEW_INVENTORY --asset PROJECT_ID.looker_lookml_export --output REVIEW_DIRECTORY
+```
+
+Replace the placeholders with local paths and the actual project ID. Check each exit code and
+review the inventory and output; a successful command is not evidence of parity or readiness.
 
 Each Explore requires `source_id` and `name`; it may include `sql_table_name`, `dimensions` and
 `measures`. Each field requires `source_id`, `name` and `type`; dimensions use `string`, `number`,
@@ -32,6 +46,37 @@ All four record kinds require caller-supplied, stable, project-scoped IDs in thi
 and field references resolve by exact source ID only; matching names do not resolve references.
 Malformed or unsupported records are omitted and diagnosed rather than inferred.
 
+For a minimal synthetic `VERSIONED_EXPORT` (use a canonical inventory with the same project ID):
+
+```json
+{
+  "schema_version": "1.0",
+  "project_id": "demo-project",
+  "explores": [{
+    "source_id": "demo-project.looker_lookml.explore.orders",
+    "name": "orders",
+    "sql_table_name": "demo_project.sales.orders",
+    "dimensions": [{
+      "source_id": "demo-project.looker_lookml.field.orders.region",
+      "name": "region", "type": "string", "sql": "${TABLE}.region"
+    }],
+    "measures": []
+  }],
+  "dashboards": [{
+    "source_id": "demo-project.looker_lookml.dashboard.sales",
+    "title": "Sales",
+    "elements": [{
+      "source_id": "demo-project.looker_lookml.element.sales.regions",
+      "title": "Regions", "type": "table",
+      "explore_source_id": "demo-project.looker_lookml.explore.orders",
+      "field_source_ids": ["demo-project.looker_lookml.field.orders.region"]
+    }]
+  }]
+}
+```
+
+This is a contract example, not parsed LookML or evidence that the source has no security.
+
 **Expected:** Unknown semantic properties fail closed without losing unrelated safe metadata.
 
 **Implemented:** The v1 contract is unchanged. Unknown semantic properties on an explore, field,
@@ -39,7 +84,10 @@ dashboard or element emit value-free `unsupported_input_property` diagnostics; n
 key nor its value is copied. A field with unknown properties is omitted from candidate metadata,
 and affected elements are marked unsupported, while unrelated safe views and elements remain.
 Existing `external_payload` provenance and security/model-context markers are preserved. This
-normalization does not generate visuals.
+normalization does not generate visuals. It always marks security and Explore semantics as
+unresolved; consequently, downstream generation suppresses its visuals even for resolved
+references. Supported fields may still produce a review-only model. Do not remove the markers to
+force visual generation.
 
 For example, invoke the normalizer from Python with the export loaded from a JSON file:
 
@@ -56,6 +104,9 @@ asset = normalize_looker_lookml_export(payload)
 The returned `LOOKER_ASSET` has `external_payload` provenance. Its
 `looker_lookml_ingestion_report` contains value-free diagnostics with fixed paths and codes;
 validated IDs, provenance and resolved dependency edges are recorded separately for traceability.
+The CLI stores these labels on the imported component. Inspect
+`looker_lookml_ingestion_report` there: unlike the API importer’s `looker_ingestion_report`, it
+is not copied into the generator's `looker-powerbi-review.json`. Review both reports.
 Omitted metadata is not evidence that the corresponding source semantics are absent. Joins,
 filters, access controls and security remain unverified, as do runtime, refresh and source/target
 parity. Any downstream generation is review-only, not a deployment or correctness claim.
@@ -78,7 +129,8 @@ This workflow consumes **saved API 4.0 responses** from `lookml_model_explore` a
 wrapped in one JSON object. These are computed Explore fields and dashboard queries, not raw
 LookML files or a live discovery call. The envelope must contain exactly `explores` and
 `dashboards`, both arrays. Missing fields are not evidence that joins, filters or security are
-absent. Never put credentials or sensitive values in the input files.
+absent. Never put credentials or sensitive values in the input files; identifier and credential
+pattern checks cannot recognize every secret.
 
 **Expected:** A bounded review project from saved responses, without cloud calls.
 
@@ -232,7 +284,9 @@ validated identifiers respectively. Inspect `review-project/looker-powerbi-revie
 `ingestion_diagnostics`, `issues`, `converted` and review status, alongside
 `LookerMigration.pbip`, `LookerMigration.SemanticModel/` and `LookerMigration.Report/`.
 If no model can be converted, generation returns a validation failure but saves the review JSON;
-it does not fabricate a project. Empty dashboard input can yield an empty review page.
+it does not fabricate a project. The validation failure is exit code `5`; other errors can occur
+before the review file is written, including a missing or incompatible backend. Empty dashboard
+input can yield an empty review page.
 
 For the three-visual variant, inspect the `visual.json` files: the line and column charts project
 the `orders.region` column as `Category` and the `orders.sales` measure as `Y`; the card projects

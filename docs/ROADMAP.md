@@ -15,7 +15,7 @@ validation commands.
 |---|---|
 | Supported source taxonomy | 27 `ObjectKind` members |
 | Fabric decision surface | 16 primary/supporting target roles |
-| Public CLI | 12 commands: `assess`, `deployment-check`, `discover`, `generate`, `import-export`, `inventory`, `manifest-verify`, `map`, `parity-ingest`, `parity-pack`, `plan`, `validate` |
+| Public CLI | 16 commands, including offline inventory drift and the three Looker commands; see `bqtofabric --help` |
 | Live discovery adapters | BigQuery (core) plus opt-in BigQuery-adjacent adapters for Dataflow, Dataproc, Dataform, and Composer |
 | Reference portfolio | 29 assessed components (`tests/fixtures/gcp_ecosystem_project.json`) |
 | Reference recommendation | Lakehouse primary · hybrid architecture · Airflow retained |
@@ -452,6 +452,10 @@ involved. `Documentation` updates the roadmap and runbook at the end of every ph
   unknown properties is omitted from candidate metadata, affected elements are marked unsupported,
   and unrelated safe views/elements remain. The v1 contract, `external_payload` provenance and
   security/model-context markers are preserved. This normalization does not emit visuals.
+  Because those markers are always present in the normalized asset, downstream generation
+  suppresses its visuals even when references resolve; supported fields may still produce a
+  review-only model. The generator does not copy `looker_lookml_ingestion_report` into its review
+  JSON: inspect the imported inventory too.
 - **Validated:** 223 passed, 0 skipped across `test_looker_lookml_export.py`,
   `test_looker_api_export.py`, `test_looker_powerbi.py`, `test_cli_import_looker.py` and
   `test_cli_looker_powerbi.py`; Ruff passed; Pyright reported 0 diagnostics; agent validation passed
@@ -482,6 +486,10 @@ involved. `Documentation` updates the roadmap and runbook at the end of every ph
   their dataset default is overrideable, not proof of access. See the
   [public examples](../examples/looker/README.md) and
   [runbook](MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
+  The [user manual](USER_MANUAL.md#looker-to-power-bi-review),
+  [inventory schema](INVENTORY_SCHEMA.md#looker-to-power-bi-input-paths),
+  [security](SECURITY.md) and [limitations](KNOWN_LIMITATIONS.md) also describe the offline
+  review boundary; the migration and validation gaps above remain open.
 
 ##### Follow-on slice 1 — Offline LookML-derived metadata normalizer
 
@@ -502,6 +510,10 @@ involved. `Documentation` updates the roadmap and runbook at the end of every ph
   `external_payload` Looker asset. It creates a new output without overwriting it or mutating inputs;
   it does not parse raw LookML or call cloud APIs. Generation remains review-only and this
   normalization does not generate visuals.
+  Downstream generation also suppresses visuals from this normalizer's assets because its
+  unresolved security and Explore markers remain present; this is not a security translation.
+  LookML ingestion diagnostics remain in the imported inventory rather than being copied into
+  `looker-powerbi-review.json`.
 - **Validated:** 223 passed, 0 skipped across `test_looker_lookml_export.py`,
   `test_looker_api_export.py`, `test_looker_powerbi.py`, `test_cli_import_looker.py` and
   `test_cli_looker_powerbi.py`; Ruff passed; Pyright reported 0 diagnostics; agent validation passed

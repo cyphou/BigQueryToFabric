@@ -28,6 +28,9 @@ imports an LLM or inference library, if a third-party import appears outside the
 surface, if `pyproject.toml` declares a model client, or if an optional dependency leaks to
 module level.
 
+The separate Looker-to-Power BI generator lazily loads internal interfaces from an optional,
+externally installed TableauToPowerBI checkout; it is not part of the core dependency set.
+
 A language model may sit **on top of** the tool — driving the CLI, reading reports, or
 supplying inferred evidence marked `discovered_from: assisted` — but never inside it. The
 canonical inventory is the seam:
@@ -57,6 +60,35 @@ while supplied values must be non-negative integers and cannot be booleans.
 This keeps malformed source documents from being hidden by model coercion. The check is local and
 deterministic; it does not establish source-schema validity, Fabric compatibility, runtime/data
 parity, or deployment authorization.
+
+## Offline Looker to Power BI boundary
+
+Saved API Explore/dashboard responses and versioned, caller-preparsed LookML-derived JSON use
+different normalizers. Both append an `external_payload` Looker asset to a new inventory; neither
+discovers live Looker or parses raw LookML. The separate list-only `import-export --service looker`
+is assessment metadata, not a substitute for the detailed API envelope. Assisted canonical
+inventory is another input path and remains unverified evidence.
+
+```mermaid
+flowchart LR
+    API[Saved API responses] --> N1[API normalizer]
+    LML[Pre-parsed versioned LookML JSON] --> N2[LookML normalizer]
+    N1 --> INV[Canonical Looker asset]
+    N2 --> INV
+    INV --> GEN[Bounded review generator]
+    EXT[External TableauToPowerBI 44.0.0] --> GEN
+    GEN --> REV[Review JSON and optional PBIP/TMDL/PBIR]
+```
+
+The generator loads external writers and a projection finalizer lazily, emits deterministic
+review-only files for the same inputs and backend, and disables source binding. An unconvertible
+model yields review diagnostics instead of an invented project. Unknown or unresolved
+model/security context blocks visuals; the LookML normalizer always retains unresolved markers.
+Generated partitions intentionally fail refresh. Static checks do not prove Desktop opening,
+security equivalence, runtime, parity or deployment readiness. See the
+[runbook](MIGRATION_RUNBOOK.md#offline-lookml-derived-metadata-normalizer) for input contracts,
+diagnostics and commands, and the [mapping reference](MAPPING_REFERENCE.md#looker-to-power-bi-review-mapping)
+for the supported slice.
 
 ## Deterministic artifact serialization
 
@@ -319,7 +351,7 @@ No adapter makes IAM API calls. None calls Cloud Resource Manager IAM policy API
 `getIamPolicy`, or the BigQuery Data Policy API. Consequently, project/org IAM, connection IAM,
 distinct row access policies, data policies, and policy tags are not extracted. Workflows, Pub/Sub,
 GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have no live adapter and remain
-canonical/offline assessment inputs.
+canonical/offline assessment inputs. Looker also has the bounded offline review generator above.
 Missing security-policy coverage requires security review; it cannot be inferred from the discovered
 metadata.
 

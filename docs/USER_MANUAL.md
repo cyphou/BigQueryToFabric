@@ -95,6 +95,9 @@ The script expects the `bqtofabric` command to be installed with `python -m pip 
 | `parity-pack` | Inventory JSON + `--output` | `parity-pack.json`, `parity-source.sql`, `parity-target.sql` | Generate paired parity queries to run yourself |
 | `parity-ingest` | Inventory + `--pack` + `--results` + `--output` | Inventory JSON with parity evidence | Attach query results; `assess` recomputes status |
 | `import-export` | Inventory + `--service` + `--payload` + `--output` | Merged inventory JSON | Add components from a saved GCP API list response |
+| `import-looker-api` | Inventory + saved Explore/dashboard responses + `--output` | New inventory with a Looker asset | Normalize detailed saved Looker API responses offline |
+| `import-looker-lookml` | Inventory + versioned pre-parsed metadata + `--output` | New inventory with a Looker asset | Normalize LookML-derived metadata offline, not raw LookML |
+| `generate-looker-powerbi` | Inventory + `--asset` + `--output` | Review JSON and, when possible, a PBIP project | Review bounded Looker-to-Power BI conversion |
 
 `plan` and `generate` also accept `--decisions wave-decisions.json`, a human-authored file:
 
@@ -117,6 +120,36 @@ The script expects the `bqtofabric` command to be installed with `python -m pip 
 `looker`, and `dbt`. For `dbt`, pass a dbt `manifest.json`; it becomes one `dbt_project`
 component that targets a Fabric dbt job. Components are recorded with `external_payload`
 provenance, and fields the list method cannot return stay absent.
+
+### Looker to Power BI review
+
+The Looker workflow is separate from the list-only `import-export --service looker` assessment
+input. Start with a canonical inventory and either saved Looker API 4.0 Explore/dashboard
+responses or a caller-prepared `bqtofabric.looker-lookml-export/1.0` JSON document. The latter is
+pre-parsed metadata, not raw LookML. Each import writes a new inventory and records
+`external_payload` provenance. Use the same `project_id` for a LookML export and its inventory.
+
+```powershell
+bqtofabric import-looker-api INVENTORY --payload API_EXPORT --output IMPORTED_INVENTORY
+# Or: bqtofabric import-looker-lookml INVENTORY --payload LOOKML_EXPORT --output IMPORTED_INVENTORY
+bqtofabric validate IMPORTED_INVENTORY
+bqtofabric assess IMPORTED_INVENTORY
+bqtofabric generate-looker-powerbi IMPORTED_INVENTORY --asset ASSET_ID --output REVIEW_DIRECTORY
+```
+
+Replace placeholders with local paths and the exact asset ID; use fresh output paths. Generation
+requires a separately installed compatible TableauToPowerBI 44.0.0 checkout. Inspect the review
+JSON and imported inventory diagnostics. Unsupported or unresolved context suppresses affected
+visuals; the LookML normalizer always marks security and Explore semantics unresolved, so its
+visuals are suppressed. Supported metadata can still yield a review-only model; if no model is
+convertible, generation returns exit code 5 and writes a review report instead of a PBIP.
+
+The bounded generator supports table, bar, line, column and card visuals under the field and
+context constraints in the [runbook](MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
+Source binding is disabled and generated partitions deliberately fail refresh. Output is not proof
+of Desktop opening, effective security, runtime, parity or deployment readiness. See the
+[LookML contract](MIGRATION_RUNBOOK.md#offline-lookml-derived-metadata-normalizer) and
+[public examples](../examples/looker/README.md) for exact inputs, tested outcomes and open gaps.
 
 All commands are deterministic for the same inputs and configuration. No command performs a
 Fabric apply operation.
@@ -251,7 +284,8 @@ Current boundaries:
   is covered by offline fixture tests; the live verification does not exist. Treat a first live run
   as an unverified operation and review its output before relying on it.
 - Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have **no** live
-  adapter. They remain offline payload normalization and assessment inputs only.
+  adapter. Their discovery inputs are offline payloads; the separate Looker review generator
+  does not add live discovery or deployment.
 - IAM effectiveness, secret bindings, policy-tag parity, and runtime execution are not inferred.
 
 ## 5. Understanding Compatibility

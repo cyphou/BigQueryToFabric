@@ -208,6 +208,25 @@ Spanner `databases.list`, Looker `all_lookml_models`). Fields a list method does
 for example Pub/Sub `subscriptions`, Workflows `triggers`, Cloud Storage `data_format` — stay
 absent and surface as `EVIDENCE_MISSING`.
 
+### Looker-to-Power BI input paths
+
+The list-only Looker `import-export` path is not a detailed dashboard export. The separate
+`import-looker-api` command normalizes saved Explore and dashboard responses into one
+`looker_asset`. `import-looker-lookml` instead accepts the caller-prepared, pre-parsed
+`bqtofabric.looker-lookml-export/1.0` JSON contract; it does not parse raw LookML. Both add
+`external_payload` evidence to a new inventory, not live API provenance. A manually authored
+inventory inferred from LookML uses `assisted` provenance instead.
+
+The versioned export requires a matching inventory `project_id` and stable project-scoped IDs;
+references resolve by exact source ID. Its ingestion report is stored on the imported component
+as `looker_lookml_ingestion_report`; inspect it in the inventory as well as the generator's
+separate review report. Unknown semantic properties are diagnosed rather than silently copied.
+Security and Explore context remain unresolved, so the review-only Power BI generator suppresses
+visuals from these normalized assets. Missing evidence is not evidence that source behavior is
+absent. The [runbook](MIGRATION_RUNBOOK.md#offline-lookml-derived-metadata-normalizer) specifies
+the contract and the [API workflow](MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project)
+documents the other import path and generation limits.
+
 ### How evidence presence is decided
 
 - A recorded **boolean counts as evidence in either state**. `streaming: false`, `assertions:

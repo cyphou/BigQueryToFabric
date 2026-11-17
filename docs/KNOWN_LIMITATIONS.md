@@ -123,6 +123,16 @@
   `count_distinct` over a single column. Filtered measures, SQL expressions, and other types are
   listed as unconverted. Data Science scaffolds suggest a starting library only, and
   `modelParity` is always `not_run`.
+- The separate Looker-to-Power BI generator is an offline, review-only path, not a live adapter.
+  `import-looker-api` uses saved Explore/dashboard responses; `import-looker-lookml` uses a
+  versioned pre-parsed JSON export, not raw LookML. The latter always marks security and Explore
+  context unresolved, suppressing visuals even when references resolve. Other unresolved or
+  unsupported context also suppresses affected visuals. Joins, filters, access controls, complete
+  visual behavior and source layout remain open. Source binding is disabled and generated
+  partitions deliberately fail refresh. Static checks do not prove Desktop opening, effective
+  security, runtime, data or visual parity, or deployment readiness. See the
+  [runbook](MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project) and
+  [examples](../examples/looker/README.md).
 - `inventory_drift` compares two inventories structurally. It is groundwork for the P14 sandbox run
   and has not been run against live discovery output.
 - The dbt target is offline and review-only.
@@ -139,5 +149,6 @@
   to the projected expression. Other GoogleSQL functions that sqlglot passes through unchanged may
   still be invalid in Fabric Warehouse, so structural validation is not proof of executability.
 - Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have **no** live
-  adapter and are limited to offline payload normalization and assessment. Conversion and deployment
-  remain outside every adapter's behavior.
+  adapter; their adapter inputs use offline payload normalization and assessment. Conversion and
+  deployment remain outside every adapter's behavior. The separate Looker generator described
+  above is review-only and does not deploy.
