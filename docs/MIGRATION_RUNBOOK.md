@@ -1,5 +1,276 @@
 # Migration runbook
 
+## Offline LookML-derived metadata normalizer
+
+`normalize_looker_lookml_export` accepts a caller-prepared JSON object using the explicit
+`bqtofabric.looker-lookml-export/1.0` contract. The root contains exactly `schema_version`
+(`"1.0"`), `project_id`, `explores` and `dashboards`. Both collections are arrays. This is
+already-parsed metadata; the normalizer and CLI do not parse raw LookML or call cloud APIs.
+
+Import the versioned export into a canonical inventory with:
+
+```text
+bqtofabric import-looker-lookml INVENTORY --payload VERSIONED_EXPORT --output NEW_INVENTORY
+```
+
+The payload must be accepted `bqtofabric.looker-lookml-export/1.0` offline JSON, and its
+`project_id` must match the canonical inventory. The command deterministically appends one Looker
+asset with `external_payload` provenance. It never overwrites the output or mutates either input;
+use a new output path.
+
+Each Explore requires `source_id` and `name`; it may include `sql_table_name`, `dimensions` and
+`measures`. Each field requires `source_id`, `name` and `type`; dimensions use `string`, `number`,
+`yesno` or `date`, while measures use `count`, `sum`, `average`, `min`, `max` or
+`count_distinct`. Fields use direct `${TABLE}.column` expressions; a `count` measure may omit
+`sql`. Dashboard records require `source_id`, `title` and `elements`. Elements require
+`source_id`, `title`, `explore_source_id`, `field_source_ids` and a visual `type` of `table`,
+`bar`, `column`, `line` or `card`.
+
+All four record kinds require caller-supplied, stable, project-scoped IDs in this form:
+`<project_id>.looker_lookml.<kind>.<stable-id>`, where `<kind>` is `explore`, `field`,
+`dashboard` or `element`. IDs are not derived from names, titles or order. Dashboard explore
+and field references resolve by exact source ID only; matching names do not resolve references.
+Malformed or unsupported records are omitted and diagnosed rather than inferred.
+
+**Expected:** Unknown semantic properties fail closed without losing unrelated safe metadata.
+
+**Implemented:** The v1 contract is unchanged. Unknown semantic properties on an explore, field,
+dashboard or element emit value-free `unsupported_input_property` diagnostics; neither the unknown
+key nor its value is copied. A field with unknown properties is omitted from candidate metadata,
+and affected elements are marked unsupported, while unrelated safe views and elements remain.
+Existing `external_payload` provenance and security/model-context markers are preserved. This
+normalization does not generate visuals.
+
+For example, invoke the normalizer from Python with the export loaded from a JSON file:
+
+```python
+import json
+from pathlib import Path
+
+from bqtofabric.looker_lookml_export import normalize_looker_lookml_export
+
+payload = json.loads(Path("lookml-export.json").read_text(encoding="utf-8"))
+asset = normalize_looker_lookml_export(payload)
+```
+
+The returned `LOOKER_ASSET` has `external_payload` provenance. Its
+`looker_lookml_ingestion_report` contains value-free diagnostics with fixed paths and codes;
+validated IDs, provenance and resolved dependency edges are recorded separately for traceability.
+Omitted metadata is not evidence that the corresponding source semantics are absent. Joins,
+filters, access controls and security remain unverified, as do runtime, refresh and source/target
+parity. Any downstream generation is review-only, not a deployment or correctness claim.
+
+Saved Looker API responses use the distinct `bqtofabric import-looker-api` command and its existing
+API-response envelope; this does not change that import contract.
+
+**Validated:** 223 passed, 0 skipped across `test_looker_lookml_export.py`,
+`test_looker_api_export.py`, `test_looker_powerbi.py`, `test_cli_import_looker.py` and
+`test_cli_looker_powerbi.py`; Ruff passed; Pyright reported 0 diagnostics; agent validation passed
+(13 agents, 5 skills); `git diff --check` passed.
+
+**Open:** The broader join, filter and access-control work remains open; security and source/target
+parity have not been proved. Runtime and refresh validation, as well as the overall Looker exit
+gate, remain open.
+
+## Offline Looker API to Power BI review project
+
+This workflow consumes **saved API 4.0 responses** from `lookml_model_explore` and `dashboard`,
+wrapped in one JSON object. These are computed Explore fields and dashboard queries, not raw
+LookML files or a live discovery call. The envelope must contain exactly `explores` and
+`dashboards`, both arrays. Missing fields are not evidence that joins, filters or security are
+absent. Never put credentials or sensitive values in the input files.
+
+**Expected:** A bounded review project from saved responses, without cloud calls.
+
+**Implemented:** The exact visual mappings and field limits below use the external
+TableauToPowerBI 44.0.0 PBIP/TMDL writers and PBIR projection finalizer. Missing, invalid or
+nonempty `sql_always_where`, `access_grants` or `required_access_grants`, and unknown nonempty
+Explore properties, are recorded as unresolved context and block visual conversion. Recognized
+descriptive Explore metadata is ignored.
+
+**Validated:** 223 passed, 0 skipped across `test_looker_lookml_export.py`,
+`test_looker_api_export.py`, `test_looker_powerbi.py`, `test_cli_import_looker.py` and
+`test_cli_looker_powerbi.py`; Ruff passed; Pyright reported 0 diagnostics; agent validation passed
+(13 agents, 5 skills); `git diff --check` passed.
+An offline synthetic envelope produced three visuals with checked role/reference bindings and
+byte-identical repeat output. TableauToPowerBI's static structure/openability checks passed
+including all three; `powerbi-report-author` 0.5.0 `validate --no-schema` reported 0 errors and
+0 warnings with Node network access blocked. An earlier full-suite run reported 767 passed and
+1 skipped; `validate_agents` passed. The [public offline examples](../examples/looker/README.md)
+document separate FAA and assisted LookML-derived runs, their measured results and provenance.
+
+**Open:** Remote JSON Schema validation was explicitly skipped. No Desktop opening, runtime or
+refresh tests, deployed-security checks, real-data or visual parity checks, deployment or cloud
+calls were performed.
+
+The three security fields in the example are conservative envelope extensions, not necessarily
+returned by the Explore API. Supply the empty string for `sql_always_where` and empty arrays for
+the grants only when independent evidence supports them. Missing, null, invalid or nonempty
+values do not establish absence of security. Do not infer empty evidence for real responses.
+
+Create `inventory.json` with this synthetic canonical inventory:
+
+```json
+{
+  "project_id": "demo-project",
+  "schema_version": "1.1",
+  "datasets": [],
+  "components": [],
+  "metadata": {}
+}
+```
+
+Create `looker.json` with this synthetic envelope. The empty lists and nulls are explicit
+evidence for this example, not defaults to invent when a real response omits fields:
+
+```json
+{
+  "explores": [
+    {
+      "model_name": "commerce",
+      "name": "orders",
+      "view_name": "orders",
+      "sql_table_name": "demo_project.sales.orders",
+      "joins": [],
+      "always_join": [],
+      "access_filters": [],
+      "access_filter_fields": [],
+      "sql_always_where": "",
+      "access_grants": [],
+      "required_access_grants": [],
+      "always_filter": [],
+      "conditionally_filter": [],
+      "fields": {
+        "dimensions": [
+          {"name": "orders.region", "view": "orders", "type": "string",
+           "sql": "${TABLE}.region", "sql_case": null, "dimension_group": null},
+          {"name": "orders.amount", "view": "orders", "type": "number",
+           "sql": "${TABLE}.amount", "sql_case": null, "dimension_group": null}
+        ],
+        "measures": [
+          {"name": "orders.sales", "view": "orders", "type": "sum",
+           "sql": "${TABLE}.amount", "sql_case": null, "dimension_group": null,
+           "filters": []}
+        ],
+        "filters": [],
+        "parameters": []
+      }
+    }
+  ],
+  "dashboards": [
+    {
+      "title": "Revenue by Region",
+      "dashboard_filters": [],
+      "dashboard_elements": [
+        {
+          "title": "Sales by Region",
+          "query": {
+            "model": "commerce",
+            "view": "orders",
+            "fields": ["orders.region", "orders.sales"],
+            "filters": {},
+            "filter_expression": null,
+            "filter_config": null,
+            "pivots": [],
+            "fill_fields": [],
+            "dynamic_fields": null,
+            "has_table_calculations": false,
+            "sorts": [],
+            "total": false,
+            "row_total": null,
+            "subtotals": [],
+            "query_timezone": null,
+            "column_limit": null,
+            "limit": "-1",
+            "vis_config": {"type": "looker_bar"}
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+To exercise the three added mappings in one synthetic dashboard, replace the example's sole
+element with three copies and set each title, `query.fields` and entire `query.vis_config` as
+follows. Leave the other query evidence unchanged; do not invent empty evidence for real inputs.
+
+| Title | `query.fields` | `query.vis_config` |
+|---|---|---|
+| `Trend` | `["orders.region", "orders.sales"]` | `{"type": "looker_line"}` |
+| `Columns` | `["orders.region", "orders.sales"]` | `{"type": "looker_column"}` |
+| `KPI` | `["orders.sales"]` | `{"type": "single_value"}` |
+
+Install BQToFabric as in the local setup below. For generation, obtain a **trusted, compatible**
+[TableauToPowerBI](https://github.com/cyphou/TableauToPowerBI) 44.0.0 source checkout separately,
+with its compatible Python dependencies. It is not bundled. The adapter uses internal
+`powerbi_import` and `tableau_export` interfaces; missing or incompatible imports/APIs produce
+explicit errors, not an automatic fallback. For example, in PowerShell, point `PYTHONPATH` to
+the checkout root containing those two package directories:
+
+```powershell
+$tableauCheckout = "C:\path\to\trusted\TableauToPowerBI"
+$env:PYTHONPATH = "$tableauCheckout;$env:PYTHONPATH"
+
+bqtofabric import-looker-api inventory.json --payload looker.json --output imported.json
+bqtofabric generate-looker-powerbi imported.json --asset demo-project.looker.api_export --output review-project
+```
+
+On Bash, use `export PYTHONPATH="/path/to/trusted/TableauToPowerBI${PYTHONPATH:+:$PYTHONPATH}"`
+instead. For another project, replace `demo-project` in the selector with the inventory
+`project_id`: `PROJECT_ID.looker.api_export`. The generator also accepts an unambiguous exact
+asset name and `--project-name` (default `LookerMigration`).
+
+Import preserves the existing inventory and appends a component with `external_payload`
+provenance; it rejects a duplicate source ID. It creates a **new** output file and never
+overwrites inputs or an existing file. Generation requires a **new or empty** output directory
+and does not overwrite existing files. Use fresh paths for another run.
+
+Inspect `imported.json` component labels `looker_ingestion_report` and
+`looker_source_identifiers`: these are JSON strings with fixed-path/code diagnostics and
+validated identifiers respectively. Inspect `review-project/looker-powerbi-review.json` for
+`ingestion_diagnostics`, `issues`, `converted` and review status, alongside
+`LookerMigration.pbip`, `LookerMigration.SemanticModel/` and `LookerMigration.Report/`.
+If no model can be converted, generation returns a validation failure but saves the review JSON;
+it does not fabricate a project. Empty dashboard input can yield an empty review page.
+
+For the three-visual variant, inspect the `visual.json` files: the line and column charts project
+the `orders.region` column as `Category` and the `orders.sales` measure as `Y`; the card projects
+the measure as `Data`. Inspect their `queryRef` and `nativeQueryRef` bindings. To check
+reproducibility, generate again from the same imported inventory and project name into another
+fresh directory and compare relative paths and file bytes.
+
+The API importer accepts direct `${TABLE}.column` dimensions of type `string`, `number`, `yesno`
+or `date`, and unfiltered `sum`, `average`, `min`, `max` and `count_distinct` measures over a
+direct column. The generator requires an unambiguous declared dimension for that column; sum and
+average require a numeric dimension, min and max a numeric or date dimension.
+`count_distinct` uses `COALESCE(DISTINCTCOUNTNOBLANK(...), 0)`; a SQL-less `count` uses
+`COALESCE(COUNTROWS(...), 0)` for a directly authored canonical asset but is not normalized by
+the API importer. These expressions do not establish runtime equivalence.
+
+| Exact `vis_config.type` | Canonical type | PBIR `visualType` | Fields from one view |
+|---|---|---|---|
+| `looker_grid` | `table` | `tableEx` | One or more supported dimensions or measures |
+| `looker_bar` | `bar` | `clusteredBarChart` | Exactly one dimension and one measure |
+| `looker_line` | `line` | `lineChart` | Exactly one dimension and one measure |
+| `looker_column` | `column` | `clusteredColumnChart` | Exactly one dimension and one measure |
+| `single_value` | `card` | `cardVisual` | Exactly one measure and no dimension |
+
+`vis_config` must contain only `type`; any extra key, even with a null value, blocks the visual.
+Pages use a fixed grid of at most six visuals, not source layout.
+
+Joins/relationships, joined fields, filters, access controls, derived tables, arbitrary SQL,
+calculations, pivots, query shaping, non-unlimited limits, and other visual configurations are
+not migrated. Unsupported or missing filter, query-shaping, join, security or other context is
+diagnosed and prevents affected visuals from being emitted rather than silently dropping
+constraints. Diagnostics use fixed paths and codes rather than sensitive values. Unsupported
+fields may be omitted; review all diagnostics, including metadata and layout not migrated. Safe
+source table identifiers may be retained in the imported inventory, but not bound into the
+generated project. All generated partitions deliberately error on refresh; no credentials or
+deployment are provided. The deterministic output is review-only: runtime, precision,
+source/target parity and security have not been validated, and an offline structural check is
+not a Desktop open or refresh test.
+
 ## Test the assessment locally
 
 The committed fixture provides a deterministic offline smoke test for the complete assessment
@@ -90,6 +361,21 @@ python -m pytest tests/test_connectivity_enabler.py tests/test_repair_loop.py te
 
 These results are planning evidence only. They do not prove Fabric connectivity, identity binding,
 runtime parity, or deployment readiness.
+
+### Compare canonical inventories offline
+
+`inventory-drift` compares two validated canonical inventory files without contacting GCP or
+writing files itself. Both files must be validated canonical inventories for the same project.
+For example, redirect its JSON stdout to save the report:
+
+```powershell
+bqtofabric inventory-drift baseline.json current.json > drift.json
+```
+
+The deterministic JSON report contains `baselineProject`, `currentProject`, `added`,
+`removed`, `changed`, and `status`. Each `changed` entry includes the differing field paths;
+property values are never copied into the report. Review `drift.json` as offline comparison
+evidence only: it does not verify live discovery or establish why an inventory changed.
 
 ### Run the opt-in live GCP discovery gate
 
@@ -383,7 +669,7 @@ and never print provider response bodies. Regional adapters never scan all regio
 | Workflows | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Pub/Sub | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Cloud Storage (GCS) | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
-| Looker | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
+| Looker | No | — | No | Live adapter and permission contract not yet implemented | Offline assessment and bounded review-only Power BI scaffold |
 | Vertex AI | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Dataplex | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
 | Cloud SQL | No | — | No | Live adapter and permission contract not yet implemented | Canonical/offline assessment type only |
@@ -397,7 +683,8 @@ enabled, then have a security administrator verify the relevant least-privilege 
 matrix. Do not add credentials, tokens, or service-account keys to the inventory or command line.
 
 Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have offline
-normalization and assessment support only; they do not have live adapters. The live adapters that
+normalization and assessment support; they do not have live adapters. Looker also has the bounded
+offline review-only Power BI scaffold above. The live adapters that
 do exist are opt-in per flag and, for Dataflow, Dataproc, and Composer, per region. Each requested
 region must have separately validated read-only visibility. Extraction triggers no deployment
 behavior.

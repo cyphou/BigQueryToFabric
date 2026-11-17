@@ -242,7 +242,7 @@ flowchart LR
 | P11 Offline adapter breadth | Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner ingest from exported metadata | Extractor | Each source has a fixture traced to its documented API shape and evidence rules in assessment | **Implemented** |
 | P12 Governance and identity mapping | Policy tags, row access, authorized views, and IAM become reviewed Fabric security proposals | ConnectivityEnabler | Every security object has a mapping and compatibility; effective access stays `not_recorded` | **Implemented**; Reviewer checklist open |
 | P13 Semantic and AI workloads | LookML, BQML, and Vertex AI produce semantic-model and Data Science scaffolds | FabricGenerator | Semantic models validate structurally; DAX appears only in measures; ML scaffolds are review-only | **Implemented** in specs; generated notebooks open |
-| P14 Live discovery verification | The five live adapters are verified read-only against an authorized GCP sandbox | Extractor | Sandbox run recorded as evidence; drift against offline fixtures is reported, not silently absorbed | Blocked: GCP sandbox. Drift report ready |
+| P14 Live discovery verification | The five live adapters are verified read-only against an authorized GCP sandbox | Extractor | Sandbox run recorded as evidence; drift against offline fixtures is reported, not silently absorbed | Offline drift CLI/report preparation implemented and tested; authorized GCP sandbox gate remains blocked |
 | P15 Authenticated deployment pilot | One approved wave is deployed to an isolated Fabric workspace and rolled back | Deployer | Dry-run and apply manifests match; rollback and audit log verified; workspace torn down | Blocked: Fabric sandbox, P5 |
 | P16 dbt target | Dataform workflows and existing dbt-on-BigQuery projects become Fabric dbt job projects | Architect | Generated dbt project compiles offline; every model, test, and incremental config is traced to a source object | **Implemented**; runtime needs P15 sandbox |
 
@@ -419,6 +419,144 @@ involved. `Documentation` updates the roadmap and runbook at the end of every ph
   construct that can't be converted is listed. ML scaffolds are marked review-only and never claim
   model parity.
 
+#### Follow-on — Looker to Power BI (bounded offline slice implemented)
+
+- **Expected:** Extend P13 from a Looker assessment and semantic specification to an offline,
+  reviewable Power BI project: LookML models, views, explores, dimensions, measures, joins and
+  supplied dashboard definitions are traced to a TMDL semantic model and PBIR report in a PBIP
+  project. Preserve the existing BigQuery migration workflow; generation is deterministic,
+  secret-free and dry-run by default. Unknown semantic properties fail closed with value-free
+  diagnostics without discarding unrelated safe metadata or weakening the evidence gates.
+  The bounded API-response generator's supported visual mappings remain separate from the
+  offline LookML metadata normalizer, which does not generate visuals.
+- **Implemented:** Existing `import-export --service looker` handles list metadata; the separate
+  `import-looker-api` accepts a saved envelope of computed Explore and dashboard API responses,
+  not raw LookML. It appends one `looker_asset` with value-free ingestion diagnostics.
+  `generate-looker-powerbi` builds a bounded, review-only PBIP/TMDL/PBIR project using internal
+  PBIP/TMDL writers and PBIR projection finalization from a compatible external TableauToPowerBI
+  44.0.0 checkout. Exact API mappings are `looker_line` → `line` → `lineChart`, `looker_column` →
+  `column` → `clusteredColumnChart`, and `single_value` → `card` → `cardVisual`; existing
+  `looker_grid`/table and `looker_bar`/bar remain supported. Bar, line and column need exactly
+  one dimension and one measure; cards need one measure and no dimension, all from one view.
+  Extra `vis_config` keys, unsupported or missing query/filter/shaping evidence, joins, security
+  and unsupported context suppress affected visuals rather than dropping constraints; diagnostics
+  omit sensitive values. Missing, invalid or nonempty `sql_always_where`, `access_grants` or
+  `required_access_grants`, and unknown nonempty Explore context, also block visual conversion.
+  Count and distinct-count DAX coalesces blank to zero. Source binding is disabled and generated
+  partitions fail refresh. Linked Looks are diagnosed as `linked_look_not_migrated`. A manually
+  selected, partially normalized LookML-derived inventory can be supplied as assisted evidence;
+  this is not automated LookML ingestion. The previous P13 semantic specification and `redesign`
+  assessment remain separate from this generator. For the v1 LookML-derived metadata normalizer,
+  unknown semantic properties on an explore, field, dashboard or element emit value-free
+  `unsupported_input_property` diagnostics; the unknown key/value is not copied. A field with
+  unknown properties is omitted from candidate metadata, affected elements are marked unsupported,
+  and unrelated safe views/elements remain. The v1 contract, `external_payload` provenance and
+  security/model-context markers are preserved. This normalization does not emit visuals.
+- **Validated:** 223 passed, 0 skipped across `test_looker_lookml_export.py`,
+  `test_looker_api_export.py`, `test_looker_powerbi.py`, `test_cli_import_looker.py` and
+  `test_cli_looker_powerbi.py`; Ruff passed; Pyright reported 0 diagnostics; agent validation passed
+  (13 agents, 5 skills); `git diff --check` passed. An offline synthetic envelope
+  produced all three PBIR visuals with checked `Category`/`Y` and `Data` role/reference bindings
+  and byte-identical repeat output. TableauToPowerBI 44.0.0 static structure/openability checks
+  passed including all three visuals. `powerbi-report-author` 0.5.0 `validate --no-schema`
+  reported 0 errors and 0 warnings with Node network access blocked.
+  Separately, the public FAA dashboard imported with 9 ingestion diagnostics; its missing Explore
+  led to generation exit 5 with one `no_convertible_model` issue and no PBIP. Its two linked Looks
+  are diagnosed without values. The public assisted LookML subset validated, assessed and
+  generated with exit 0: one `user_id` column, no measures or migrated visuals because
+  evidence/context is missing or unsupported, 24 review issues, and
+  `ASSISTED_EVIDENCE_UNVERIFIED` for one assisted object. Four local report-structure checks and
+  a static openability check passed for that PBIP. Runtime and parity were `not_run`, security
+  `not_migrated_unverified`, source binding disabled, and generated partitions fail refresh.
+  An earlier full-suite run reported `python -m pytest`: 767 passed, 1 skipped;
+  `python -m ruff check src tests scripts`, `python -m pyright` and
+  `python scripts\validate_agents.py` passed (13 agents, 5 skills).
+- **Open:** Full LookML ingestion, joins, filters, access controls, complete semantic/visual
+  conversion and runtime validation remain open. Security equivalence and source/target parity
+  have not been proved. Remote JSON Schema validation was explicitly skipped; no Desktop opening,
+  runtime or refresh tests, deployed-security checks, real-data or visual parity checks, deployment
+  or cloud calls were performed. Static checks do not establish those outcomes. The overall Looker
+  exit gate remains open. Live Looker discovery is not implemented; any future read-only adapter
+  needs its own permission and sandbox gate and is not required for offline exports. The public
+  LookML files are only a subset with missing local dependencies;
+  their dataset default is overrideable, not proof of access. See the
+  [public examples](../examples/looker/README.md) and
+  [runbook](MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
+
+##### Follow-on slice 1 — Offline LookML-derived metadata normalizer
+
+- **Expected:** Define a deterministic, offline contract for supplied LookML-derived metadata,
+  require stable project-scoped identities, resolve dashboard dependencies by exact references,
+  and preserve reviewable provenance without treating missing metadata as evidence of absence.
+- **Implemented:** `normalize_looker_lookml_export` accepts
+  `bqtofabric.looker-lookml-export/1.0` and returns a `LOOKER_ASSET` with `external_payload`
+  provenance. Caller-supplied source IDs must use the exact project-scoped prefixes for explores,
+  fields, dashboards and elements; dashboard references resolve by exact source ID, not names or
+  order. Unknown semantic properties on an explore, field, dashboard or element emit value-free
+  `unsupported_input_property` diagnostics; the unknown key/value is not copied. Fields with
+  unknown properties are omitted from candidate metadata, affected elements are marked unsupported,
+  and unrelated safe views/elements remain. The v1 contract, `external_payload` provenance and
+  security/model-context markers are preserved. Diagnostics contain fixed paths and codes without
+  input values. The `import-looker-lookml` CLI accepts only the versioned pre-parsed offline JSON,
+  requires its `project_id` to match the canonical inventory, and deterministically appends one
+  `external_payload` Looker asset. It creates a new output without overwriting it or mutating inputs;
+  it does not parse raw LookML or call cloud APIs. Generation remains review-only and this
+  normalization does not generate visuals.
+- **Validated:** 223 passed, 0 skipped across `test_looker_lookml_export.py`,
+  `test_looker_api_export.py`, `test_looker_powerbi.py`, `test_cli_import_looker.py` and
+  `test_cli_looker_powerbi.py`; Ruff passed; Pyright reported 0 diagnostics; agent validation passed
+  (13 agents, 5 skills); `git diff --check` passed.
+- **Open:** Omitted metadata is not evidence of absence. Raw LookML parsing and broader semantic
+  and security conversion remain open; joins, filters, access controls and security, as well as
+  runtime, refresh and source/target parity, remain unverified and unproved. The overall Looker exit
+  gate remains open.
+
+**Reuse strategy — [TableauToPowerBI](https://github.com/cyphou/TableauToPowerBI)**
+
+| Candidate | Reuse in this project | Boundary |
+|---|---|---|
+| `powerbi_import/pbip_generator.py` and `tmdl_writers.py` | Implemented: external PBIP manifest and TMDL writers for bounded tables and measures | Internal interfaces tested against 44.0.0; no relationships or source-neutral versioned contract are provided |
+| `powerbi_import/visual_generator.py` and report packaging | Implemented: PBIR projection finalization with a Looker-specific table/bar/line/column/card adapter | Fixed review grid, not source layout or interactions; broader decoupling remains open |
+| `powerbi_import/validator.py`, `openability.py`, and quality/evidence modules | Evaluate shared structural validation, lineage and per-item review reporting | Adapt contracts and dependencies; a static pass does not prove Desktop open, refresh or parity |
+| Power Query M and connection utilities | Evaluate compatible connector emitters and safe connection references | Prefer the native Fabric BigQuery connector where applicable; never copy credentials or assume a source connection is usable |
+
+The checkout is not bundled or automatically installed; incompatible or missing interfaces fail
+explicitly. A maintained source-neutral contract, dependency/version management and
+license/attribution review remain open for broader reuse. Do not treat Tableau extraction,
+formula conversion, Tableau-specific semantics, deployment, UI, or automatic healing as
+source-neutral.
+
+**Further delivery slices (open beyond the bounded implementation above)**
+
+1. `Extractor` and `Architect`: follow-on slice 1 implements the v1 versioned offline normalizer
+   and CLI integration. Remaining coverage includes derived tables, SQL, joins, filters, parameters,
+   access controls, dependency cases, and missing/unsupported evidence. Raw LookML parsing remains
+   open. Use synthetic fixtures, including incomplete and conflicting references.
+2. `Architect` and `SqlConverter`: classify each construct as `direct`, `transform`, `redesign`
+   or `unsupported` with rationale. Map views/dimensions, explores/joins and supported measures;
+   track fanout, join cardinality, aggregate semantics, time zones, templated SQL, Liquid,
+   persistent derived tables and access filters as explicit risks. DAX is for semantic measures,
+   not ETL; SQL transformations remain SQL or Spark, with unresolved logic marked for review.
+3. `FabricGenerator`: integrate the approved source-neutral Power BI writers and generate a
+   traceable PBIP/TMDL/PBIR dry-run bundle. Map supported dashboard tiles, filters, layout and
+   interactions through a Looker-specific adapter; emit stable reason codes and manual-review
+   entries for unsupported features rather than fabricating equivalent visuals or security.
+4. `Tester` and `Reviewer`: extend focused mapping and end-to-end fixture tests beyond the bounded
+   slice for supported and unsupported constructs, referential integrity, deterministic bytes,
+   secret redaction, path confinement and invalid input. Validate generated PBIP structure
+   separately from optional authorized Desktop open/refresh, Looker-to-Power BI result and visual
+   parity, and Fabric deployment. Missing runtime evidence remains `not_run`; access-filter/RLS
+   equivalence requires explicit effective-access evidence.
+5. `Documentation` and `TechLead`: publish supported constructs, limitations, attribution and
+   operator instructions after validated slices; approve ownership, shared-component boundaries
+   and release gates before implementation or deployment.
+
+**Exit gate (open):** A synthetic multi-view Looker project with a dashboard produces a reproducible,
+secret-free PBIP whose model and report references pass the approved offline validators. Every
+input construct is traced to an output or a reason-coded manual-review item; unsupported security
+never appears equivalent by default. Offline validation, Desktop/refresh, value/visual parity and
+deployment are reported independently, with unexecuted checks `not_run`.
+
 #### P14 — Live discovery verification (blocked)
 
 - **Goal:** The BigQuery, Dataflow, Dataproc, Dataform, and Composer adapters are verified
@@ -429,7 +567,12 @@ involved. `Documentation` updates the roadmap and runbook at the end of every ph
   - `Assessor`: ingest the recorded evidence with `live` provenance.
   - `TechLead`: approve the sandbox scope.
   - `Orchestrator`: keep live runs behind `BQTOFABRIC_LIVE_GCP=1`.
-- **Offline prep allowed now:** a sandbox runbook and the drift-report format.
+- **Offline prep allowed now:** the sandbox runbook and deterministic drift-report format are
+  prepared. The `inventory-drift BASELINE CURRENT` CLI loads and validates both canonical
+  inventories with `JsonInventoryProvider`, compares them using `inventory_drift`, and prints
+  sorted JSON without network access or file writes. Its targeted CLI/helper tests passed.
+- **Still blocked:** the authorized read-only live GCP sandbox gate has not run. No live adapter
+  verification or live drift evidence is claimed.
 - **Exit gate:** A recorded run per adapter, drift reported as findings, and no credential in any
   output.
 
@@ -501,7 +644,7 @@ involved. `Documentation` updates the roadmap and runbook at the end of every ph
 | P11 | `exported_metadata.py` and `import-export` for eight services. New evidence contracts for `workflow`, `pubsub_topic`, `gcs_source`, and `dataplex_asset` | `tests/test_exported_metadata.py` and fixtures traced to API references | The reference score moved from 39 to 27 (see below) |
 | P12 | `security_mapping.py` (ConnectivityEnabler) and `security-proposals.json`. The RLS template is deny-all and disabled | `tests/test_security_mapping.py` | Reviewer acceptance checklist in `SECURITY.md` |
 | P13 | LookML aggregate-to-DAX measures, an unconverted list with reasons, and a Data Science scaffold with `modelParity: not_run` | `tests/test_semantic_ai_scaffolds.py` | Generated semantic-model measures and ML notebooks |
-| P14 prep | `inventory_drift.py` (Extractor) | `tests/test_inventory_drift.py` | The sandbox run itself |
+| P14 prep | `inventory_drift.py` and `inventory-drift` CLI (Extractor); deterministic offline JSON report | `tests/test_cli_inventory_drift.py`, `tests/test_inventory_drift.py`, and `tests/test_cli.py` (20 passed); Ruff passed on CLI/helper/these tests; Pyright 0 diagnostics | Authorized read-only GCP sandbox run and live drift evidence |
 | P16 | `FabricTarget.DBT_JOB`, `ObjectKind.DBT_PROJECT`, `DBT_JOB_PREVIEW` finding. `dbt_manifest.py` (Extractor) and `import-export --service dbt`. `generator/dbt_generator.py` (FabricGenerator) writes `fabric/dbt/<project>/` plus `dbt-conversion.json`. `validate_dbt_project` (Tester) checks refs, cycles, and secrets. The T-SQL converter now rewrites `DATE(x)` and ordinal `GROUP BY`, which it passed through unchanged before and which Fabric Warehouse rejects | `tests/test_dbt_target.py` | `{% if is_incremental() %}` and custom macros are flagged, not translated. Tests other than `unique` and `not_null` are listed, not generated. Nothing runs in Fabric |
 
 Every row passes the full gates: `pytest`, `ruff`, `pyright`, `validate_agents.py`, and

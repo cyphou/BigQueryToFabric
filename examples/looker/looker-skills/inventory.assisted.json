@@ -1,0 +1,95 @@
+{
+  "schema_version": "1.1",
+  "project_id": "enterprise_analytics",
+  "components": [
+    {
+      "source_id": "enterprise_analytics.looker.orders",
+      "name": "enterprise_analytics",
+      "kind": "looker_asset",
+      "discovered_from": "assisted",
+      "properties": {
+        "views": [
+          {
+            "name": "orders",
+            "sql_table_name": "@{DATASET_NAME}.orders",
+            "dimensions": [
+              {"name": "id", "type": "number", "sql": "${TABLE}.order_id", "primary_key": true},
+              {"name": "user_id", "type": "number", "sql": "${TABLE}.user_id"},
+              {"name": "product_id", "type": "number", "sql": "${order_items.product_id}"},
+              {"name": "status", "type": "string", "sql": "${TABLE}.status", "html": {"source_path": "views/refined/orders_rfn.view.lkml", "note": "Liquid conditional HTML formatting"}},
+              {"name": "sale_price", "type": "number", "sql": "${order_items.sale_price}"},
+              {"name": "created", "type": "time", "sql": "${TABLE}.created_at", "dimension_group": true, "timeframes": ["raw", "time", "date", "month", "year"]},
+              {"name": "dynamic_timeframe", "type": "string", "sql": {"source_path": "views/refined/orders_rfn.view.lkml", "note": "Liquid selects created_month or created_year using timeframe_selector"}},
+              {"name": "pop_period_group", "type": "string", "case": {"source_path": "views/refined/orders_rfn.view.lkml", "note": "Selected Period, Previous Period or Not in time period"}}
+            ]
+          }
+        ],
+        "measures": [
+          {"view": "orders", "name": "orders_count", "type": "count", "drill_fields": [], "links": [{"label": "📈 Orders Trend Over Time (Line)", "source_path": "views/refined/orders_rfn.view.lkml"}, {"label": "🍩 Orders breakdown by Status (Pie)", "source_path": "views/refined/orders_rfn.view.lkml"}]},
+          {"view": "orders", "name": "count", "type": "count", "drill_fields": ["order_drill_detail*"]},
+          {"view": "orders", "name": "total_revenue", "type": "sum", "sql": "${sale_price}", "sql_distinct_key": "${order_items.id}"},
+          {"view": "orders", "name": "revenue_total", "type": "sum", "sql": "${sale_price}", "sql_distinct_key": "${order_items.id}"},
+          {"view": "orders", "name": "orders_count_selected", "type": "count", "filters": {"pop_period_group": "Selected Period"}},
+          {"view": "orders", "name": "orders_count_previous", "type": "count", "filters": {"pop_period_group": "Previous Period"}},
+          {"view": "orders", "name": "orders_count_pop_change", "type": "number", "sql": "1.0 * (${orders_count_selected} - ${orders_count_previous}) / NULLIF(${orders_count_previous}, 0)", "html": {"source_path": "views/refined/orders_rfn.view.lkml", "note": "Liquid conditional HTML formatting"}}
+        ],
+        "explores": [
+          {
+            "model": "enterprise_analytics",
+            "name": "orders",
+            "view_name": "orders",
+            "source_path": "explores/orders.explore.lkml",
+            "fields": ["orders.allowed_fields*", "users.allowed_fields*", "order_items.allowed_fields*", "products.allowed_fields*", "user_order_facts.allowed_fields*", "order_status_summary.allowed_fields*"],
+            "credential_like_field_exclusion_redacted": true,
+            "aggregate_table": {"name": "monthly_sales_rollup", "dimensions": ["created_month", "status"], "measures": ["total_revenue", "count"], "datagroup_trigger": "daily_etl_sync"}
+          }
+        ],
+        "joins": [
+          {"name": "order_items", "type": "left_outer", "relationship": "one_to_many", "sql_on": "${orders.id} = ${order_items.order_id}"},
+          {"name": "users", "type": "left_outer", "relationship": "many_to_one", "sql_on": "${orders.user_id} = ${users.id}"},
+          {"name": "user_order_facts", "type": "left_outer", "relationship": "one_to_one", "sql_on": "${orders.user_id} = ${user_order_facts.user_id}"},
+          {"name": "products", "type": "left_outer", "relationship": "many_to_one", "sql_on": "${orders.product_id} = ${products.id}"},
+          {"name": "order_status_summary", "type": "left_outer", "relationship": "one_to_one", "sql_on": "${orders.status} = ${order_status_summary.status}"}
+        ],
+        "access_grants": [
+          {"name": "can_view_pii", "user_attribute": "department", "allowed_values": ["hr", "compliance"], "source_path": "enterprise_analytics.model.lkml"}
+        ],
+        "source_context": {
+          "source_root": "examples/looker/looker-skills",
+          "source_paths": ["manifest.lkml", "enterprise_analytics.model.lkml", "views/raw/orders.view.lkml", "views/refined/orders_rfn.view.lkml", "explores/orders.explore.lkml", "dashboards/ecommerce_overview.dashboard.lookml"],
+          "project_name": "enterprise_analytics",
+          "connection_constant": "CONNECTION_NAME",
+          "connection_default": "thelook_events",
+          "dataset_constant": "DATASET_NAME",
+          "dataset_default": "bigquery-public-data.thelook_ecommerce",
+          "constant_exports": "override_optional",
+          "refinement": "view +orders includes raw orders; refined sale_price references order_items rather than the raw table column",
+          "datagroup": "daily_etl_sync",
+          "filters": ["orders.status_filter", "orders.pop_date_filter"],
+          "parameters": ["orders.pop_compare_to", "orders.timeframe_selector"],
+          "liquid": ["orders.status HTML", "orders.dynamic_timeframe", "orders.pop_filter_start", "orders.pop_filter_end", "orders.pop_previous_start_date", "orders.orders_count_pop_change HTML", "orders.revenue_total_pop_change HTML", "manifest drill visualization constants"],
+          "unavailable_in_sample": ["views/refined/users_rfn.view.lkml", "views/refined/products_rfn.view.lkml", "views/refined/order_status_summary.view.lkml", "views/refined/user_order_facts.view.lkml", "views/refined/order_items_rfn.view.lkml"],
+          "selection_note": "Bounded selection, not a complete LookML parse. Source display metadata, drill URLs, most period-over-period fields and several measures are omitted; inspect source paths. No effective security, runtime, parity or actual constant overrides are inferred."
+        },
+        "dashboards": [
+          {
+            "name": "ecommerce_overview",
+            "title": "eCommerce Operations Overview",
+            "source_path": "dashboards/ecommerce_overview.dashboard.lookml",
+            "layout": "newspaper",
+            "filters": [{"name": "select_date", "title": "Select Date", "type": "field_filter", "model": "enterprise_analytics", "explore": "orders", "field": "orders.pop_date_filter", "ui_config": {"type": "advanced", "display": "inline"}}],
+            "elements": [
+              {"name": "navigation_bar", "type": "text", "body_text": {"source_path": "dashboards/ecommerce_overview.dashboard.lookml", "note": "HTML navigation bar"}, "row": 0, "col": 0, "width": 24, "height": 2},
+              {"name": "total_orders_scorecard", "title": "Total Orders", "type": "single_value", "view": "orders", "measures": ["orders_count_selected", "orders_count_pop_change"], "comparison_type": "change", "row": 2, "col": 0, "width": 6, "height": 4},
+              {"name": "total_revenue_scorecard", "title": "Total Revenue", "type": "single_value", "view": "orders", "measures": ["revenue_total"], "row": 2, "col": 6, "width": 6, "height": 4},
+              {"name": "active_users_scorecard", "title": "Total Users", "type": "single_value", "view": "users", "measures": ["users_count"], "row": 2, "col": 12, "width": 6, "height": 4},
+              {"name": "revenue_trend_chart", "title": "Daily Revenue Trend", "type": "looker_line", "view": "orders", "dimensions": ["created_date"], "measures": ["revenue_total"], "interpolation": "monotone", "row": 6, "col": 0, "width": 16, "height": 8},
+              {"name": "order_status_breakdown", "title": "Order Status Breakdown", "type": "looker_pie", "view": "orders", "dimensions": ["status"], "measures": ["orders_count"], "filters": {"orders.status": "-NULL"}, "inner_radius": 50, "row": 6, "col": 16, "width": 8, "height": 8},
+              {"name": "detailed_orders_grid", "title": "Recent Orders Detail", "type": "looker_grid", "source_fields": ["orders.id", "users.full_name", "orders.status", "orders.sale_price"], "sorts": ["orders.sale_price desc"], "limit": 50, "row": 14, "col": 0, "width": 24, "height": 8}
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

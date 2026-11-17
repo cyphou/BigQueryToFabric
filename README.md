@@ -64,6 +64,48 @@ deterministic dry-run artifacts. The deployment arrow is intentionally outside t
 	target SQL, validate official Fabric schemas, or establish runtime/data parity; manual parity
 	testing remains required for transformed SQL.
 
+### Offline Looker to Power BI slice
+
+- **Expected:** Turn saved Looker metadata into a reviewable Power BI project without cloud calls.
+- **Implemented:** `import-looker-api` normalizes saved API 4.0 Explore and dashboard responses
+	into one canonical `looker_asset`; `generate-looker-powerbi` emits a bounded PBIP/TMDL/PBIR
+	scaffold using the optional external TableauToPowerBI 44.0.0 backend and PBIR projection
+	finalizer. Exact `vis_config.type` mappings are `looker_line` → `line` → `lineChart`,
+	`looker_column` → `column` → `clusteredColumnChart`, and `single_value` → `card` →
+	`cardVisual`; existing `looker_grid` and `looker_bar` remain supported. Bar, line and column
+	require one dimension and one measure; cards require one measure and no dimension, all from
+	one view. Extra `vis_config` keys or unsupported/missing filter, query-shaping, join, security
+	or other context suppress affected visuals with value-free diagnostics. The project is
+	deterministic, review-only and unbound to its source. This path is separate from list-metadata
+	`import-export --service looker`.
+- **LookML-derived inventory import:**
+
+  ```text
+  bqtofabric import-looker-lookml INVENTORY --payload VERSIONED_EXPORT --output NEW_INVENTORY
+  ```
+
+  Accepts only `bqtofabric.looker-lookml-export/1.0` pre-parsed offline JSON with a matching
+  `project_id`. It deterministically appends one `external_payload` Looker asset, never overwrites
+  output or mutates inputs, and does not parse raw LookML or call cloud APIs. Saved API response
+  import remains the separate `bqtofabric import-looker-api` command.
+- **Validated:** The targeted Looker suite passed 203 tests with no skips; Ruff and Pyright passed.
+	An offline synthetic envelope produced three visuals with checked role/reference bindings and
+	byte-identical repeat output. TableauToPowerBI's static structure/openability checks passed
+	including all three; `powerbi-report-author` 0.5.0 `validate --no-schema` reported 0 errors
+	and 0 warnings with Node network access blocked. Separately, the public FAA dashboard has no
+	PBIP because the Explore is missing; the assisted LookML-derived inventory produces a PBIP
+	with one column, no measures and no visuals because evidence/context is missing or unsupported.
+	An earlier full-suite run reported 767 passed, 1 skipped; `validate_agents` passed.
+- **Open:** Raw LookML, joins, filters, security, comprehensive visuals and live Looker discovery
+	remain open. Aggregate, numeric and date semantics need runtime verification; generated
+	partitions deliberately fail refresh. Remote JSON Schema validation was explicitly skipped;
+	no Desktop opening, runtime or refresh tests, deployed-security checks, real-data or visual
+	parity checks, deployment or cloud calls were performed.
+
+For public sample provenance, reproducible offline commands and measured limitations, see
+[the Looker examples](examples/looker/README.md). For a synthetic API envelope and review steps,
+see [the Looker runbook](docs/MIGRATION_RUNBOOK.md#offline-looker-api-to-power-bi-review-project).
+
 ## 🧩 The Canonical Inventory
 
 The inventory is the stable boundary between discovery and planning. It holds source IDs, object
@@ -359,7 +401,8 @@ existing `runtime` classification is retained. `runtime_version` comes from the 
 and `not specified` as missing evidence.
 
 Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have **no** live
-adapter and remain offline payload normalization and assessment inputs only. Never place
+adapter and remain offline inputs. The bounded Looker Power BI scaffold described above is also
+generated offline. Never place
 credentials, tokens, service-account keys, or tenant/workspace secrets in inventories or generated
 artifacts.
 
@@ -556,7 +599,8 @@ non-destructive.
 > adapter exists, the sandbox verification does not. Regional adapters never scan all regions.
 
 Workflows, Pub/Sub, GCS, Looker, Vertex AI, Dataplex, Cloud SQL, and Spanner have **no** live
-adapter. They support offline payload normalization and assessment only.
+adapter. They support offline payload normalization and assessment; the bounded Looker Power BI
+scaffold also runs offline.
 
 Every canonical component records `discovered_from`. The canonical values are `inventory`,
 `bigquery_api`, `dataflow_api`, `composer_api`, `dataproc_api`, `dataform_api`, and
@@ -716,6 +760,7 @@ includes a rationale plus concrete follow-up actions. GoogleSQL is parsed as an 
 | `bqtofabric discover` | Inventory a live GCP project read-only, with credentials redacted |
 | `bqtofabric inventory` | Summarize datasets and components by source type |
 | `bqtofabric validate` | Validate the canonical inventory contract |
+| `bqtofabric inventory-drift BASELINE CURRENT` | Compare two same-project canonical inventories offline and print a deterministic drift report |
 | `bqtofabric assess` | Produce readiness, target, type, SQL, and risk evidence |
 | `bqtofabric map` | Print component-level Fabric decisions |
 | `bqtofabric plan` | Generate dependency-ordered migration waves |
